@@ -1,0 +1,17 @@
+name: perceiver-io
+channels:
+  - pytorch
+  - conda-forge
+dependencies:
+  - python=3.8
+  - cudatoolkit=10.2
+  - pytorch
+  - torchvision
+  - torchtext
+  - pytorch-lightning
+  - pip
+  - pip:
+    - lightning-bolts
+    - torchmetrics
+    - tokenizers
+    - einops
