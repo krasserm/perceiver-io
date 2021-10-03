@@ -3,7 +3,7 @@ import pytorch_lightning as pl
 
 from data import IMDBDataModule
 from perceiver import LitMLM, LitTextClassifier
-from train.utils import model_checkpoint_callback
+from train.utils import freeze, model_checkpoint_callback
 
 
 def main(args: argparse.Namespace):
@@ -11,21 +11,24 @@ def main(args: argparse.Namespace):
     data_module.prepare_data()
     data_module.setup()
 
-    pretrained = LitMLM.load_from_checkpoint(args.checkpoint, args=args, tokenizer=data_module.tokenizer)
-    pretrained_encoder = pretrained.model.encoder
+    if args.mlm_checkpoint:
+        lit_mlm = LitMLM.load_from_checkpoint(args.mlm_checkpoint, args=args, tokenizer=data_module.tokenizer)
 
-    # freeze encoder
-    for param in pretrained_encoder.parameters():
-        param.requires_grad = False
-    pretrained_encoder.eval()
+        if args.freeze_encoder:
+            freeze(lit_mlm.model.encoder)
 
-    model = LitTextClassifier(args, pretrained_encoder)
+        lit_clf = LitTextClassifier(args, encoder=lit_mlm.model.encoder)
+    elif args.clf_checkpoint:
+        lit_clf = LitTextClassifier.load_from_checkpoint(args.clf_checkpoint, args=args)
+    else:
+        lit_clf = LitTextClassifier(args)
+
     callbacks = model_checkpoint_callback(save_top_k=1)
     plugins = pl.plugins.DDPPlugin(find_unused_parameters=False)
     logger = pl.loggers.TensorBoardLogger("logs", name=args.experiment)
 
     trainer = pl.Trainer.from_argparse_args(args, plugins=plugins, callbacks=callbacks, logger=logger)
-    trainer.fit(model, data_module)
+    trainer.fit(lit_clf, data_module)
 
 
 if __name__ == '__main__':
@@ -36,9 +39,11 @@ if __name__ == '__main__':
 
     group = parser.add_argument_group('main')
     group.add_argument('--experiment', default='seq_clf', help=' ')
-    # checkpoint for MLM pretraining must be provided ...
-    group.add_argument('--checkpoint', required=True, help=' ')
-    # ignored at the moment i.e. dataset is hard-coded
+    group.add_argument('--freeze_encoder', default=False, action='store_true', help=' ')
+    group.add_argument('--mlm_checkpoint', help=' ')
+    group.add_argument('--clf_checkpoint', help=' ')
+
+    # Ignored at the moment, dataset is hard-coded ...
     group.add_argument('--dataset', default='imdb', choices=['imdb'], help=' ')
 
     parser.set_defaults(

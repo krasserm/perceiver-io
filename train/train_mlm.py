@@ -87,11 +87,12 @@ if __name__ == '__main__':
     parser = LitMLM.setup_parser(parser)
 
     group = parser.add_argument_group('main')
-    # ignored at the moment i.e. dataset is hard-coded
     group.add_argument('--experiment', default='mlm', help=' ')
     group.add_argument('--predict_samples', default=[], nargs='+', help=' ')
     group.add_argument('--predict_k', default=5, type=int, help=' ')
-    group.add_argument('--dataset', default='imdb', choices=['imdb'], help=' ')
+
+    # Ignored at the moment, dataset is hard-coded ...
+    group.add_argument('--dataset', default='imdb', choices=['imdb'], help=' ')  # ignored at the moment ...
 
     parser.set_defaults(
         num_latents=64,

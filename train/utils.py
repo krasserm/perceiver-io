@@ -1,4 +1,11 @@
+import torch.nn as nn
 import pytorch_lightning as pl
+
+
+def freeze(module: nn.Module):
+    for param in module.parameters():
+        param.requires_grad = False
+    module.eval()
 
 
 def model_checkpoint_callback(save_top_k=1):

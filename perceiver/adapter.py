@@ -33,10 +33,10 @@ class OutputAdapter(nn.Module):
 
 
 class ImageInputAdapter(InputAdapter):
-    def __init__(self, image_shape: Tuple[int, ...], num_bands: int):
+    def __init__(self, image_shape: Tuple[int, ...], num_frequency_bands: int):
         *self.spatial_shape, num_image_channels = image_shape
         self.image_shape = image_shape
-        self.num_bands = num_bands
+        self.num_frequency_bands = num_frequency_bands
 
         super().__init__(num_input_channels=num_image_channels + self._num_position_encoding_channels())
 
@@ -79,7 +79,7 @@ class ImageInputAdapter(InputAdapter):
         if max_frequencies is None:
             max_frequencies = p.shape[:-1]
 
-        frequencies = [torch.linspace(1.0, max_freq / 2.0, self.num_bands, device=p.device) for max_freq in max_frequencies]
+        frequencies = [torch.linspace(1.0, max_freq / 2.0, self.num_frequency_bands, device=p.device) for max_freq in max_frequencies]
         frequency_grids = []
 
         for i, frequencies_i in enumerate(frequencies):
@@ -94,7 +94,7 @@ class ImageInputAdapter(InputAdapter):
         return torch.cat(encodings, dim=-1)
 
     def _num_position_encoding_channels(self, include_positions: bool = True) -> int:
-        return len(self.spatial_shape) * (2 * self.num_bands + include_positions)
+        return len(self.spatial_shape) * (2 * self.num_frequency_bands + include_positions)
 
     def forward(self, x):
         b, *d = x.shape

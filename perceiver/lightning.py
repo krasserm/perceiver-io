@@ -200,7 +200,7 @@ class LitImageClassifier(LitClassifier):
 
         input_adapter = ImageInputAdapter(
             image_shape=image_shape,
-            num_bands=args.num_frequency_bands)
+            num_frequency_bands=args.num_frequency_bands)
         encoder = PerceiverEncoder(
             input_adapter=input_adapter,
             latent_shape=latent_shape,

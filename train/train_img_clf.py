@@ -26,7 +26,8 @@ if __name__ == '__main__':
 
     group = parser.add_argument_group('main')
     group.add_argument('--experiment', default='img_clf', help=' ')
-    # ignored at the moment i.e. dataset is hard-coded
+
+    # Ignored at the moment, dataset is hard-coded ...
     group.add_argument('--dataset', default='mnist', choices=['mnist'], help=' ')
 
     parser.set_defaults(
