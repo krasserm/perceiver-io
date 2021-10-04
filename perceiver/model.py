@@ -75,6 +75,11 @@ class MultiHeadAttention(nn.Module):
 
 
 class CrossAttention(nn.Module):
+    # Simplified version of cross-attention module described in https://arxiv.org/abs/2103.03206.
+    # Here, the embedding dimension is determined by the number of query channels (num_q_channels)
+    # whereas in the paper it can be specified separately. This simplification allows re-use of the
+    # torch.nn.MultiHeadAttention module whereas a full implementation of the paper would require a
+    # custom multi-head attention implementation.
     def __init__(self,
                  num_q_channels: int,
                  num_kv_channels: int,
@@ -120,6 +125,21 @@ class PerceiverEncoder(nn.Module):
                  num_self_attention_heads: int = 4,
                  num_self_attention_layers_per_block: int = 2,
                  dropout: float = 0.0):
+        """
+        Generic Perceiver IO encoder.
+
+        :param input_adapter: Transforms and position-encodes task-specific input to an encoder input of shape
+                              (B, M, C_input) where B is the batch size, M the input sequence length and C_input
+                              the number of input channels.
+        :param latent_shape: Shape of the latent array, (N, C_latent), where N is the number of latent variables
+                             and C_latent the number of latent channels.
+        :param num_layers: Number of encoder layers. An encoder layer is composed of a cross-attention layer and
+                           several self-attention layers (= a self-attention block).
+        :param num_cross_attention_heads: Number of cross-attention heads.
+        :param num_self_attention_heads: Number of self-attention heads.
+        :param num_self_attention_layers_per_block: Number of self-attention layers per self-attention block.
+        :param dropout: Dropout for self- and cross-attention layers and residuals.
+        """
         super().__init__()
 
         self.input_adapter = input_adapter
@@ -175,6 +195,18 @@ class PerceiverDecoder(nn.Module):
                  latent_shape: Tuple[int, int],  # as produced by perceiver encoder
                  num_cross_attention_heads: int = 4,
                  dropout: float = 0.0):
+        """
+        Generic Perceiver IO decoder.
+
+        :param output_adapter: Transforms generic decoder output of shape (B, K, C_output) to task-specific
+                               output. B is the batch size, K the output sequence length and C_output the
+                               number of output channels. (K, C_output) is specified via the output_shape
+                               property of the output_adapter.
+        :param latent_shape: Shape of the latent array, (N, C_latent), as producer by a Perceiver IO encoder,
+                             where N is the number of latent variables and C_latent the number of latent channels.
+        :param num_cross_attention_heads: Number of cross-attention heads.
+        :param dropout: Dropout for cross-attention layers and residuals.
+        """
         super().__init__()
 
         num_latent_channels = latent_shape[1]
@@ -212,6 +244,9 @@ class TextMasking(nn.Module):
                  mask_token_id: int,
                  num_special_tokens: int = 3,
                  mask_p: float = 0.15):
+        """
+        Text masking as described in https://arxiv.org/abs/1810.04805.
+        """
         super().__init__()
         self.vocab_size = vocab_size
         self.unk_token_id = unk_token_id
