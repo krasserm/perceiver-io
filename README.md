@@ -31,8 +31,9 @@ Pretrain a Perceiver IO model on masked language modeling (MLM) with text from t
 pretrained encoder is then used for training a [sentiment classification](#sentiment-classification) model. 
 
 ```shell
-python train/train_mlm.py --dataset=imdb --learning_rate=1e-3 --batch_size=64 --max_epochs=200 --dropout=0.0 \
-  --weight_decay=0.0 --accelerator=ddp --gpus=-1
+python train/train_mlm.py --dataset=imdb --learning_rate=1e-3 --batch_size=64 \
+  --max_epochs=200 --dropout=0.0 --weight_decay=0.0 \
+  --accelerator=ddp --gpus=-1
 ```
 
 All available command line options and their default values can be displayed with `python train/train_mlm.py -h`.
@@ -45,9 +46,10 @@ checkpoints from [here](https://martin-krasser.com/perceiver/logs.zip) and extra
 this project. 
 
 ```shell
-python train/train_seq_clf.py --dataset=imdb --learning_rate=1e-3 --batch_size=128 --max_epochs=15 --dropout=0.0 \
-  --weight_decay=1e-3 --mlm_checkpoint 'logs/mlm/version_0/checkpoints/epoch=199-val_loss=4.899.ckpt' \ 
-  --accelerator=ddp --gpus=-1 --freeze_encoder    
+python train/train_seq_clf.py --dataset=imdb --learning_rate=1e-3 --batch_size=128 \
+  --max_epochs=15 --dropout=0.0 --weight_decay=1e-3 --freeze_encoder \
+  --accelerator=ddp --gpus=-1 \
+  --mlm_checkpoint 'logs/mlm/version_0/checkpoints/epoch=199-val_loss=4.899.ckpt'
 ```
 
 Unfreeze the encoder and jointly fine-tune it together with the decoder that has been trained in the previous step.
@@ -55,9 +57,10 @@ If you ran the previous step yourself you'll need to modify the `--clf_checkpoin
 download checkpoints from [here](https://martin-krasser.com/perceiver/logs.zip).
 
 ```shell
-python train/train_seq_clf.py --dataset=imdb --learning_rate=1e-4 --batch_size=128 --max_epochs=15 --dropout=0.2 \
-  --weight_decay=1e-3 --clf_checkpoint 'logs/seq_clf/version_0/checkpoints/epoch=014-val_loss=0.350.ckpt' \
-  --accelerator=ddp --gpus=-1
+python train/train_seq_clf.py --dataset=imdb --learning_rate=1e-4 --batch_size=128 \
+  --max_epochs=15 --dropout=0.2 --weight_decay=1e-3 \
+  --accelerator=ddp --gpus=-1 \
+  --clf_checkpoint 'logs/seq_clf/version_0/checkpoints/epoch=014-val_loss=0.350.ckpt'
 ```
 
 All available command line options and their default values can be displayed with `python train/train_seq_clf.py -h`. 
@@ -67,8 +70,9 @@ All available command line options and their default values can be displayed wit
 Classify MNIST images. See also [Model API](#model-api) for details about the underlying Perceiver IO model. 
 
 ```shell
-python train/train_img_clf.py --dataset=mnist --learning_rate=1e-3 --batch_size=128 --max_epochs=20 --dropout=0.0 \
-  --weight_decay=1e-4 --accelerator=ddp --gpus=-1
+python train/train_img_clf.py --dataset=mnist --learning_rate=1e-3 --batch_size=128 \
+  --max_epochs=20 --dropout=0.0 --weight_decay=1e-4 \
+  --accelerator=ddp --gpus=-1
 ```
 
 All available command line options and their default values can be displayed with `python train/train_img_clf.py -h`. 
@@ -79,7 +83,7 @@ The [model](perceiver/model.py) API is based on generic encoder and decoder clas
 `PerceiverDecoder`) and task-specific input and output [adapters](perceiver/adapter.py). The following snippet 
 shows how they can be used to create an MNIST image classifier, for example:
 
-```shell
+```python
 from perceiver.adapter import ImageInputAdapter, ClassificationOutputAdapter
 from perceiver.model import PerceiverIO, PerceiverEncoder, PerceiverDecoder
 
@@ -119,9 +123,10 @@ Commands in section [Tasks](#tasks) write Tensorboard logs to the `logs` directo
 `TEXT` page. For example, the command
 
 ```shell
-python train/train_mlm.py --dataset=imdb --learning_rate=1e-3 --batch_size=64 --max_epochs=200 --dropout=0.0 \
-  --weight_decay=0.0 --accelerator=ddp --gpus=-1 --predict_samples='i have watched this [MASK] and it was awesome' \
-  --predict_k=5
+python train/train_mlm.py --dataset=imdb --learning_rate=1e-3 --batch_size=64 \
+  --max_epochs=200 --dropout=0.0 --weight_decay=0.0 \
+  --accelerator=ddp --gpus=-1 --predict_k=5 \
+  --predict_samples='i have watched this [MASK] and it was awesome'  
 ```
 
 writes the top 5 predictions for `I have watched this [MASK] and it was awesome` to Tensorboard after each epoch:
