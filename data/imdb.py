@@ -30,7 +30,7 @@ def load_split(root, split):
     for i, label in enumerate(['neg', 'pos']):
         path_pattern = os.path.join(root, f'IMDB/aclImdb/{split}/{label}', '*.txt')
         for name in glob.glob(path_pattern):
-            with open(name) as f:
+            with open(name, encoding='utf-8') as f:
                 raw_x.append(f.read())
                 raw_y.append(i)
 
