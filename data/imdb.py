@@ -2,7 +2,6 @@ import argparse
 import glob
 import os
 import torch
-import numpy as np
 import pytorch_lightning as pl
 
 from torch.utils.data import Dataset, DataLoader
@@ -13,8 +12,12 @@ from perceiver.tokenizer import (
     create_tokenizer,
     train_tokenizer,
     save_tokenizer,
-    load_tokenizer
+    load_tokenizer,
+    PAD_TOKEN
 )
+
+
+os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 
 
 def load_split(root, split):
@@ -35,34 +38,33 @@ def load_split(root, split):
 
 
 class IMDBDataset(Dataset):
-    def __init__(self, root, split, max_seq_len, tokenizer: Tokenizer):
+    def __init__(self, root, split):
         self.raw_x, self.raw_y = load_split(root, split)
-        self.max_seq_len = max_seq_len
-
-        self.tokenizer = tokenizer
-        self.pad_token_id = self.tokenizer.token_to_id('[PAD]')
 
     def __len__(self):
         return len(self.raw_x)
 
     def __getitem__(self, index):
-        y = torch.tensor(self.raw_y[index], dtype=torch.long)
-        x_ids, pad_mask = self.encode(self.raw_x[index])
-        return y, x_ids, pad_mask
+        return self.raw_y[index], self.raw_x[index]
+
+
+class Collator:
+    def __init__(self, tokenizer: Tokenizer, max_seq_len: int):
+        self.pad_id = tokenizer.token_to_id(PAD_TOKEN)
+        self.tokenizer = tokenizer
+        self.tokenizer.enable_padding(pad_id=self.pad_id, pad_token=PAD_TOKEN, length=max_seq_len)
+        self.tokenizer.enable_truncation(max_length=max_seq_len)
+
+    def collate(self, batch):
+        ys, xs = zip(*batch)
+        xs_ids = [x.ids for x in self.tokenizer.encode_batch(xs)]
+        xs_ids = torch.tensor(xs_ids)
+        pad_mask = xs_ids == self.pad_id
+        return torch.tensor(ys), xs_ids, pad_mask
 
     def encode(self, x):
-        # TODO: consider encoding a random span in later implementations (for MLM)
-        x_ids = self.tokenizer.encode(x, add_special_tokens=True).ids[:self.max_seq_len]
-
-        seq_len = len(x_ids)
-        pad_len = self.max_seq_len - seq_len
-
-        x_ids = np.pad(x_ids, pad_width=(0, pad_len), constant_values=self.pad_token_id)
-
-        pad_mask = torch.ones(self.max_seq_len, dtype=torch.bool)
-        pad_mask[:seq_len] = 0
-
-        return torch.from_numpy(x_ids), pad_mask
+        _, xs_ids, pad_mask = self.collate([(0, x)])
+        return xs_ids[0], pad_mask[0]
 
 
 class IMDBDataModule(pl.LightningDataModule):
@@ -84,8 +86,9 @@ class IMDBDataModule(pl.LightningDataModule):
         self.ds_train = None
         self.ds_valid = None
 
-        self.tokenizer = None
         self.tokenizer_path = os.path.join(self.root, f'imdb-tokenizer-{vocab_size}.json')
+        self.tokenizer = None
+        self.collator = None
 
     @classmethod
     def create(cls, args: argparse.Namespace):
@@ -123,18 +126,15 @@ class IMDBDataModule(pl.LightningDataModule):
 
     def setup(self, stage=None):
         self.tokenizer = load_tokenizer(self.tokenizer_path)
-        self.ds_train = IMDBDataset(root=self.root,
-                                    split='train',
-                                    max_seq_len=self.max_seq_len,
-                                    tokenizer=self.tokenizer)
-        self.ds_valid = IMDBDataset(root=self.root,
-                                    split='test',
-                                    max_seq_len=self.max_seq_len,
-                                    tokenizer=self.tokenizer)
+        self.collator = Collator(self.tokenizer, self.max_seq_len)
+
+        self.ds_train = IMDBDataset(root=self.root, split='train')
+        self.ds_valid = IMDBDataset(root=self.root, split='test')
 
     def train_dataloader(self):
         return DataLoader(self.ds_train,
                           shuffle=True,
+                          collate_fn=self.collator.collate,
                           batch_size=self.batch_size,
                           num_workers=self.num_workers,
                           pin_memory=self.pin_memory)
@@ -142,6 +142,7 @@ class IMDBDataModule(pl.LightningDataModule):
     def val_dataloader(self):
         return DataLoader(self.ds_valid,
                           shuffle=False,
+                          collate_fn=self.collator.collate,
                           batch_size=self.batch_size,
                           num_workers=self.num_workers,
                           pin_memory=self.pin_memory)

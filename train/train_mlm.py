@@ -53,7 +53,7 @@ class LitMLM(perceiver.LitMLM):
         dm = self.trainer.datamodule
 
         predictions = predict_samples(samples=self.samples,
-                                      encode_fn=dm.ds_train.encode,
+                                      encode_fn=dm.collator.encode,
                                       tokenizer=dm.tokenizer,
                                       model=self.model,
                                       device=self.device,
