@@ -7,6 +7,7 @@ import pytorch_lightning as pl
 from torch.utils.data import Dataset, DataLoader
 from torchtext.datasets import IMDB
 from tokenizers import Tokenizer
+from tokenizers.normalizers import Replace
 
 from perceiver.tokenizer import (
     create_tokenizer,
@@ -120,7 +121,7 @@ class IMDBDataModule(pl.LightningDataModule):
             raw_x, _ = load_split(root=self.root, split='train')
 
             # train and save tokenizer
-            tokenizer = create_tokenizer()
+            tokenizer = create_tokenizer(Replace('<br />', ' '))
             train_tokenizer(tokenizer, data=raw_x, vocab_size=self.vocab_size)
             save_tokenizer(tokenizer, self.tokenizer_path)
 

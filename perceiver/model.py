@@ -242,7 +242,7 @@ class TextMasking(nn.Module):
                  vocab_size: int,
                  unk_token_id: int,
                  mask_token_id: int,
-                 num_special_tokens: int = 3,
+                 num_special_tokens: int,
                  mask_p: float = 0.15):
         """
         Text masking as described in https://arxiv.org/abs/1810.04805.
@@ -280,6 +280,9 @@ class TextMasking(nn.Module):
         is_selected_1 = is_selected & (torch.rand_like(x, dtype=torch.float) < 0.9)
         is_selected_2 = is_selected_1 & (torch.rand_like(x, dtype=torch.float) < 1 / 9)
         x[is_selected_1] = self.mask_token_id
+
+        # Based on the assumption that the id of the first
+        # non-special token is self.num_special_tokens
         x[is_selected_2] = torch.randint(self.num_special_tokens,
                                          self.vocab_size,
                                          size=(is_selected_2.sum(),),
