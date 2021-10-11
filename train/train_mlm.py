@@ -11,17 +11,7 @@ from train.utils import model_checkpoint_callback
 def predict_samples(samples, encode_fn, tokenizer, model, device=None, k=5):
     n = len(samples)
 
-    x_is = []
-    m_is = []
-
-    for sample in samples:
-        x_i, m_i = encode_fn(sample)
-        x_is.append(x_i)
-        m_is.append(m_i)
-
-    xs = torch.stack(x_is, dim=0)
-    ms = torch.stack(m_is, dim=0)
-
+    xs, ms = encode_fn(samples)
     xs = xs.to(device)
     ms = ms.to(device)
 
@@ -108,6 +98,6 @@ if __name__ == '__main__':
         accelerator='ddp',
         default_root_dir='logs',
         predict_samples=['I have watched this [MASK] and it was awesome',
-                         'I have [MASK] this movie and [MASK] was terrible'])
+                         'I have [MASK] this movie and [MASK] was really terrible'])
 
     main(parser.parse_args())

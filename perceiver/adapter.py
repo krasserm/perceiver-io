@@ -125,10 +125,10 @@ class TextInputAdapter(InputAdapter):
             self.pos_encoding.uniform_(-0.5, 0.5)
 
     def forward(self, x):
-        b, *_ = x.shape
+        b, l = x.shape
 
         # repeat position encodings along batch dimension
-        p_enc = repeat(self.pos_encoding, '... -> b ...', b=b)
+        p_enc = repeat(self.pos_encoding[:l], '... -> b ...', b=b)
 
         return self.text_embedding(x) * self.scale + p_enc
 
@@ -154,7 +154,6 @@ class TextOutputAdapter(ClassificationOutputAdapter):
                  vocab_size: int,
                  max_seq_len: int,
                  num_output_channels: Optional[int] = None):
-        super().__init__(
-                         num_classes=vocab_size,
+        super().__init__(num_classes=vocab_size,
                          num_outputs=max_seq_len,
                          num_output_channels=num_output_channels)

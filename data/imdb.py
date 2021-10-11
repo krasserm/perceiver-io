@@ -53,7 +53,7 @@ class Collator:
     def __init__(self, tokenizer: Tokenizer, max_seq_len: int):
         self.pad_id = tokenizer.token_to_id(PAD_TOKEN)
         self.tokenizer = tokenizer
-        self.tokenizer.enable_padding(pad_id=self.pad_id, pad_token=PAD_TOKEN, length=max_seq_len)
+        self.tokenizer.enable_padding(pad_id=self.pad_id, pad_token=PAD_TOKEN)
         self.tokenizer.enable_truncation(max_length=max_seq_len)
 
     def collate(self, batch):
@@ -63,9 +63,9 @@ class Collator:
         pad_mask = xs_ids == self.pad_id
         return torch.tensor(ys), xs_ids, pad_mask
 
-    def encode(self, x):
-        _, xs_ids, pad_mask = self.collate([(0, x)])
-        return xs_ids[0], pad_mask[0]
+    def encode(self, samples):
+        batch = [(0, sample) for sample in samples]
+        return self.collate(batch)[1:]
 
 
 class IMDBDataModule(pl.LightningDataModule):

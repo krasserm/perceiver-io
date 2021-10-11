@@ -304,6 +304,8 @@ class PerceiverMLM(nn.Module):
         self.masking = masking
 
     def forward(self, x_input, pad_mask=None, masking=True):
+        _, l = x_input.shape
+
         if masking:
             x_masked, x_labels = self.masking(x_input, pad_mask)
         else:
@@ -311,7 +313,7 @@ class PerceiverMLM(nn.Module):
             x_labels = None
 
         x_latent = self.encoder(x_masked, pad_mask)
-        x_logits = self.decoder(x_latent)
+        x_logits = self.decoder(x_latent)[:, :l, :]
 
         return x_logits, x_labels
 

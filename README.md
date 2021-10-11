@@ -31,8 +31,9 @@ Pretrain a Perceiver IO model on masked language modeling (MLM) with text from t
 pretrained encoder is then used for training a [sentiment classification](#sentiment-classification) model. 
 
 ```shell
-python train/train_mlm.py --dataset=imdb --learning_rate=1e-3 --batch_size=64 \
-  --max_epochs=200 --dropout=0.0 --weight_decay=0.0 \
+python train/train_mlm.py --dataset=imdb --learning_rate=1e-3 \
+  --max_epochs=200 --max_seq_len=512 --batch_size=64 \
+  --dropout=0.0 --weight_decay=0.0 \
   --accelerator=ddp --gpus=-1
 ```
 
@@ -46,8 +47,9 @@ checkpoints from [here](https://martin-krasser.com/perceiver/logs.zip) and extra
 this project. 
 
 ```shell
-python train/train_seq_clf.py --dataset=imdb --learning_rate=1e-3 --batch_size=128 \
-  --max_epochs=15 --dropout=0.0 --weight_decay=1e-3 --freeze_encoder \
+python train/train_seq_clf.py --dataset=imdb --learning_rate=1e-3 \
+  --max_epochs=15 --max_seq_len=512 --batch_size=128 \
+  --dropout=0.0 --weight_decay=1e-3 --freeze_encoder \
   --accelerator=ddp --gpus=-1 \
   --mlm_checkpoint 'logs/mlm/version_0/checkpoints/epoch=199-val_loss=4.899.ckpt'
 ```
@@ -57,8 +59,9 @@ If you ran the previous step yourself you'll need to modify the `--clf_checkpoin
 download checkpoints from [here](https://martin-krasser.com/perceiver/logs.zip).
 
 ```shell
-python train/train_seq_clf.py --dataset=imdb --learning_rate=1e-4 --batch_size=128 \
-  --max_epochs=15 --dropout=0.2 --weight_decay=1e-3 \
+python train/train_seq_clf.py --dataset=imdb --learning_rate=1e-4 \
+  --max_epochs=15  --max_seq_len=512 --batch_size=128 \
+  --dropout=0.2 --weight_decay=1e-3 \
   --accelerator=ddp --gpus=-1 \
   --clf_checkpoint 'logs/seq_clf/version_0/checkpoints/epoch=014-val_loss=0.350.ckpt'
 ```
@@ -118,18 +121,17 @@ mnist_classifier = PerceiverIO(encoder, decoder)
 
 ## Tensorboard
 
-Commands in section [Tasks](#tasks) write Tensorboard logs to the `logs` directory. They can be visualized with
-`tensorboard --logir logs`. MLM training additionally writes predictions of masked sample text to Tensorboard's 
-`TEXT` page. For example, the command
+Commands in section [Tasks](#tasks) write training progress and hyper-parameters to the `logs` directory. This can be
+visualized with `tensorboard --logir logs`. When using the command line options `--predict_samples` and `--predict_k`, 
+MLM training additionally writes predictions of user-defined masked sample text. For example,
 
 ```shell
-python train/train_mlm.py --dataset=imdb --learning_rate=1e-3 --batch_size=64 \
-  --max_epochs=200 --dropout=0.0 --weight_decay=0.0 \
-  --accelerator=ddp --gpus=-1 --predict_k=5 \
-  --predict_samples='i have watched this [MASK] and it was awesome'  
+python train/train_mlm.py ... --predict_k=5 \
+    --predict_samples='i have watched this [MASK] and it was awesome'  
 ```
 
-writes the top 5 predictions for `I have watched this [MASK] and it was awesome` to Tensorboard after each epoch:
+writes the top 5 predictions for `I have watched this [MASK] and it was awesome` to Tensorboard's `TEXT` page after 
+each epoch:
 
 ```
 i have watched this [MASK] and it was awesome
