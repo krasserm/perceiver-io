@@ -43,18 +43,19 @@ class LitModel(pl.LightningModule):
     def __init__(self, args):
         super().__init__()
         self.save_hyperparameters(args)
-        self.learning_rate = self.hparams.learning_rate
-        self.weight_decay = self.hparams.weight_decay
+        self.args = args
 
     @classmethod
     def setup_parser(cls, parser):
         group = parser.add_argument_group('optimizer')
+        group.add_argument('--optimizer', default='Adam', choices=['Adam', 'AdamW'], help=' ')
         group.add_argument('--learning_rate', default=1e-3, type=float, help=' ')
         group.add_argument('--weight_decay', default=0.0, type=float, help=' ')
         return parser
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
+        optimizer_class = getattr(torch.optim, self.args.optimizer)
+        return optimizer_class(self.parameters(), lr=self.args.learning_rate, weight_decay=self.args.weight_decay)
 
 
 class LitMLM(LitModel):
