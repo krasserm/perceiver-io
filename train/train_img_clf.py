@@ -3,16 +3,25 @@ import pytorch_lightning as pl
 
 from data import MNISTDataModule
 from perceiver import LitImageClassifier
-from train.utils import model_checkpoint_callback
+from train.utils import (
+    model_checkpoint_callback,
+    learning_rate_monitor_callback
+)
 
 
 def main(args: argparse.Namespace):
     data_module = MNISTDataModule.create(args)
 
-    model = LitImageClassifier(args, image_shape=data_module.dims, num_classes=data_module.num_classes)
-    callbacks = model_checkpoint_callback(save_top_k=1)
+    model = LitImageClassifier(args,
+                               image_shape=data_module.dims,
+                               num_classes=data_module.num_classes)
+
     plugins = pl.plugins.DDPPlugin(find_unused_parameters=False)
     logger = pl.loggers.TensorBoardLogger("logs", name=args.experiment)
+    callbacks = [model_checkpoint_callback(save_top_k=1)]
+
+    if args.one_cycle_lr:
+        callbacks.append(learning_rate_monitor_callback())
 
     trainer = pl.Trainer.from_argparse_args(args, plugins=plugins, callbacks=callbacks, logger=logger)
     trainer.fit(model, data_module)
@@ -41,7 +50,6 @@ if __name__ == '__main__':
         weight_decay=1e-4,
         learning_rate=1e-3,
         batch_size=128,
-        max_epochs=20,
         gpus=-1,
         accelerator='ddp',
         default_root_dir='logs')

@@ -5,6 +5,7 @@ import pytorch_lightning as pl
 
 from einops import rearrange
 from tokenizers import Tokenizer
+from torch.optim import lr_scheduler
 from typing import Tuple
 
 from perceiver.adapter import (
@@ -51,11 +52,33 @@ class LitModel(pl.LightningModule):
         group.add_argument('--optimizer', default='Adam', choices=['Adam', 'AdamW'], help=' ')
         group.add_argument('--learning_rate', default=1e-3, type=float, help=' ')
         group.add_argument('--weight_decay', default=0.0, type=float, help=' ')
+        group.add_argument('--one_cycle_lr', default=False, action='store_true', help='use OneCycleLR')
+        group.add_argument('--one_cycle_pct_start', default=0.1, type=float, help='see OneCycleLR.pct_start')
         return parser
 
     def configure_optimizers(self):
         optimizer_class = getattr(torch.optim, self.args.optimizer)
-        return optimizer_class(self.parameters(), lr=self.args.learning_rate, weight_decay=self.args.weight_decay)
+        optimizer = optimizer_class(self.parameters(),
+                                    lr=self.args.learning_rate,
+                                    weight_decay=self.args.weight_decay)
+
+        if self.args.one_cycle_lr:
+            if self.args.max_steps is None:
+                raise ValueError('OneCycleLR requires a max_steps value')
+
+            scheduler = lr_scheduler.OneCycleLR(optimizer,
+                                                max_lr=self.args.learning_rate,
+                                                pct_start=self.args.one_cycle_pct_start,
+                                                total_steps=self.args.max_steps,
+                                                cycle_momentum=False)
+
+            return {'optimizer': optimizer,
+                    'lr_scheduler': {
+                        'scheduler': scheduler,
+                        'interval': 'step',
+                        'frequency': 1}}
+        else:
+            return optimizer
 
 
 class LitMLM(LitModel):

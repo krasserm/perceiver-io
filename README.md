@@ -32,9 +32,10 @@ pretrained encoder is then used for training a [sentiment classification](#senti
 
 ```shell
 python train/train_mlm.py --dataset=imdb --learning_rate=1e-3 \
-  --max_epochs=200 --max_seq_len=512 --batch_size=64 \
+  --max_steps=50000 --max_seq_len=512 --batch_size=64 \
   --dropout=0.0 --weight_decay=0.0 \
-  --accelerator=ddp --gpus=-1
+  --accelerator=ddp --gpus=-1 \
+  --one_cycle_lr --one_cycle_pct_start=0.1
 ```
 
 All available command line options and their default values can be displayed with `python train/train_mlm.py -h`.
@@ -48,10 +49,10 @@ this project.
 
 ```shell
 python train/train_seq_clf.py --dataset=imdb --learning_rate=1e-3 \
-  --max_epochs=15 --max_seq_len=512 --batch_size=128 \
+  --max_epochs=30 --max_seq_len=512 --batch_size=128 \
   --dropout=0.0 --weight_decay=1e-3 --freeze_encoder \
   --accelerator=ddp --gpus=-1 \
-  --mlm_checkpoint 'logs/mlm/version_0/checkpoints/epoch=199-val_loss=4.899.ckpt'
+  --mlm_checkpoint 'logs/mlm/version_0/checkpoints/epoch=198-val_loss=4.619.ckpt'
 ```
 
 Unfreeze the encoder and jointly fine-tune it together with the decoder that has been trained in the previous step.
@@ -60,10 +61,10 @@ download checkpoints from [here](https://martin-krasser.com/perceiver/logs.zip).
 
 ```shell
 python train/train_seq_clf.py --dataset=imdb --learning_rate=1e-4 \
-  --max_epochs=15  --max_seq_len=512 --batch_size=128 \
-  --dropout=0.2 --weight_decay=1e-3 \
+  --max_epochs=30  --max_seq_len=512 --batch_size=128 \
+  --dropout=0.1 --weight_decay=1e-4 \
   --accelerator=ddp --gpus=-1 \
-  --clf_checkpoint 'logs/seq_clf/version_0/checkpoints/epoch=014-val_loss=0.350.ckpt'
+  --clf_checkpoint 'logs/seq_clf/version_0/checkpoints/epoch=022-val_loss=0.346.ckpt'
 ```
 
 All available command line options and their default values can be displayed with `python train/train_seq_clf.py -h`. 

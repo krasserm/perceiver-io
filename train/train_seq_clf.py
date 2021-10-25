@@ -3,7 +3,11 @@ import pytorch_lightning as pl
 
 from data import IMDBDataModule
 from perceiver import LitMLM, LitTextClassifier
-from train.utils import freeze, model_checkpoint_callback
+from train.utils import (
+    freeze,
+    model_checkpoint_callback,
+    learning_rate_monitor_callback
+)
 
 
 def main(args: argparse.Namespace):
@@ -23,9 +27,12 @@ def main(args: argparse.Namespace):
     else:
         lit_clf = LitTextClassifier(args)
 
-    callbacks = model_checkpoint_callback(save_top_k=1)
     plugins = pl.plugins.DDPPlugin(find_unused_parameters=False)
     logger = pl.loggers.TensorBoardLogger("logs", name=args.experiment)
+    callbacks = [model_checkpoint_callback(save_top_k=1)]
+
+    if args.one_cycle_lr:
+        callbacks.append(learning_rate_monitor_callback())
 
     trainer = pl.Trainer.from_argparse_args(args, plugins=plugins, callbacks=callbacks, logger=logger)
     trainer.fit(lit_clf, data_module)
@@ -56,7 +63,6 @@ if __name__ == '__main__':
         learning_rate=1e-3,
         max_seq_len=512,
         batch_size=128,
-        max_epochs=15,
         gpus=-1,
         accelerator='ddp',
         default_root_dir='logs')
