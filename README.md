@@ -31,7 +31,7 @@ Pretrain a Perceiver IO model on masked language modeling (MLM) with text from t
 pretrained encoder is then used for training a [sentiment classification](#sentiment-classification) model. 
 
 ```shell
-python train/train_mlm.py --dataset=imdb --learning_rate=1e-3 \
+python train/train_mlm.py --dataset=imdb --learning_rate=3e-3 \
   --max_steps=50000 --max_seq_len=512 --batch_size=64 \
   --dropout=0.0 --weight_decay=0.0 \
   --accelerator=ddp --gpus=-1 \
