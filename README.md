@@ -143,6 +143,10 @@ i have watched this series and it was awesome
 i have watched this dvd and it was awesome
 ```
 
+## TPU support
+
+Initial experiments in [this notebook](https://colab.research.google.com/github/krasserm/perceiver-io/blob/wip-tpu/sandbox.ipynb).
+
 ## Citations
 
 ```bibtex
