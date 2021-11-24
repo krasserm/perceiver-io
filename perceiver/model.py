@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 
 from einops import repeat
-from tokenizers import Tokenizer
 from typing import Tuple
 
 from perceiver.adapter import (
@@ -10,8 +9,8 @@ from perceiver.adapter import (
     OutputAdapter
 )
 from perceiver.tokenizer import (
-    UNK_TOKEN,
-    MASK_TOKEN,
+    UNK_TOKEN_ID,
+    MASK_TOKEN_ID,
     SPECIAL_TOKENS
 )
 from perceiver.utils import Sequential
@@ -240,9 +239,9 @@ class PerceiverDecoder(nn.Module):
 class TextMasking(nn.Module):
     def __init__(self,
                  vocab_size: int,
-                 unk_token_id: int,
-                 mask_token_id: int,
-                 num_special_tokens: int,
+                 unk_token_id: int = UNK_TOKEN_ID,
+                 mask_token_id: int = MASK_TOKEN_ID,
+                 num_special_tokens: int = len(SPECIAL_TOKENS),
                  mask_p: float = 0.15):
         """
         Text masking as described in https://arxiv.org/abs/1810.04805.
@@ -253,14 +252,6 @@ class TextMasking(nn.Module):
         self.mask_token_id = mask_token_id
         self.num_special_tokens = num_special_tokens
         self.mask_p = mask_p
-
-    @staticmethod
-    def create(tokenizer: Tokenizer, **kwargs):
-        return TextMasking(vocab_size=tokenizer.get_vocab_size(),
-                           unk_token_id=tokenizer.token_to_id(UNK_TOKEN),
-                           mask_token_id=tokenizer.token_to_id(MASK_TOKEN),
-                           num_special_tokens=len(SPECIAL_TOKENS),
-                           **kwargs)
 
     def forward(self, x, pad_mask):
         labels = x.clone()
@@ -323,3 +314,11 @@ class PerceiverIO(Sequential):
                  encoder: PerceiverEncoder,
                  decoder: PerceiverDecoder):
         super().__init__(encoder, decoder)
+
+    @property
+    def encoder(self):
+        return self[0]
+
+    @property
+    def decoder(self):
+        return self[1]

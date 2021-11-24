@@ -1,13 +1,16 @@
-import torch
 import torch.nn as nn
 import torchmetrics as tm
 import pytorch_lightning as pl
 
-from einops import rearrange
-from tokenizers import Tokenizer
-from torch.optim import lr_scheduler
-from typing import Tuple
+from pytorch_lightning.utilities.cli import instantiate_class
 
+from einops import rearrange
+from typing import Any, List, Optional, Tuple
+
+from perceiver.utils import (
+    freeze,
+    predict_masked_samples
+)
 from perceiver.adapter import (
     ImageInputAdapter,
     TextInputAdapter,
@@ -23,133 +26,38 @@ from perceiver.model import (
 )
 
 
-def setup_model_parser(parser, return_group=False):
-    group = parser.add_argument_group('model')
-    group.add_argument('--num_latents', default=64, type=int, help=' ')
-    group.add_argument('--num_latent_channels', default=64, type=int, help=' ')
-    group.add_argument('--num_encoder_layers', default=3, type=int, help=' ')
-    group.add_argument('--num_encoder_cross_attention_heads', default=4, type=int, help=' ')
-    group.add_argument('--num_encoder_self_attention_heads', default=4, type=int, help=' ')
-    group.add_argument('--num_encoder_self_attention_layers_per_block', default=6, type=int, help=' ')
-    group.add_argument('--num_decoder_cross_attention_heads', default=4, type=int, help=' ')
-    group.add_argument('--dropout', default=0.0, type=float, help=' ')
-
-    if return_group:
-        return parser, group
-    else:
-        return parser
-
-
 class LitModel(pl.LightningModule):
-    def __init__(self, args):
+    def __init__(self,
+                 optimizer_init: dict,
+                 scheduler_init: Optional[dict] = None,
+                 num_latents: int = 64,
+                 num_latent_channels: int = 64,
+                 num_encoder_layers: int = 3,
+                 num_encoder_cross_attention_heads: int = 4,
+                 num_encoder_self_attention_heads: int = 4,
+                 num_encoder_self_attention_layers_per_block: int = 6,
+                 num_decoder_cross_attention_heads: int = 4,
+                 dropout: float = 0.0):
         super().__init__()
-        self.save_hyperparameters(args)
-        self.args = args
-
-    @classmethod
-    def setup_parser(cls, parser):
-        group = parser.add_argument_group('optimizer')
-        group.add_argument('--optimizer', default='Adam', choices=['Adam', 'AdamW'], help=' ')
-        group.add_argument('--learning_rate', default=1e-3, type=float, help=' ')
-        group.add_argument('--weight_decay', default=0.0, type=float, help=' ')
-        group.add_argument('--one_cycle_lr', default=False, action='store_true', help='use OneCycleLR')
-        group.add_argument('--one_cycle_pct_start', default=0.1, type=float, help='see OneCycleLR.pct_start')
-        return parser
+        self.save_hyperparameters()
 
     def configure_optimizers(self):
-        optimizer_class = getattr(torch.optim, self.args.optimizer)
-        optimizer = optimizer_class(self.parameters(),
-                                    lr=self.args.learning_rate,
-                                    weight_decay=self.args.weight_decay)
+        optimizer = instantiate_class(self.parameters(), self.hparams.optimizer_init)
 
-        if self.args.one_cycle_lr:
-            if self.args.max_steps is None:
-                raise ValueError('OneCycleLR requires a max_steps value')
-
-            scheduler = lr_scheduler.OneCycleLR(optimizer,
-                                                max_lr=self.args.learning_rate,
-                                                pct_start=self.args.one_cycle_pct_start,
-                                                total_steps=self.args.max_steps,
-                                                cycle_momentum=False)
-
+        if self.hparams.scheduler_init is None:
+            return optimizer
+        else:
+            scheduler = instantiate_class(optimizer, self.hparams.scheduler_init)
             return {'optimizer': optimizer,
                     'lr_scheduler': {
                         'scheduler': scheduler,
                         'interval': 'step',
                         'frequency': 1}}
-        else:
-            return optimizer
-
-
-class LitMLM(LitModel):
-    def __init__(self, args, tokenizer: Tokenizer):
-        super().__init__(args)
-        self.model = self.create_model(self.hparams, tokenizer)
-        self.loss = nn.CrossEntropyLoss()
-
-    @classmethod
-    def create_encoder(cls, args):
-        latent_shape = (args.num_latents, args.num_latent_channels)
-        input_adapter = TextInputAdapter(
-            vocab_size=args.vocab_size,
-            max_seq_len=args.max_seq_len,
-            num_input_channels=args.num_latent_channels)
-        encoder = PerceiverEncoder(
-            input_adapter=input_adapter,
-            latent_shape=latent_shape,
-            num_layers=args.num_encoder_layers,
-            num_cross_attention_heads=args.num_encoder_cross_attention_heads,
-            num_self_attention_heads=args.num_encoder_self_attention_heads,
-            num_self_attention_layers_per_block=args.num_encoder_self_attention_layers_per_block,
-            dropout=args.dropout)
-        return encoder
-
-    @classmethod
-    def create_model(cls, args, tokenizer: Tokenizer):
-        latent_shape = (args.num_latents, args.num_latent_channels)
-        encoder = cls.create_encoder(args)
-        output_adapter = TextOutputAdapter(
-            vocab_size=args.vocab_size,
-            max_seq_len=args.max_seq_len,
-            num_output_channels=args.num_latent_channels)
-        decoder = PerceiverDecoder(
-            output_adapter=output_adapter,
-            latent_shape=latent_shape,
-            num_cross_attention_heads=args.num_decoder_cross_attention_heads,
-            dropout=args.dropout)
-        return PerceiverMLM(encoder, decoder, TextMasking.create(tokenizer))
-
-    @classmethod
-    def setup_parser(cls, parser):
-        parser = super().setup_parser(parser)
-        return setup_model_parser(parser, return_group=False)
-
-    def forward(self, batch):
-        _, x, x_mask = batch
-        return self.model(x, x_mask)
-
-    def step(self, batch):
-        logits, labels = self(batch)
-        logits = rearrange(logits, 'b m c -> b c m')
-        return self.loss(logits, labels)
-
-    def training_step(self, batch, batch_idx):
-        loss = self.step(batch)
-        self.log("train_loss", loss)
-        return loss
-
-    def validation_step(self, batch, batch_idx):
-        loss = self.step(batch)
-        self.log("val_loss", loss, prog_bar=True)
-
-    def test_step(self, batch, batch_idx):
-        loss = self.step(batch)
-        self.log("test_loss", loss)
 
 
 class LitClassifier(LitModel):
-    def __init__(self, args):
-        super().__init__(args)
+    def __init__(self, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
         self.loss = nn.CrossEntropyLoss()
         self.acc = tm.classification.accuracy.Accuracy()
 
@@ -177,81 +85,172 @@ class LitClassifier(LitModel):
         self.log("test_acc", acc)
 
 
-class LitTextClassifier(LitClassifier):
-    def __init__(self, args, encoder=None):
-        super().__init__(args)
-        self.model = self.create_model(self.hparams, encoder=encoder)
-
-    @classmethod
-    def create_model(cls, args, encoder=None):
-        latent_shape = (args.num_latents, args.num_latent_channels)
-
-        if encoder is None:
-            encoder = LitMLM.create_encoder(args)
-
-        output_adapter = ClassificationOutputAdapter(
-            num_classes=args.num_classes,
-            num_output_channels=args.num_latent_channels)
-        decoder = PerceiverDecoder(
-            output_adapter=output_adapter,
-            latent_shape=latent_shape,
-            num_cross_attention_heads=args.num_decoder_cross_attention_heads,
-            dropout=args.dropout)
-        return PerceiverIO(encoder, decoder)
-
-    @classmethod
-    def setup_parser(cls, parser):
-        parser = super().setup_parser(parser)
-        parser, group = setup_model_parser(parser, return_group=True)
-        group.add_argument('--num_classes', default=2, type=int, help=' ')
-        return parser
-
-    def forward(self, batch):
-        y, x, x_mask = batch
-        return self.model(x, x_mask), y
-
-
 class LitImageClassifier(LitClassifier):
-    def __init__(self, args, image_shape: Tuple[int, int, int], num_classes: int):
-        super().__init__(args)
-        self.model = self.create_model(self.hparams,
-                                       image_shape=image_shape,
-                                       num_classes=num_classes)
+    def __init__(self,
+                 image_shape: Tuple[int, int, int],
+                 num_classes: int,
+                 *args: Any,
+                 num_frequency_bands: int = 32,
+                 **kwargs: Any):
+        super().__init__(*args, **kwargs)
+        self.model = self.create_model()
 
-    @classmethod
-    def create_model(cls, args, image_shape: Tuple[int, int, int], num_classes: int):
-        latent_shape = (args.num_latents, args.num_latent_channels)
+    def create_model(self):
+        latent_shape = (self.hparams.num_latents,
+                        self.hparams.num_latent_channels)
 
         input_adapter = ImageInputAdapter(
-            image_shape=image_shape,
-            num_frequency_bands=args.num_frequency_bands)
+            image_shape=self.hparams.image_shape,
+            num_frequency_bands=self.hparams.num_frequency_bands)
+        output_adapter = ClassificationOutputAdapter(
+            num_classes=self.hparams.num_classes,
+            num_output_channels=self.hparams.num_latent_channels)
+
         encoder = PerceiverEncoder(
             input_adapter=input_adapter,
             latent_shape=latent_shape,
-            num_layers=args.num_encoder_layers,
-            num_cross_attention_heads=args.num_encoder_cross_attention_heads,
-            num_self_attention_heads=args.num_encoder_self_attention_heads,
-            num_self_attention_layers_per_block=args.num_encoder_self_attention_layers_per_block,
-            dropout=args.dropout)
-        output_adapter = ClassificationOutputAdapter(
-            num_classes=num_classes,
-            num_output_channels=args.num_latent_channels)
+            num_layers=self.hparams.num_encoder_layers,
+            num_cross_attention_heads=self.hparams.num_encoder_cross_attention_heads,
+            num_self_attention_heads=self.hparams.num_encoder_self_attention_heads,
+            num_self_attention_layers_per_block=self.hparams.num_encoder_self_attention_layers_per_block,
+            dropout=self.hparams.dropout)
         decoder = PerceiverDecoder(
             output_adapter=output_adapter,
             latent_shape=latent_shape,
-            num_cross_attention_heads=args.num_decoder_cross_attention_heads,
-            dropout=args.dropout)
+            num_cross_attention_heads=self.hparams.num_decoder_cross_attention_heads,
+            dropout=self.hparams.dropout)
         return PerceiverIO(encoder, decoder)
-
-    @classmethod
-    def setup_parser(cls, parser):
-        parser = super().setup_parser(parser)
-        parser, group = setup_model_parser(parser, return_group=True)
-        group.add_argument('--num_frequency_bands', default=32, type=int, help=' ')
-        return parser
 
     def forward(self, batch):
         x, y = batch
         return self.model(x), y
 
 
+class LitTextClassifier(LitClassifier):
+    def __init__(self,
+                 num_classes: int,
+                 vocab_size: int,
+                 max_seq_len: int,
+                 *args: Any,
+                 freeze_encoder: bool = False,
+                 mlm_ckpt: Optional[str] = None,
+                 clf_ckpt: Optional[str] = None,
+                 **kwargs: Any):
+        super().__init__(*args, **kwargs)
+
+        encoder = LitMaskedLanguageModel.create_encoder(self.hparams, self.latent_shape)
+        self.model = self.create_model(encoder)
+
+        if mlm_ckpt is not None:
+            lit_model = LitMaskedLanguageModel.load_from_checkpoint(mlm_ckpt)
+            self.model.encoder.load_state_dict(lit_model.model.encoder.state_dict())
+        elif clf_ckpt is not None:
+            lit_model = LitTextClassifier.load_from_checkpoint(clf_ckpt)
+            self.model.load_state_dict(lit_model.model.state_dict())
+
+        if freeze_encoder:
+            freeze(self.model.encoder)
+
+    def create_model(self, encoder):
+        output_adapter = ClassificationOutputAdapter(
+            num_classes=self.hparams.num_classes,
+            num_output_channels=self.hparams.num_latent_channels)
+        decoder = PerceiverDecoder(
+            output_adapter=output_adapter,
+            latent_shape=self.latent_shape,
+            num_cross_attention_heads=self.hparams.num_decoder_cross_attention_heads,
+            dropout=self.hparams.dropout)
+        return PerceiverIO(encoder, decoder)
+
+    @property
+    def latent_shape(self):
+        return self.hparams.num_latents, self.hparams.num_latent_channels
+
+    def forward(self, batch):
+        y, x, x_mask = batch
+        return self.model(x, x_mask), y
+
+
+class LitMaskedLanguageModel(LitModel):
+    def __init__(self,
+                 vocab_size: int,
+                 max_seq_len: int,
+                 *args: Any,
+                 masked_samples: Optional[List[str]] = None,
+                 num_predictions: int = 3,
+                 **kwargs: Any):
+        super().__init__(*args, **kwargs)
+        self.model = self.create_model()
+        self.loss = nn.CrossEntropyLoss()
+
+    @staticmethod
+    def create_encoder(hparams, latent_shape):
+        input_adapter = TextInputAdapter(
+            vocab_size=hparams.vocab_size,
+            max_seq_len=hparams.max_seq_len,
+            num_input_channels=hparams.num_latent_channels)
+        encoder = PerceiverEncoder(
+            input_adapter=input_adapter,
+            latent_shape=latent_shape,
+            num_layers=hparams.num_encoder_layers,
+            num_cross_attention_heads=hparams.num_encoder_cross_attention_heads,
+            num_self_attention_heads=hparams.num_encoder_self_attention_heads,
+            num_self_attention_layers_per_block=hparams.num_encoder_self_attention_layers_per_block,
+            dropout=hparams.dropout)
+        return encoder
+
+    def create_model(self):
+        encoder = self.create_encoder(self.hparams, self.latent_shape)
+        output_adapter = TextOutputAdapter(
+            vocab_size=self.hparams.vocab_size,
+            max_seq_len=self.hparams.max_seq_len,
+            num_output_channels=self.hparams.num_latent_channels)
+        decoder = PerceiverDecoder(
+            output_adapter=output_adapter,
+            latent_shape=self.latent_shape,
+            num_cross_attention_heads=self.hparams.num_decoder_cross_attention_heads,
+            dropout=self.hparams.dropout)
+        return PerceiverMLM(encoder, decoder, TextMasking(self.hparams.vocab_size))
+
+    @property
+    def latent_shape(self):
+        return self.hparams.num_latents, self.hparams.num_latent_channels
+
+    def forward(self, batch):
+        _, x, x_mask = batch
+        return self.model(x, x_mask)
+
+    def step(self, batch):
+        logits, labels = self(batch)
+        logits = rearrange(logits, 'b m c -> b c m')
+        return self.loss(logits, labels)
+
+    def training_step(self, batch, batch_idx):
+        loss = self.step(batch)
+        self.log("train_loss", loss)
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        loss = self.step(batch)
+        self.log("val_loss", loss, prog_bar=True)
+
+    def test_step(self, batch, batch_idx):
+        loss = self.step(batch)
+        self.log("test_loss", loss)
+
+    def on_validation_epoch_end(self) -> None:
+        if self.hparams.masked_samples:
+            masked_samples = [ms.replace('<MASK>', '[MASK]') for ms in self.hparams.masked_samples]
+
+            step = self.trainer.global_step
+            dm = self.trainer.datamodule
+
+            predictions = predict_masked_samples(masked_samples=masked_samples,
+                                                 encode_fn=dm.collator.encode,
+                                                 tokenizer=dm.tokenizer,
+                                                 model=self.model,
+                                                 device=self.device,
+                                                 num_predictions=self.hparams.num_predictions)
+
+            text = '\n\n'.join(['  \n'.join([s] + ps) for s, ps in zip(masked_samples, predictions)])
+            self.logger.experiment.add_text("sample predictions", text, step)

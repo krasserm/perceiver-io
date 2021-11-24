@@ -1,13 +1,14 @@
 # Perceiver IO
 
-Unofficial PyTorch implementation of
+A PyTorch implementation of
 
 - [Perceiver: General Perception with Iterative Attention](https://arxiv.org/abs/2103.03206)
 - [Perceiver IO: A General Architecture for Structured Inputs & Outputs](https://arxiv.org/abs/2107.14795)
 
-This implementation supports training of Perceiver IO models with [Pytorch Lightning](https://www.pytorchlightning.ai/) 
-on some [example tasks](#tasks) via a command line interface. Perceiver IO models are constructed using generic encoder 
-and decoder classes and task-specific input and output adapters (see [Model API](#model-api)).
+This project supports training of Perceiver IO models with [Pytorch Lightning](https://www.pytorchlightning.ai/). Some
+examples are given in section [Tasks](#tasks). Perceiver IO models are constructed using generic encoder and decoder 
+classes and task-specific input and output adapters (see [Model API](#model-api)). The command line interface is 
+implemented with [Lighting CLI](https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_cli.html).
 
 ## Setup
 
@@ -19,11 +20,10 @@ export PYTHONPATH=.
 
 ## Tasks
 
-In the following subsections, Perceiver IO models are trained on some example tasks at smaller scale. In particular, 
-they were trained on two NVIDIA GTX 1080 GPUs (8 GB memory each) using Pytorch Lightning's support for 
-[distributed data-parallel](https://pytorch-lightning.readthedocs.io/en/stable/advanced/multi_gpu.html#distributed-data-parallel) 
-training. I didn't really tune model architectures and other hyper-parameters, so you'll probably get better results 
-with a bit of experimentation. Support for more datasets and tasks will be added later.
+In the following subsections, Perceiver IO models are trained on a rather small scale. In particular, hyper-parameters 
+are set such that parallel training on two NVIDIA GTX 1080 GPUs (8 GB memory each) works quite well. I didn't really 
+tune model architectures and other hyper-parameters, so you'll probably get better results with a bit of experimentation. 
+Support for more datasets and tasks will be added later.
 
 ### Masked language modeling
 
@@ -31,55 +31,96 @@ Pretrain a Perceiver IO model on masked language modeling (MLM) with text from t
 pretrained encoder is then used for training a [sentiment classification](#sentiment-classification) model. 
 
 ```shell
-python train/train_mlm.py --dataset=imdb --learning_rate=3e-3 \
-  --max_steps=50000 --max_seq_len=512 --batch_size=64 \
-  --dropout=0.0 --weight_decay=0.0 \
-  --accelerator=ddp --gpus=-1 \
-  --one_cycle_lr --one_cycle_pct_start=0.1
+python scripts/mlm.py fit \
+  --model.dropout=0.0 \
+  --data=IMDBDataModule \
+  --data.max_seq_len=512 \
+  --data.batch_size=64 \
+  --optimizer.lr=0.003 \
+  --optimizer.weight_decay=0.0 \
+  --lr_scheduler.pct_start=0.1 \
+  --trainer.accelerator=gpu \
+  --trainer.devices=-1 \
+  --trainer.max_steps=50000
 ```
 
-All available command line options and their default values can be displayed with `python train/train_mlm.py -h`.
+#### Predictions
+
+With command line options `--model.masked_samples` and `--model.num_predictions`, predictions of masked tokens can be 
+logged to Tensorboard for user-defined samples. For example,
+
+```shell
+python scripts/mlm.py fit \
+  ... \
+  --model.num_predictions=3 \
+  --model.masked_samples=['i have watched this <MASK> and it was awesome'] 
+```
+
+writes the top 3 predictions for `I have watched this [MASK] and it was awesome` to Tensorboard's `TEXT` page after 
+each epoch:
+
+```
+i have watched this [MASK] and it was awesome
+i have watched this movie and it was awesome
+i have watched this show and it was awesome
+i have watched this film and it was awesome
+```
 
 ### Sentiment classification
 
 Train a classification decoder using a frozen encoder from [masked language modeling](#masked-language-modeling-mlm). 
-If you ran MLM yourself you'll need to modify the `--mlm_checkpoint` argument accordingly, otherwise download
-checkpoints from [here](https://martin-krasser.com/perceiver/logs.zip) and extract them in the root directory of 
+If you ran MLM yourself you'll need to modify the `--model.mlm_ckpt` argument accordingly, otherwise download
+checkpoints from [here](https://martin-krasser.com/perceiver/logs-update-1.zip) and extract them in the root directory of 
 this project. 
 
 ```shell
-python train/train_seq_clf.py --dataset=imdb --learning_rate=1e-3 \
-  --max_epochs=30 --max_seq_len=512 --batch_size=128 \
-  --dropout=0.0 --weight_decay=1e-3 --freeze_encoder \
-  --accelerator=ddp --gpus=-1 \
-  --mlm_checkpoint 'logs/mlm/version_0/checkpoints/epoch=198-val_loss=4.619.ckpt'
+python scripts/seq_clf.py fit \
+  --model.mlm_ckpt='logs/mlm/version_0/checkpoints/epoch=241-val_loss=4.584.ckpt' \
+  --model.dropout=0.0 \
+  --model.freeze_encoder=true \
+  --data=IMDBDataModule \
+  --data.max_seq_len=512 \
+  --data.batch_size=128 \
+  --optimizer.lr=0.001 \
+  --optimizer.weight_decay=0.01 \
+  --trainer.accelerator=gpu \
+  --trainer.devices=-1 \
+  --trainer.max_epochs=30
 ```
 
 Unfreeze the encoder and jointly fine-tune it together with the decoder that has been trained in the previous step.
-If you ran the previous step yourself you'll need to modify the `--clf_checkpoint` argument accordingly, otherwise 
-download checkpoints from [here](https://martin-krasser.com/perceiver/logs.zip).
+If you ran the previous step yourself you'll need to modify the `--model.clf_ckpt` argument accordingly, otherwise 
+download checkpoints from [here](https://martin-krasser.com/perceiver/logs-update-1.zip).
 
 ```shell
-python train/train_seq_clf.py --dataset=imdb --learning_rate=1e-4 \
-  --max_epochs=30  --max_seq_len=512 --batch_size=128 \
-  --dropout=0.1 --weight_decay=1e-4 \
-  --accelerator=ddp --gpus=-1 \
-  --clf_checkpoint 'logs/seq_clf/version_0/checkpoints/epoch=022-val_loss=0.346.ckpt'
+python scripts/seq_clf.py fit \
+  --model.clf_ckpt='logs/seq_clf/version_0/checkpoints/epoch=029-val_loss=0.341.ckpt' \
+  --model.dropout=0.1 \
+  --data=IMDBDataModule \
+  --data.max_seq_len=512 \
+  --data.batch_size=128 \
+  --optimizer.lr=0.0001 \
+  --optimizer.weight_decay=0.01 \
+  --trainer.accelerator=gpu \
+  --trainer.devices=-1 \
+  --trainer.max_epochs=30
 ```
-
-All available command line options and their default values can be displayed with `python train/train_seq_clf.py -h`. 
 
 ### Image classification
 
 Classify MNIST images. See also [Model API](#model-api) for details about the underlying Perceiver IO model. 
 
 ```shell
-python train/train_img_clf.py --dataset=mnist --learning_rate=1e-3 --batch_size=128 \
-  --max_epochs=20 --dropout=0.0 --weight_decay=1e-4 \
-  --accelerator=ddp --gpus=-1
+python scripts/img_clf.py fit \
+  --model.dropout=0.0 \
+  --data=MNISTDataModule \
+  --data.batch_size=128 \
+  --optimizer.lr=0.001 \
+  --optimizer.weight_decay=0.01 \
+  --trainer.accelerator=gpu \
+  --trainer.devices=-1 \
+  --trainer.max_epochs=20
 ```
-
-All available command line options and their default values can be displayed with `python train/train_img_clf.py -h`. 
 
 ## Model API
 
@@ -118,29 +159,6 @@ decoder = PerceiverDecoder(
 
 # MNIST classifier implemented as Perceiver IO model
 mnist_classifier = PerceiverIO(encoder, decoder)
-```
-
-## Tensorboard
-
-Commands in section [Tasks](#tasks) write training progress and hyper-parameters to the `logs` directory. This can be
-visualized with `tensorboard --logir logs`. When using the command line options `--predict_samples` and `--predict_k`, 
-MLM training additionally writes predictions of user-defined masked sample text. For example,
-
-```shell
-python train/train_mlm.py ... --predict_k=5 \
-    --predict_samples='i have watched this [MASK] and it was awesome'  
-```
-
-writes the top 5 predictions for `I have watched this [MASK] and it was awesome` to Tensorboard's `TEXT` page after 
-each epoch:
-
-```
-i have watched this [MASK] and it was awesome
-i have watched this movie and it was awesome
-i have watched this show and it was awesome
-i have watched this film and it was awesome
-i have watched this series and it was awesome
-i have watched this dvd and it was awesome
 ```
 
 ## Citations

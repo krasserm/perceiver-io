@@ -1,6 +1,6 @@
 from perceiver.adapter import *
 from perceiver.lightning import (
-    LitMLM,
+    LitMaskedLanguageModel,
     LitImageClassifier,
     LitTextClassifier
 )

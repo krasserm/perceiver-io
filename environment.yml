@@ -3,15 +3,15 @@ channels:
   - pytorch
   - conda-forge
 dependencies:
-  - python=3.8
+  - python=3.9
   - cudatoolkit=10.2
-  - pytorch
-  - torchvision
-  - torchtext
-  - pytorch-lightning
+  - pytorch=1.10
+  - torchvision=0.11
+  - torchtext=0.11
   - pip
   - pip:
-    - lightning-bolts
-    - torchmetrics
+    - pytorch-lightning[extra]~=1.5.0
+    - lightning-bolts~=0.4.0
+    - torchmetrics~=0.6.0
     - tokenizers
     - einops

@@ -8,9 +8,13 @@ from tokenizers.trainers import WordPieceTrainer
 
 
 PAD_TOKEN = '[PAD]'
-UNK_TOKEN = '[UNK]'
-MASK_TOKEN = '[MASK]'
+PAD_TOKEN_ID = 0
 
+UNK_TOKEN = '[UNK]'
+UNK_TOKEN_ID = 1
+
+MASK_TOKEN = '[MASK]'
+MASK_TOKEN_ID = 2
 
 SPECIAL_TOKENS = [PAD_TOKEN, UNK_TOKEN, MASK_TOKEN]
 

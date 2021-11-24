@@ -1,9 +1,9 @@
-import argparse
 import glob
 import os
 import torch
 import pytorch_lightning as pl
 
+from pytorch_lightning.utilities.cli import DATAMODULE_REGISTRY
 from torch.utils.data import Dataset, DataLoader
 from torchtext.datasets import IMDB
 from tokenizers import Tokenizer
@@ -68,82 +68,59 @@ class Collator:
         return self.collate(batch)[1:]
 
 
+@DATAMODULE_REGISTRY
 class IMDBDataModule(pl.LightningDataModule):
     def __init__(self,
-                 root='.cache',
-                 max_seq_len=512,
-                 vocab_size=10003,
-                 batch_size=64,
-                 num_workers=3,
-                 pin_memory=False):
+                 data_dir: str = '.cache',
+                 vocab_size: int = 10003,
+                 max_seq_len: int = 512,
+                 batch_size: int = 64,
+                 num_workers: int = 3,
+                 pin_memory: bool = False):
         super().__init__()
-        self.root = root
-        self.max_seq_len = max_seq_len
-        self.vocab_size = vocab_size
-        self.batch_size = batch_size
-        self.num_workers = num_workers
-        self.pin_memory = pin_memory
-
+        self.save_hyperparameters()
+        self.tokenizer_path = os.path.join(self.hparams.data_dir, f'imdb-tokenizer-{vocab_size}.json')
+        self.tokenizer = None
+        self.collator = None
         self.ds_train = None
         self.ds_valid = None
 
-        self.tokenizer_path = os.path.join(self.root, f'imdb-tokenizer-{vocab_size}.json')
-        self.tokenizer = None
-        self.collator = None
-
-    @classmethod
-    def create(cls, args: argparse.Namespace):
-        return cls(root=args.root,
-                   max_seq_len=args.max_seq_len,
-                   vocab_size=args.vocab_size,
-                   batch_size=args.batch_size,
-                   num_workers=args.num_workers,
-                   pin_memory=args.pin_memory)
-
-    @classmethod
-    def setup_parser(cls, parser):
-        group = parser.add_argument_group('data')
-        group.add_argument('--root', default='.cache', help=' ')
-        group.add_argument('--max_seq_len', default=512, type=int, help=' ')
-        group.add_argument('--vocab_size', default=10003, type=int, help=' ')
-        group.add_argument('--batch_size', default=64, type=int, help=' ')
-        group.add_argument('--num_workers', default=2, type=int, help=' ')
-        group.add_argument('--pin_memory', default=False, action='store_true', help=' ')
-        return parser
+        self.vocab_size = vocab_size
+        self.max_seq_len = max_seq_len
 
     def prepare_data(self, *args, **kwargs):
-        if not os.path.exists(os.path.join(self.root, 'IMDB')):
+        if not os.path.exists(os.path.join(self.hparams.data_dir, 'IMDB')):
             # download and extract IMDB data
-            IMDB(root=self.root)
+            IMDB(root=self.hparams.data_dir)
 
         if not os.path.exists(self.tokenizer_path):
             # load raw IMDB train data
-            raw_x, _ = load_split(root=self.root, split='train')
+            raw_x, _ = load_split(root=self.hparams.data_dir, split='train')
 
             # train and save tokenizer
             tokenizer = create_tokenizer(Replace('<br />', ' '))
-            train_tokenizer(tokenizer, data=raw_x, vocab_size=self.vocab_size)
+            train_tokenizer(tokenizer, data=raw_x, vocab_size=self.hparams.vocab_size)
             save_tokenizer(tokenizer, self.tokenizer_path)
 
     def setup(self, stage=None):
         self.tokenizer = load_tokenizer(self.tokenizer_path)
-        self.collator = Collator(self.tokenizer, self.max_seq_len)
+        self.collator = Collator(self.tokenizer, self.hparams.max_seq_len)
 
-        self.ds_train = IMDBDataset(root=self.root, split='train')
-        self.ds_valid = IMDBDataset(root=self.root, split='test')
+        self.ds_train = IMDBDataset(root=self.hparams.data_dir, split='train')
+        self.ds_valid = IMDBDataset(root=self.hparams.data_dir, split='test')
 
     def train_dataloader(self):
         return DataLoader(self.ds_train,
                           shuffle=True,
                           collate_fn=self.collator.collate,
-                          batch_size=self.batch_size,
-                          num_workers=self.num_workers,
-                          pin_memory=self.pin_memory)
+                          batch_size=self.hparams.batch_size,
+                          num_workers=self.hparams.num_workers,
+                          pin_memory=self.hparams.pin_memory)
 
     def val_dataloader(self):
         return DataLoader(self.ds_valid,
                           shuffle=False,
                           collate_fn=self.collator.collate,
-                          batch_size=self.batch_size,
-                          num_workers=self.num_workers,
-                          pin_memory=self.pin_memory)
+                          batch_size=self.hparams.batch_size,
+                          num_workers=self.hparams.num_workers,
+                          pin_memory=self.hparams.pin_memory)
