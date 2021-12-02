@@ -8,15 +8,8 @@ from tokenizers.trainers import WordPieceTrainer
 
 
 PAD_TOKEN = '[PAD]'
-PAD_TOKEN_ID = 0
-
 UNK_TOKEN = '[UNK]'
-UNK_TOKEN_ID = 1
-
 MASK_TOKEN = '[MASK]'
-MASK_TOKEN_ID = 2
-
-SPECIAL_TOKENS = [PAD_TOKEN, UNK_TOKEN, MASK_TOKEN]
 
 
 def load_tokenizer(path):
@@ -28,7 +21,7 @@ def save_tokenizer(tokenizer: Tokenizer, path):
 
 
 def train_tokenizer(tokenizer: Tokenizer, data: Iterable[str], vocab_size):
-    trainer = WordPieceTrainer(vocab_size=vocab_size, special_tokens=SPECIAL_TOKENS)
+    trainer = WordPieceTrainer(vocab_size=vocab_size, special_tokens=[PAD_TOKEN, UNK_TOKEN, MASK_TOKEN])
     tokenizer.train_from_iterator(data, trainer)
 
 

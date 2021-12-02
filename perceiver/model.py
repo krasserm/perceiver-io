@@ -4,16 +4,11 @@ import torch.nn as nn
 from einops import repeat
 from typing import Tuple
 
+from perceiver.utils import Sequential
 from perceiver.adapter import (
     InputAdapter,
     OutputAdapter
 )
-from perceiver.tokenizer import (
-    UNK_TOKEN_ID,
-    MASK_TOKEN_ID,
-    SPECIAL_TOKENS
-)
-from perceiver.utils import Sequential
 
 
 def mlp(num_channels: int):
@@ -239,9 +234,9 @@ class PerceiverDecoder(nn.Module):
 class TextMasking(nn.Module):
     def __init__(self,
                  vocab_size: int,
-                 unk_token_id: int = UNK_TOKEN_ID,
-                 mask_token_id: int = MASK_TOKEN_ID,
-                 num_special_tokens: int = len(SPECIAL_TOKENS),
+                 unk_token_id: int = 1,
+                 mask_token_id: int = 2,
+                 num_special_tokens: int = 3,
                  mask_p: float = 0.15):
         """
         Text masking as described in https://arxiv.org/abs/1810.04805.
