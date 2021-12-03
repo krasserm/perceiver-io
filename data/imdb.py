@@ -1,20 +1,18 @@
 import glob
 import os
-import torch
 import pytorch_lightning as pl
 
 from pytorch_lightning.utilities.cli import DATAMODULE_REGISTRY
 from torch.utils.data import Dataset, DataLoader
 from torchtext.datasets import IMDB
-from tokenizers import Tokenizer
 from tokenizers.normalizers import Replace
 
+from data.text import TextCollator
 from perceiver.tokenizer import (
     create_tokenizer,
     train_tokenizer,
     save_tokenizer,
     load_tokenizer,
-    PAD_TOKEN
 )
 
 
@@ -49,25 +47,6 @@ class IMDBDataset(Dataset):
         return self.raw_y[index], self.raw_x[index]
 
 
-class Collator:
-    def __init__(self, tokenizer: Tokenizer, max_seq_len: int):
-        self.pad_id = tokenizer.token_to_id(PAD_TOKEN)
-        self.tokenizer = tokenizer
-        self.tokenizer.enable_padding(pad_id=self.pad_id, pad_token=PAD_TOKEN)
-        self.tokenizer.enable_truncation(max_length=max_seq_len)
-
-    def collate(self, batch):
-        ys, xs = zip(*batch)
-        xs_ids = [x.ids for x in self.tokenizer.encode_batch(xs)]
-        xs_ids = torch.tensor(xs_ids)
-        pad_mask = xs_ids == self.pad_id
-        return torch.tensor(ys), xs_ids, pad_mask
-
-    def encode(self, samples):
-        batch = [(0, sample) for sample in samples]
-        return self.collate(batch)[1:]
-
-
 @DATAMODULE_REGISTRY
 class IMDBDataModule(pl.LightningDataModule):
     def __init__(self,
@@ -79,7 +58,7 @@ class IMDBDataModule(pl.LightningDataModule):
                  pin_memory: bool = False):
         super().__init__()
         self.save_hyperparameters()
-        self.tokenizer_path = os.path.join(self.hparams.data_dir, f'imdb-tokenizer-{vocab_size}.json')
+        self.tokenizer_path = os.path.join(data_dir, f'imdb-tokenizer-{vocab_size}.json')
         self.tokenizer = None
         self.collator = None
         self.ds_train = None
@@ -104,7 +83,7 @@ class IMDBDataModule(pl.LightningDataModule):
 
     def setup(self, stage=None):
         self.tokenizer = load_tokenizer(self.tokenizer_path)
-        self.collator = Collator(self.tokenizer, self.hparams.max_seq_len)
+        self.collator = TextCollator(self.tokenizer, self.hparams.max_seq_len)
 
         self.ds_train = IMDBDataset(root=self.hparams.data_dir, split='train')
         self.ds_valid = IMDBDataset(root=self.hparams.data_dir, split='test')

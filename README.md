@@ -5,10 +5,11 @@ A PyTorch implementation of
 - [Perceiver: General Perception with Iterative Attention](https://arxiv.org/abs/2103.03206)
 - [Perceiver IO: A General Architecture for Structured Inputs & Outputs](https://arxiv.org/abs/2107.14795)
 
-This project supports training of Perceiver IO models with [Pytorch Lightning](https://www.pytorchlightning.ai/). Some
-examples are given in section [Tasks](#tasks). Perceiver IO models are constructed using generic encoder and decoder 
-classes and task-specific input and output adapters (see [Model API](#model-api)). The command line interface is 
-implemented with [Lighting CLI](https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_cli.html).
+This project supports training of Perceiver IO models with [Pytorch Lightning](https://www.pytorchlightning.ai/). 
+Training examples are given in section [Tasks](#tasks), inference examples in section [Notebooks](#notebooks). 
+Perceiver IO models are constructed with generic encoder and decoder classes and task-specific input and 
+output adapters (see [Model API](#model-api)). The command line interface is implemented with 
+[Lighting CLI](https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_cli.html).
 
 ## Setup
 
@@ -121,6 +122,11 @@ python scripts/img_clf.py fit \
   --trainer.devices=-1 \
   --trainer.max_epochs=20
 ```
+
+## Notebooks
+
+- [Image classification](notebooks/img-clf.ipynb)
+- [Sentiment classification](notebooks/txt-clf.ipynb)
 
 ## Model API
 
