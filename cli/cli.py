@@ -1,6 +1,5 @@
 import os
 import torch
-import torch.nn as nn
 
 from typing import Any
 from pytorch_lightning import Trainer
@@ -10,11 +9,13 @@ from pytorch_lightning.utilities.cli import (
     LightningArgumentParser,
 )
 
+from cli.trainer import DDPStaticGraphPlugin
+
 
 class CLI(LightningCLI):
     def __init__(self, model_class, run=True, **kwargs):
         trainer_defaults = {
-            'default_config_files': [os.path.join('scripts', 'trainer.yaml')]
+            'default_config_files': [os.path.join('cli', 'trainer.yaml')]
         }
 
         super().__init__(model_class,
@@ -30,6 +31,9 @@ class CLI(LightningCLI):
         else:
             cfg = self.config_init
 
+        if cfg['trainer']['strategy'] == 'ddp_static_graph':
+            cfg['trainer']['strategy'] = DDPStaticGraphPlugin(find_unused_parameters=False)
+
         return super().instantiate_trainer(logger=cfg['logger'], **kwargs)
 
     def add_default_arguments_to_parser(self, parser: LightningArgumentParser) -> None:
@@ -41,8 +45,3 @@ class CLI(LightningCLI):
         parser.link_arguments('trainer.default_root_dir', 'logger.save_dir', apply_on='parse')
         parser.link_arguments('experiment', 'logger.name', apply_on='parse')
         parser.add_optimizer_args(torch.optim.AdamW, link_to="model.optimizer_init")
-
-
-def freeze(module: nn.Module):
-    for param in module.parameters():
-        param.requires_grad = False

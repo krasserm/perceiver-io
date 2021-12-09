@@ -28,11 +28,14 @@ Support for more datasets and tasks will be added later.
 
 ### Masked language modeling
 
-Pretrain a Perceiver IO model on masked language modeling (MLM) with text from the IMDB training set. The
-pretrained encoder is then used for training a [sentiment classification](#sentiment-classification) model. 
+Pretrain a Perceiver IO model on masked language modeling (MLM) with text from the IMDB training set. The pretrained 
+encoder is then used for training a [sentiment classification](#sentiment-classification) model. 
+[Predictions of masked tokens](docs/tensorboard.md) are logged to Tensorboard. 
 
 ```shell
 python scripts/mlm.py fit \
+  --model.num_latent_channels=64 \
+  --model.num_encoder_layers=3 \
   --model.dropout=0.0 \
   --data=IMDBDataModule \
   --data.max_seq_len=512 \
@@ -42,30 +45,12 @@ python scripts/mlm.py fit \
   --lr_scheduler.pct_start=0.1 \
   --trainer.accelerator=gpu \
   --trainer.devices=-1 \
-  --trainer.max_steps=50000
+  --trainer.max_steps=50000 \
+  --trainer.check_val_every_n_epoch=5
 ```
 
-#### Predictions
-
-With command line options `--model.masked_samples` and `--model.num_predictions`, predictions of masked tokens can be 
-logged to Tensorboard for user-defined samples. For example,
-
-```shell
-python scripts/mlm.py fit \
-  ... \
-  --model.num_predictions=3 \
-  --model.masked_samples=['i have watched this <MASK> and it was awesome'] 
-```
-
-writes the top 3 predictions for `I have watched this [MASK] and it was awesome` to Tensorboard's `TEXT` page after 
-each epoch:
-
-```
-i have watched this [MASK] and it was awesome
-i have watched this movie and it was awesome
-i have watched this show and it was awesome
-i have watched this film and it was awesome
-```
+For saving GPU memory and scaling model training, [activation checkpointing](docs/checkpointing.md) can be enabled with 
+`--model.activation_checkpoint=true` (disabled by default).
 
 ### Sentiment classification
 
@@ -77,6 +62,8 @@ this project.
 ```shell
 python scripts/seq_clf.py fit \
   --model.mlm_ckpt='logs/mlm/version_0/checkpoints/epoch=241-val_loss=4.584.ckpt' \
+  --model.num_latent_channels=64 \
+  --model.num_encoder_layers=3 \
   --model.dropout=0.0 \
   --model.freeze_encoder=true \
   --data=IMDBDataModule \
@@ -96,6 +83,8 @@ download checkpoints from [here](https://martin-krasser.com/perceiver/logs-updat
 ```shell
 python scripts/seq_clf.py fit \
   --model.clf_ckpt='logs/seq_clf/version_0/checkpoints/epoch=029-val_loss=0.341.ckpt' \
+  --model.num_latent_channels=64 \
+  --model.num_encoder_layers=3 \
   --model.dropout=0.1 \
   --data=IMDBDataModule \
   --data.max_seq_len=512 \
@@ -113,6 +102,8 @@ Classify MNIST images. See also [Model API](#model-api) for details about the un
 
 ```shell
 python scripts/img_clf.py fit \
+  --model.num_latent_channels=128 \
+  --model.num_encoder_layers=3 \
   --model.dropout=0.0 \
   --data=MNISTDataModule \
   --data.batch_size=128 \

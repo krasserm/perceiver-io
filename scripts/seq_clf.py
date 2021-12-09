@@ -1,7 +1,7 @@
 from pytorch_lightning.utilities.cli import LightningArgumentParser
 
 from perceiver import LitTextClassifier
-from scripts import CLI
+from cli import CLI
 
 # register data module via import
 from data import IMDBDataModule

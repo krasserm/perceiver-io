@@ -37,8 +37,10 @@ class LitModel(pl.LightningModule):
                  num_encoder_self_attention_heads: int = 4,
                  num_encoder_self_attention_layers_per_block: int = 6,
                  num_decoder_cross_attention_heads: int = 4,
-                 dropout: float = 0.0):
+                 dropout: float = 0.0,
+                 activation_checkpoint: bool = False):
         super().__init__()
+
         self.save_hyperparameters()
 
     def configure_optimizers(self):
@@ -76,12 +78,12 @@ class LitClassifier(LitModel):
 
     def validation_step(self, batch, batch_idx):
         loss, acc = self.step(batch)
-        self.log("val_loss", loss, prog_bar=True)
+        self.log("val_loss", loss, prog_bar=True, sync_dist=True)
         self.log("val_acc", acc, prog_bar=True)
 
     def test_step(self, batch, batch_idx):
         loss, acc = self.step(batch)
-        self.log("test_loss", loss)
+        self.log("test_loss", loss, sync_dist=True)
         self.log("test_acc", acc)
 
 
@@ -113,12 +115,14 @@ class LitImageClassifier(LitClassifier):
             num_cross_attention_heads=self.hparams.num_encoder_cross_attention_heads,
             num_self_attention_heads=self.hparams.num_encoder_self_attention_heads,
             num_self_attention_layers_per_block=self.hparams.num_encoder_self_attention_layers_per_block,
-            dropout=self.hparams.dropout)
+            dropout=self.hparams.dropout,
+            activation_checkpoint=self.hparams.activation_checkpoint)
         decoder = PerceiverDecoder(
             output_adapter=output_adapter,
             latent_shape=latent_shape,
             num_cross_attention_heads=self.hparams.num_decoder_cross_attention_heads,
-            dropout=self.hparams.dropout)
+            dropout=self.hparams.dropout,
+            activation_checkpoint=self.hparams.activation_checkpoint)
         return PerceiverIO(encoder, decoder)
 
     def forward(self, batch):
@@ -196,7 +200,8 @@ class LitMaskedLanguageModel(LitModel):
             num_cross_attention_heads=hparams.num_encoder_cross_attention_heads,
             num_self_attention_heads=hparams.num_encoder_self_attention_heads,
             num_self_attention_layers_per_block=hparams.num_encoder_self_attention_layers_per_block,
-            dropout=hparams.dropout)
+            dropout=hparams.dropout,
+            activation_checkpoint=hparams.activation_checkpoint)
         return encoder
 
     def create_model(self):
