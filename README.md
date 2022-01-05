@@ -13,10 +13,17 @@ output adapters (see [Model API](#model-api)). The command line interface is imp
 
 ## Setup
 
+Configure with source code and Conda
+
 ```shell
 conda env create -f environment.yml
 conda activate model-io
 export PYTHONPATH=.
+```
+
+or install package with pip:
+```bash
+pip install .
 ```
 
 ## Tasks
