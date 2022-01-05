@@ -9,7 +9,7 @@ from pytorch_lightning.utilities.cli import (
     LightningArgumentParser,
 )
 
-from cli.trainer import DDPStaticGraphPlugin
+from perceiverio.cli.trainer import DDPStaticGraphPlugin
 
 
 class CLI(LightningCLI):

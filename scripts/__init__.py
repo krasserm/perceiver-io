@@ -1,1 +1,1 @@
-from cli import CLI
+from perceiverio.cli import CLI

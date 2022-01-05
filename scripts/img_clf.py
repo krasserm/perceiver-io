@@ -1,10 +1,10 @@
 from pytorch_lightning.utilities.cli import LightningArgumentParser
 
-from model import LitImageClassifier
-from cli import CLI
+from perceiverio.model import LitImageClassifier
+from perceiverio.cli import CLI
 
 # register data module via import
-from data import MNISTDataModule
+from perceiverio.data import MNISTDataModule
 
 
 class ImageClassifierCLI(CLI):

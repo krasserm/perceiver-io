@@ -6,8 +6,8 @@ from typing import Tuple
 
 from fairscale.nn import checkpoint_wrapper
 
-from model.utils import Sequential
-from model.adapter import (
+from perceiverio.model.utils import Sequential
+from perceiverio.model.adapter import (
     InputAdapter,
     OutputAdapter
 )
