@@ -1,0 +1,10 @@
+include *.txt
+exclude *.yml
+include LICENSE
+recursive-include docs *.md
+recursive-include docs *.png
+recursive-exclude notebooks *.ipynb
+recursive-include perceiverio *.yaml
+
+prune .github
+prune .cache
