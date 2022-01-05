@@ -8,7 +8,7 @@ from torchtext.datasets import IMDB
 from tokenizers.normalizers import Replace
 
 from data.utils import TextCollator
-from perceiver.tokenizer import (
+from model.tokenizer import (
     create_tokenizer,
     train_tokenizer,
     save_tokenizer,

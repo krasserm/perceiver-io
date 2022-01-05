@@ -1,6 +1,6 @@
 from pytorch_lightning.utilities.cli import LightningArgumentParser
 
-from perceiver import LitImageClassifier
+from model import LitImageClassifier
 from cli import CLI
 
 # register data module via import

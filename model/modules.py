@@ -6,8 +6,8 @@ from typing import Tuple
 
 from fairscale.nn import checkpoint_wrapper
 
-from perceiver.utils import Sequential
-from perceiver.adapter import (
+from model.utils import Sequential
+from model.adapter import (
     InputAdapter,
     OutputAdapter
 )
@@ -207,7 +207,7 @@ class PerceiverEncoder(nn.Module):
 class PerceiverDecoder(nn.Module):
     def __init__(self,
                  output_adapter: OutputAdapter,
-                 latent_shape: Tuple[int, int],  # as produced by perceiver encoder
+                 latent_shape: Tuple[int, int],  # as produced by model encoder
                  num_cross_attention_heads: int = 4,
                  dropout: float = 0.0,
                  activation_checkpoint: bool = False):

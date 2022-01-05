@@ -7,17 +7,17 @@ from pytorch_lightning.utilities.cli import instantiate_class
 from einops import rearrange
 from typing import Any, List, Optional, Tuple
 
-from perceiver.utils import (
+from model.utils import (
     freeze,
     predict_masked_samples
 )
-from perceiver.adapter import (
+from model.adapter import (
     ImageInputAdapter,
     TextInputAdapter,
     TextOutputAdapter,
     ClassificationOutputAdapter
 )
-from perceiver.model import (
+from model.modules import (
     PerceiverIO,
     PerceiverMLM,
     PerceiverEncoder,

@@ -2,7 +2,7 @@ import torch
 
 from pytorch_lightning.utilities.cli import LightningArgumentParser
 
-from perceiver import LitMaskedLanguageModel
+from model import LitMaskedLanguageModel
 from cli import CLI
 
 # register data module via import
