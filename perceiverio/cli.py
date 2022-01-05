@@ -9,13 +9,11 @@ from pytorch_lightning.utilities.cli import (
     LightningArgumentParser,
 )
 
-from perceiverio.cli.trainer import DDPStaticGraphPlugin
-
 
 class CLI(LightningCLI):
     def __init__(self, model_class, run=True, **kwargs):
         trainer_defaults = {
-            'default_config_files': [os.path.join('cli', 'trainer.yaml')]
+            'default_config_files': [os.path.join('perceiverio', 'trainer.yaml')]
         }
 
         super().__init__(model_class,
@@ -45,3 +43,10 @@ class CLI(LightningCLI):
         parser.link_arguments('trainer.default_root_dir', 'logger.save_dir', apply_on='parse')
         parser.link_arguments('experiment', 'logger.name', apply_on='parse')
         parser.add_optimizer_args(torch.optim.AdamW, link_to="model.optimizer_init")
+
+
+class DDPStaticGraphPlugin(DDPPlugin):
+    def _setup_model(self, model):
+        wrapped = super()._setup_model(model)
+        wrapped._set_static_graph()
+        return wrapped
