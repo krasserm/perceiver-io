@@ -74,6 +74,10 @@ class LitClassifier(LitModel):
 
 
 class LitImageClassifier(LitClassifier):
+    """
+    >>> lit = LitClassifier((64, 64, 3), 2)
+    """
+
     def __init__(
         self,
         image_shape: Tuple[int, int, int],

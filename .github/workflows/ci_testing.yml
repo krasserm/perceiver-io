@@ -52,7 +52,7 @@ jobs:
 
     - name: Tests and coverage
       run: |
-        python -m pytest perceiver tests -v --cov=perceiver --durations=25
+        python -m pytest perceiver tests -v --cov=perceiver --durations=25 --doctest-modules --color=yes
 
     - name: Statistics
       if: success()
