@@ -14,7 +14,7 @@ jobs:
       - uses: actions/checkout@master
       - uses: actions/setup-python@v2
         with:
-          python-version: 3.7
+          python-version: 3.8
 
       - name: Check package
         run: |
@@ -39,7 +39,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-20.04, macOS-10.15 , windows-2019]
-        python-version: [3.7]
+        python-version: [3.9]
 
     steps:
       - uses: actions/checkout@v2
@@ -57,16 +57,10 @@ jobs:
           # python setup.py check --metadata --strict
           python setup.py sdist bdist_wheel
 
-      - name: Setup Windows
-        if: runner.os == 'windows'
-        run: |
-          # this is just a hotfix because of Win cannot install it directly
-          pip install -r requirements.txt --find-links https://download.pytorch.org/whl/cpu/torch_stable.html
-
       - name: Install | Uninstall package - archive
         run: |
           # install as archive
-          pip install dist/*.tar.gz
+          pip install dist/*.tar.gz --find-links https://download.pytorch.org/whl/cpu/torch_stable.html
           cd ..
           python -c "import perceiver ; print(perceiver.__version__)"
           pip uninstall -y perceiver-io
@@ -74,7 +68,7 @@ jobs:
       - name: Install | Uninstall package - wheel
         run: |
           # install as wheel
-          pip install dist/*.whl
+          pip install dist/*.whl --find-links https://download.pytorch.org/whl/cpu/torch_stable.html
           cd ..
           python -c "import perceiver ; print(perceiver.__version__)"
           pip uninstall -y perceiver-io
