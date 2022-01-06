@@ -45,7 +45,7 @@ setup(
         # Indicate who your project is intended for
         'Intended Audience :: Developers',
         'Topic :: Scientific/Engineering',
-        'Topic :: Scientific/Engineering :: Artificial Intelligence
+        'Topic :: Scientific/Engineering :: Artificial Intelligence',
         # Pick your license as you wish
         "License :: OSI Approved :: Apache Software License",
         'Operating System :: OS Independent',
