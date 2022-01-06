@@ -14,38 +14,30 @@ def mlp(num_channels: int):
         nn.LayerNorm(num_channels),
         nn.Linear(num_channels, num_channels),
         nn.GELU(),
-        nn.Linear(num_channels, num_channels)
+        nn.Linear(num_channels, num_channels),
     )
 
 
-def cross_attention_layer(num_q_channels: int,
-                          num_kv_channels: int,
-                          num_heads: int,
-                          dropout: float,
-                          activation_checkpoint: bool = False):
+def cross_attention_layer(
+    num_q_channels: int, num_kv_channels: int, num_heads: int, dropout: float, activation_checkpoint: bool = False
+):
     layer = Sequential(
         Residual(CrossAttention(num_q_channels, num_kv_channels, num_heads, dropout), dropout),
-        Residual(mlp(num_q_channels), dropout)
+        Residual(mlp(num_q_channels), dropout),
     )
     return layer if not activation_checkpoint else checkpoint_wrapper(layer)
 
 
-def self_attention_layer(num_channels: int,
-                         num_heads: int,
-                         dropout: float,
-                         activation_checkpoint: bool = False):
+def self_attention_layer(num_channels: int, num_heads: int, dropout: float, activation_checkpoint: bool = False):
     layer = Sequential(
-        Residual(SelfAttention(num_channels, num_heads, dropout), dropout),
-        Residual(mlp(num_channels), dropout)
+        Residual(SelfAttention(num_channels, num_heads, dropout), dropout), Residual(mlp(num_channels), dropout)
     )
     return layer if not activation_checkpoint else checkpoint_wrapper(layer)
 
 
-def self_attention_block(num_layers: int,
-                         num_channels: int,
-                         num_heads: int,
-                         dropout: float,
-                         activation_checkpoint: bool = False):
+def self_attention_block(
+    num_layers: int, num_channels: int, num_heads: int, dropout: float, activation_checkpoint: bool = False
+):
     layers = [self_attention_layer(num_channels, num_heads, dropout, activation_checkpoint) for _ in range(num_layers)]
     return Sequential(*layers)
 
@@ -63,18 +55,16 @@ class Residual(nn.Module):
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self,
-                 num_q_channels: int,
-                 num_kv_channels: int,
-                 num_heads: int,
-                 dropout: float):
+    def __init__(self, num_q_channels: int, num_kv_channels: int, num_heads: int, dropout: float):
         super().__init__()
-        self.attention = nn.MultiheadAttention(embed_dim=num_q_channels,
-                                               num_heads=num_heads,
-                                               kdim=num_kv_channels,
-                                               vdim=num_kv_channels,
-                                               dropout=dropout,
-                                               batch_first=True)
+        self.attention = nn.MultiheadAttention(
+            embed_dim=num_q_channels,
+            num_heads=num_heads,
+            kdim=num_kv_channels,
+            vdim=num_kv_channels,
+            dropout=dropout,
+            batch_first=True,
+        )
 
     def forward(self, x_q, x_kv, pad_mask=None, attn_mask=None):
         return self.attention(x_q, x_kv, x_kv, key_padding_mask=pad_mask, attn_mask=attn_mask)[0]
@@ -86,18 +76,13 @@ class CrossAttention(nn.Module):
     # whereas in the paper it can be specified separately. This simplification allows re-use of the
     # torch.nn.MultiHeadAttention module whereas a full implementation of the paper would require a
     # custom multi-head attention implementation.
-    def __init__(self,
-                 num_q_channels: int,
-                 num_kv_channels: int,
-                 num_heads: int,
-                 dropout: float):
+    def __init__(self, num_q_channels: int, num_kv_channels: int, num_heads: int, dropout: float):
         super().__init__()
         self.q_norm = nn.LayerNorm(num_q_channels)
         self.kv_norm = nn.LayerNorm(num_kv_channels)
-        self.attention = MultiHeadAttention(num_q_channels=num_q_channels,
-                                            num_kv_channels=num_kv_channels,
-                                            num_heads=num_heads,
-                                            dropout=dropout)
+        self.attention = MultiHeadAttention(
+            num_q_channels=num_q_channels, num_kv_channels=num_kv_channels, num_heads=num_heads, dropout=dropout
+        )
 
     def forward(self, x_q, x_kv, pad_mask=None, attn_mask=None):
         x_q = self.q_norm(x_q)
@@ -106,16 +91,12 @@ class CrossAttention(nn.Module):
 
 
 class SelfAttention(nn.Module):
-    def __init__(self,
-                 num_channels: int,
-                 num_heads: int,
-                 dropout: float):
+    def __init__(self, num_channels: int, num_heads: int, dropout: float):
         super().__init__()
         self.norm = nn.LayerNorm(num_channels)
-        self.attention = MultiHeadAttention(num_q_channels=num_channels,
-                                            num_kv_channels=num_channels,
-                                            num_heads=num_heads,
-                                            dropout=dropout)
+        self.attention = MultiHeadAttention(
+            num_q_channels=num_channels, num_kv_channels=num_channels, num_heads=num_heads, dropout=dropout
+        )
 
     def forward(self, x, pad_mask=None, attn_mask=None):
         x = self.norm(x)
@@ -123,17 +104,18 @@ class SelfAttention(nn.Module):
 
 
 class PerceiverEncoder(nn.Module):
-    def __init__(self,
-                 input_adapter: InputAdapter,
-                 latent_shape: Tuple[int, int],
-                 num_layers: int,
-                 num_cross_attention_heads: int = 4,
-                 num_self_attention_heads: int = 4,
-                 num_self_attention_layers_per_block: int = 2,
-                 dropout: float = 0.0,
-                 activation_checkpoint: bool = False):
-        """
-        Generic Perceiver IO encoder.
+    def __init__(
+        self,
+        input_adapter: InputAdapter,
+        latent_shape: Tuple[int, int],
+        num_layers: int,
+        num_cross_attention_heads: int = 4,
+        num_self_attention_heads: int = 4,
+        num_self_attention_layers_per_block: int = 2,
+        dropout: float = 0.0,
+        activation_checkpoint: bool = False,
+    ):
+        """Generic Perceiver IO encoder.
 
         :param input_adapter: Transforms and position-encodes task-specific input to an encoder input of shape
                               (B, M, C_input) where B is the batch size, M the input sequence length and C_input
@@ -158,16 +140,20 @@ class PerceiverEncoder(nn.Module):
 
         def create_perceiver_layer():
             return Sequential(
-                cross_attention_layer(num_q_channels=num_latent_channels,
-                                      num_kv_channels=input_adapter.num_input_channels,
-                                      num_heads=num_cross_attention_heads,
-                                      dropout=dropout,
-                                      activation_checkpoint=activation_checkpoint),
-                self_attention_block(num_layers=num_self_attention_layers_per_block,
-                                     num_channels=num_latent_channels,
-                                     num_heads=num_self_attention_heads,
-                                     dropout=dropout,
-                                     activation_checkpoint=activation_checkpoint)
+                cross_attention_layer(
+                    num_q_channels=num_latent_channels,
+                    num_kv_channels=input_adapter.num_input_channels,
+                    num_heads=num_cross_attention_heads,
+                    dropout=dropout,
+                    activation_checkpoint=activation_checkpoint,
+                ),
+                self_attention_block(
+                    num_layers=num_self_attention_layers_per_block,
+                    num_channels=num_latent_channels,
+                    num_heads=num_self_attention_heads,
+                    dropout=dropout,
+                    activation_checkpoint=activation_checkpoint,
+                ),
             )
 
         self.layer_1 = create_perceiver_layer()
@@ -201,14 +187,15 @@ class PerceiverEncoder(nn.Module):
 
 
 class PerceiverDecoder(nn.Module):
-    def __init__(self,
-                 output_adapter: OutputAdapter,
-                 latent_shape: Tuple[int, int],  # as produced by model encoder
-                 num_cross_attention_heads: int = 4,
-                 dropout: float = 0.0,
-                 activation_checkpoint: bool = False):
-        """
-        Generic Perceiver IO decoder.
+    def __init__(
+        self,
+        output_adapter: OutputAdapter,
+        latent_shape: Tuple[int, int],  # as produced by model encoder
+        num_cross_attention_heads: int = 4,
+        dropout: float = 0.0,
+        activation_checkpoint: bool = False,
+    ):
+        """Generic Perceiver IO decoder.
 
         :param output_adapter: Transforms generic decoder output of shape (B, K, C_output) to task-specific
                                output. B is the batch size, K the output sequence length and C_output the
@@ -228,11 +215,13 @@ class PerceiverDecoder(nn.Module):
 
         self.output_adapter = output_adapter
         self.latent_shape = latent_shape
-        self.cross_attention = cross_attention_layer(num_q_channels=num_output_channels,
-                                                     num_kv_channels=num_latent_channels,
-                                                     num_heads=num_cross_attention_heads,
-                                                     dropout=dropout,
-                                                     activation_checkpoint=activation_checkpoint)
+        self.cross_attention = cross_attention_layer(
+            num_q_channels=num_output_channels,
+            num_kv_channels=num_latent_channels,
+            num_heads=num_cross_attention_heads,
+            dropout=dropout,
+            activation_checkpoint=activation_checkpoint,
+        )
 
         self.output = nn.Parameter(torch.empty(*output_adapter.output_shape))
         self._init_parameters()
@@ -253,15 +242,15 @@ class PerceiverDecoder(nn.Module):
 
 
 class TextMasking(nn.Module):
-    def __init__(self,
-                 vocab_size: int,
-                 unk_token_id: int = 1,
-                 mask_token_id: int = 2,
-                 num_special_tokens: int = 3,
-                 mask_p: float = 0.15):
-        """
-        Text masking as described in https://arxiv.org/abs/1810.04805.
-        """
+    def __init__(
+        self,
+        vocab_size: int,
+        unk_token_id: int = 1,
+        mask_token_id: int = 2,
+        num_special_tokens: int = 3,
+        mask_p: float = 0.15,
+    ):
+        """Text masking as described in https://arxiv.org/abs/1810.04805."""
         super().__init__()
         self.vocab_size = vocab_size
         self.unk_token_id = unk_token_id
@@ -290,10 +279,9 @@ class TextMasking(nn.Module):
 
         # Based on the assumption that the id of the first
         # non-special token is self.num_special_tokens
-        x[is_selected_2] = torch.randint(self.num_special_tokens,
-                                         self.vocab_size,
-                                         size=(is_selected_2.sum(),),
-                                         device=x.device)
+        x[is_selected_2] = torch.randint(
+            self.num_special_tokens, self.vocab_size, size=(is_selected_2.sum(),), device=x.device
+        )
 
         # ignore labels of non-selected elements
         labels[~is_selected] = -100
@@ -301,10 +289,7 @@ class TextMasking(nn.Module):
 
 
 class PerceiverMLM(nn.Module):
-    def __init__(self,
-                 encoder: PerceiverEncoder,
-                 decoder: PerceiverDecoder,
-                 masking: TextMasking):
+    def __init__(self, encoder: PerceiverEncoder, decoder: PerceiverDecoder, masking: TextMasking):
         super().__init__()
         self.encoder = encoder
         self.decoder = decoder
@@ -326,9 +311,7 @@ class PerceiverMLM(nn.Module):
 
 
 class PerceiverIO(Sequential):
-    def __init__(self,
-                 encoder: PerceiverEncoder,
-                 decoder: PerceiverDecoder):
+    def __init__(self, encoder: PerceiverEncoder, decoder: PerceiverDecoder):
         super().__init__(encoder, decoder)
 
     @property

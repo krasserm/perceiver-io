@@ -13,16 +13,15 @@ from pytorch_lightning.utilities.cli import (
 
 class CLI(LightningCLI):
     def __init__(self, model_class, run=True, **kwargs):
-        trainer_defaults = {
-            'default_config_files': [os.path.join('perceiver', 'trainer.yaml')]
-        }
+        trainer_defaults = {'default_config_files': [os.path.join('perceiver', 'trainer.yaml')]}
 
-        super().__init__(model_class,
-                         run=run,
-                         save_config_overwrite=True,
-                         parser_kwargs={'fit': trainer_defaults,
-                                        'test': trainer_defaults,
-                                        'validate': trainer_defaults}, **kwargs)
+        super().__init__(
+            model_class,
+            run=run,
+            save_config_overwrite=True,
+            parser_kwargs={'fit': trainer_defaults, 'test': trainer_defaults, 'validate': trainer_defaults},
+            **kwargs
+        )
 
     def instantiate_trainer(self, **kwargs: Any) -> Trainer:
         if self.subcommand:

@@ -1,12 +1,10 @@
 import torch
-from pytorch_lightning.utilities.cli import LightningArgumentParser
-
 from perceiver.cli import CLI
-from perceiver.model import LitMaskedLanguageModel
-
 
 # register data module via import
 from perceiver.data import IMDBDataModule
+from perceiver.model import LitMaskedLanguageModel
+from pytorch_lightning.utilities.cli import LightningArgumentParser
 
 
 class MaskedLanguageModelCLI(CLI):
@@ -17,17 +15,21 @@ class MaskedLanguageModelCLI(CLI):
         parser.link_arguments('optimizer.lr', 'lr_scheduler.max_lr', apply_on='parse')
         parser.link_arguments('data.vocab_size', 'model.vocab_size', apply_on='instantiate')
         parser.link_arguments('data.max_seq_len', 'model.max_seq_len', apply_on='instantiate')
-        parser.set_defaults({
-            'experiment': 'mlm',
-            'lr_scheduler.pct_start': 0.1,
-            'lr_scheduler.cycle_momentum': False,
-            'model.num_latents': 64,
-            'model.num_latent_channels': 64,
-            'model.num_encoder_layers': 3,
-            'model.num_predictions': 5,
-            'model.masked_samples': ['I have watched this <MASK> and it was awesome',
-                                     'I have <MASK> this movie and <MASK> was really terrible']
-        })
+        parser.set_defaults(
+            {
+                'experiment': 'mlm',
+                'lr_scheduler.pct_start': 0.1,
+                'lr_scheduler.cycle_momentum': False,
+                'model.num_latents': 64,
+                'model.num_latent_channels': 64,
+                'model.num_encoder_layers': 3,
+                'model.num_predictions': 5,
+                'model.masked_samples': [
+                    'I have watched this <MASK> and it was awesome',
+                    'I have <MASK> this movie and <MASK> was really terrible',
+                ],
+            }
+        )
 
 
 if __name__ == '__main__':

@@ -1,9 +1,8 @@
 # Always prefer setuptools over distutils
 from os import path
 
-from setuptools import find_packages, setup
-
 import perceiver
+from setuptools import find_packages, setup
 
 _PATH_HERE = path.abspath(path.dirname(__file__))
 
@@ -11,7 +10,7 @@ _PATH_HERE = path.abspath(path.dirname(__file__))
 def _load_requirements(fname='requirements.txt'):
     with open(path.join(_PATH_HERE, fname), encoding='utf-8') as fp:
         reqs = [rq.rstrip() for rq in fp.readlines()]
-    reqs = [ln[:ln.index('#')] if '#' in ln else ln for ln in reqs]
+    reqs = [ln[: ln.index('#')] if '#' in ln else ln for ln in reqs]
     reqs = [ln for ln in reqs if ln]
     return reqs
 
@@ -51,5 +50,5 @@ setup(
         'Operating System :: OS Independent',
         # Specify the Python versions you support here.
         'Programming Language :: Python :: 3',
-    ]
+    ],
 )

@@ -5,10 +5,10 @@ A PyTorch implementation of
 - [Perceiver: General Perception with Iterative Attention](https://arxiv.org/abs/2103.03206)
 - [Perceiver IO: A General Architecture for Structured Inputs & Outputs](https://arxiv.org/abs/2107.14795)
 
-This project supports training of Perceiver IO models with [Pytorch Lightning](https://www.pytorchlightning.ai/). 
-Training examples are given in section [Tasks](#tasks), inference examples in section [Notebooks](#notebooks). 
-Perceiver IO models are constructed with generic encoder and decoder classes and task-specific input and 
-output adapters (see [Model API](#model-api)). The command line interface is implemented with 
+This project supports training of Perceiver IO models with [Pytorch Lightning](https://www.pytorchlightning.ai/).
+Training examples are given in section [Tasks](#tasks), inference examples in section [Notebooks](#notebooks).
+Perceiver IO models are constructed with generic encoder and decoder classes and task-specific input and
+output adapters (see [Model API](#model-api)). The command line interface is implemented with
 [Lighting CLI](https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_cli.html).
 
 ## Setup
@@ -22,22 +22,23 @@ export PYTHONPATH=.
 ```
 
 or install package with pip:
+
 ```bash
 pip install .
 ```
 
 ## Tasks
 
-In the following subsections, Perceiver IO models are trained on a rather small scale. In particular, hyper-parameters 
-are set such that parallel training on two NVIDIA GTX 1080 GPUs (8 GB memory each) works quite well. I didn't really 
-tune model architectures and other hyper-parameters, so you'll probably get better results with a bit of experimentation. 
+In the following subsections, Perceiver IO models are trained on a rather small scale. In particular, hyper-parameters
+are set such that parallel training on two NVIDIA GTX 1080 GPUs (8 GB memory each) works quite well. I didn't really
+tune model architectures and other hyper-parameters, so you'll probably get better results with a bit of experimentation.
 Support for more datasets and tasks will be added later.
 
 ### Masked language modeling
 
-Pretrain a Perceiver IO model on masked language modeling (MLM) with text from the IMDB training set. The pretrained 
-encoder is then used for training a [sentiment classification](#sentiment-classification) model. 
-[Predictions of masked tokens](docs/tensorboard.md) are logged to Tensorboard. 
+Pretrain a Perceiver IO model on masked language modeling (MLM) with text from the IMDB training set. The pretrained
+encoder is then used for training a [sentiment classification](#sentiment-classification) model.
+[Predictions of masked tokens](docs/tensorboard.md) are logged to Tensorboard.
 
 ```shell
 python scripts/mlm.py fit \
@@ -56,15 +57,15 @@ python scripts/mlm.py fit \
   --trainer.check_val_every_n_epoch=5
 ```
 
-For saving GPU memory and scaling model training, [activation checkpointing](docs/checkpointing.md) can be enabled with 
+For saving GPU memory and scaling model training, [activation checkpointing](docs/checkpointing.md) can be enabled with
 `--model.activation_checkpoint=true` (disabled by default).
 
 ### Sentiment classification
 
-Train a classification decoder using a frozen encoder from [masked language modeling](#masked-language-modeling-mlm). 
+Train a classification decoder using a frozen encoder from [masked language modeling](#masked-language-modeling-mlm).
 If you ran MLM yourself you'll need to modify the `--model.mlm_ckpt` argument accordingly, otherwise download
-checkpoints from [here](https://martin-krasser.com/perceiver/logs-update-1.zip) and extract them in the root directory of 
-this project. 
+checkpoints from [here](https://martin-krasser.com/perceiver/logs-update-1.zip) and extract them in the root directory of
+this project.
 
 ```shell
 python scripts/seq_clf.py fit \
@@ -84,7 +85,7 @@ python scripts/seq_clf.py fit \
 ```
 
 Unfreeze the encoder and jointly fine-tune it together with the decoder that has been trained in the previous step.
-If you ran the previous step yourself you'll need to modify the `--model.clf_ckpt` argument accordingly, otherwise 
+If you ran the previous step yourself you'll need to modify the `--model.clf_ckpt` argument accordingly, otherwise
 download checkpoints from [here](https://martin-krasser.com/perceiver/logs-update-1.zip).
 
 ```shell
@@ -105,7 +106,7 @@ python scripts/seq_clf.py fit \
 
 ### Image classification
 
-Classify MNIST images. See also [Model API](#model-api) for details about the underlying Perceiver IO model. 
+Classify MNIST images. See also [Model API](#model-api) for details about the underlying Perceiver IO model.
 
 ```shell
 python scripts/img_clf.py fit \
@@ -128,8 +129,8 @@ python scripts/img_clf.py fit \
 
 ## Model API
 
-The [model](perceiver/model/core.py) API is based on generic encoder and decoder classes (`PerceiverEncoder` and 
-`PerceiverDecoder`) and task-specific input and output [adapters](perceiver/model/adapter.py). The following snippet 
+The [model](perceiver/model/core.py) API is based on generic encoder and decoder classes (`PerceiverEncoder` and
+`PerceiverDecoder`) and task-specific input and output [adapters](perceiver/model/adapter.py). The following snippet
 shows how they can be used to create an MNIST image classifier, for example:
 
 ```python
@@ -152,14 +153,16 @@ encoder = PerceiverEncoder(
     num_cross_attention_heads=4,
     num_self_attention_heads=4,
     num_self_attention_layers_per_block=3,
-    dropout=0.0)
+    dropout=0.0,
+)
 
 # Generic Perceiver decoder
 decoder = PerceiverDecoder(
     output_adapter=output_adapter,
     latent_shape=latent_shape,
     num_cross_attention_heads=1,
-    dropout=0.0)
+    dropout=0.0,
+)
 
 # MNIST classifier implemented as Perceiver IO model
 mnist_classifier = PerceiverIO(encoder, decoder)

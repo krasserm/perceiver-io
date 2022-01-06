@@ -48,13 +48,15 @@ class IMDBDataset(Dataset):
 
 @DATAMODULE_REGISTRY
 class IMDBDataModule(pl.LightningDataModule):
-    def __init__(self,
-                 data_dir: str = '.cache',
-                 vocab_size: int = 10003,
-                 max_seq_len: int = 512,
-                 batch_size: int = 64,
-                 num_workers: int = 3,
-                 pin_memory: bool = False):
+    def __init__(
+        self,
+        data_dir: str = '.cache',
+        vocab_size: int = 10003,
+        max_seq_len: int = 512,
+        batch_size: int = 64,
+        num_workers: int = 3,
+        pin_memory: bool = False,
+    ):
         super().__init__()
         self.save_hyperparameters()
         self.tokenizer_path = os.path.join(data_dir, f'imdb-tokenizer-{vocab_size}.json')
@@ -88,17 +90,21 @@ class IMDBDataModule(pl.LightningDataModule):
         self.ds_valid = IMDBDataset(root=self.hparams.data_dir, split='test')
 
     def train_dataloader(self):
-        return DataLoader(self.ds_train,
-                          shuffle=True,
-                          collate_fn=self.collator.collate,
-                          batch_size=self.hparams.batch_size,
-                          num_workers=self.hparams.num_workers,
-                          pin_memory=self.hparams.pin_memory)
+        return DataLoader(
+            self.ds_train,
+            shuffle=True,
+            collate_fn=self.collator.collate,
+            batch_size=self.hparams.batch_size,
+            num_workers=self.hparams.num_workers,
+            pin_memory=self.hparams.pin_memory,
+        )
 
     def val_dataloader(self):
-        return DataLoader(self.ds_valid,
-                          shuffle=False,
-                          collate_fn=self.collator.collate,
-                          batch_size=self.hparams.batch_size,
-                          num_workers=self.hparams.num_workers,
-                          pin_memory=self.hparams.pin_memory)
+        return DataLoader(
+            self.ds_valid,
+            shuffle=False,
+            collate_fn=self.collator.collate,
+            batch_size=self.hparams.batch_size,
+            num_workers=self.hparams.num_workers,
+            pin_memory=self.hparams.pin_memory,
+        )

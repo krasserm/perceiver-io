@@ -1,11 +1,9 @@
-from pytorch_lightning.utilities.cli import LightningArgumentParser
-
 from perceiver.cli import CLI
-from perceiver.model import LitTextClassifier
-
 
 # register data module via import
 from perceiver.data import IMDBDataModule
+from perceiver.model import LitTextClassifier
+from pytorch_lightning.utilities.cli import LightningArgumentParser
 
 
 class TextClassifierCLI(CLI):
@@ -13,14 +11,16 @@ class TextClassifierCLI(CLI):
         super().add_arguments_to_parser(parser)
         parser.link_arguments('data.vocab_size', 'model.vocab_size', apply_on='instantiate')
         parser.link_arguments('data.max_seq_len', 'model.max_seq_len', apply_on='instantiate')
-        parser.set_defaults({
-            'experiment': 'seq_clf',
-            'model.num_classes': 2,
-            'model.num_latents': 64,
-            'model.num_latent_channels': 64,
-            'model.num_encoder_layers': 3,
-            'model.num_decoder_cross_attention_heads': 1,
-        })
+        parser.set_defaults(
+            {
+                'experiment': 'seq_clf',
+                'model.num_classes': 2,
+                'model.num_latents': 64,
+                'model.num_latent_channels': 64,
+                'model.num_encoder_layers': 3,
+                'model.num_decoder_cross_attention_heads': 1,
+            }
+        )
 
 
 if __name__ == '__main__':
