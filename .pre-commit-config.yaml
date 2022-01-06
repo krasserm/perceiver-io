@@ -17,7 +17,6 @@ repos:
       - id: check-json
       - id: check-toml
       - id: check-docstring-first
-      - id: check-executables-have-shebangs
       - id: check-case-conflict
       - id: check-added-large-files
       - id: detect-private-key
@@ -63,7 +62,6 @@ repos:
           - mdformat-gfm
           - mdformat-black
           - mdformat_frontmatter
-        exclude: CHANGELOG.md
 
 #  - repo: https://github.com/PyCQA/flake8
 #    rev: 4.0.1
