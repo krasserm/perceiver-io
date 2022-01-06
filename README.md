@@ -128,13 +128,13 @@ python scripts/img_clf.py fit \
 
 ## Model API
 
-The [model](perceiverio/model/modules.py) API is based on generic encoder and decoder classes (`PerceiverEncoder` and 
-`PerceiverDecoder`) and task-specific input and output [adapters](perceiverio/model/adapter.py). The following snippet 
+The [model](perceiver/model/core.py) API is based on generic encoder and decoder classes (`PerceiverEncoder` and 
+`PerceiverDecoder`) and task-specific input and output [adapters](perceiver/model/adapter.py). The following snippet 
 shows how they can be used to create an MNIST image classifier, for example:
 
 ```python
-from perceiverio.model import ImageInputAdapter, ClassificationOutputAdapter
-from perceiverio.model.modules import PerceiverIO, PerceiverEncoder, PerceiverDecoder
+from perceiver.model import ImageInputAdapter, ClassificationOutputAdapter
+from perceiver.model.core import PerceiverIO, PerceiverEncoder, PerceiverDecoder
 
 latent_shape = (32, 128)
 

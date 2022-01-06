@@ -1,9 +1,9 @@
 import math
+from typing import Optional, Tuple
+
 import torch
 import torch.nn as nn
-
 from einops import rearrange, repeat
-from typing import Optional, Tuple
 
 
 class InputAdapter(nn.Module):

@@ -1,7 +1,7 @@
 import torch
-
 from tokenizers import Tokenizer
-from perceiverio.model.tokenizer import load_tokenizer, PAD_TOKEN
+
+from perceiver.model.tokenizer import load_tokenizer, PAD_TOKEN
 
 
 class TextPreprocessor:

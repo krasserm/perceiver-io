@@ -1,20 +1,20 @@
 import os
-import torch
-
 from typing import Any
+
+import torch
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.plugins import DDPPlugin
 from pytorch_lightning.utilities.cli import (
     LightningCLI,
     LightningArgumentParser,
 )
-from pytorch_lightning.plugins import DDPPlugin
 
 
 class CLI(LightningCLI):
     def __init__(self, model_class, run=True, **kwargs):
         trainer_defaults = {
-            'default_config_files': [os.path.join('perceiverio', 'trainer.yaml')]
+            'default_config_files': [os.path.join('perceiver', 'trainer.yaml')]
         }
 
         super().__init__(model_class,

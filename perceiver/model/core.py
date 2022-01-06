@@ -1,16 +1,12 @@
-import torch
-import torch.nn as nn
-
-from einops import repeat
 from typing import Tuple
 
+import torch
+import torch.nn as nn
+from einops import repeat
 from fairscale.nn import checkpoint_wrapper
 
-from perceiverio.model.utils import Sequential
-from perceiverio.model.adapter import (
-    InputAdapter,
-    OutputAdapter
-)
+from perceiver.model.adapter import InputAdapter, OutputAdapter
+from perceiver.model.utils import Sequential
 
 
 def mlp(num_channels: int):

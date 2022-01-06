@@ -3,7 +3,7 @@ from os import path
 
 from setuptools import find_packages, setup
 
-import perceiverio
+import perceiver
 
 _PATH_HERE = path.abspath(path.dirname(__file__))
 
@@ -24,13 +24,13 @@ def _load_requirements(fname='requirements.txt'):
 # Fields marked as "Optional" may be commented out.
 setup(
     name='perceiver-io',
-    version=perceiverio.__version__,
-    url=perceiverio.__homepage__,
-    author=perceiverio.__author__,
-    author_email=perceiverio.__author_email__,
-    license=perceiverio.__license__,
-    description=perceiverio.__doc__,
-    long_description=perceiverio.__long_doc__,
+    version=perceiver.__version__,
+    url=perceiver.__homepage__,
+    author=perceiver.__author__,
+    author_email=perceiver.__author_email__,
+    license=perceiver.__license__,
+    description=perceiver.__doc__,
+    long_description=perceiver.__long_doc__,
     long_description_content_type='text/markdown',
     packages=find_packages(exclude=['tests', 'tests/*']),
     keywords='perceiver-io deep-learning',

@@ -1,10 +1,11 @@
 from pytorch_lightning.utilities.cli import LightningArgumentParser
 
-from perceiverio.model import LitTextClassifier
-from perceiverio.cli import CLI
+from perceiver.cli import CLI
+from perceiver.model import LitTextClassifier
+
 
 # register data module via import
-from perceiverio.data import IMDBDataModule
+from perceiver.data import IMDBDataModule
 
 
 class TextClassifierCLI(CLI):

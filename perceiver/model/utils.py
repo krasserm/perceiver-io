@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from perceiverio.model.tokenizer import MASK_TOKEN
+from perceiver.model.tokenizer import MASK_TOKEN
 
 
 class Sequential(nn.Sequential):
