@@ -1,16 +1,12 @@
-import torch
-import torch.nn as nn
-
-from einops import repeat
 from typing import Tuple
 
+import torch
+import torch.nn as nn
+from einops import repeat
 from fairscale.nn import checkpoint_wrapper
 
-from perceiver.utils import Sequential
-from perceiver.adapter import (
-    InputAdapter,
-    OutputAdapter
-)
+from perceiver.model.adapter import InputAdapter, OutputAdapter
+from perceiver.model.utils import Sequential
 
 
 def mlp(num_channels: int):
@@ -207,7 +203,7 @@ class PerceiverEncoder(nn.Module):
 class PerceiverDecoder(nn.Module):
     def __init__(self,
                  output_adapter: OutputAdapter,
-                 latent_shape: Tuple[int, int],  # as produced by perceiver encoder
+                 latent_shape: Tuple[int, int],  # as produced by model encoder
                  num_cross_attention_heads: int = 4,
                  dropout: float = 0.0,
                  activation_checkpoint: bool = False):

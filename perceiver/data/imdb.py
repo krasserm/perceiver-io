@@ -1,20 +1,19 @@
 import glob
 import os
-import pytorch_lightning as pl
 
+import pytorch_lightning as pl
 from pytorch_lightning.utilities.cli import DATAMODULE_REGISTRY
+from tokenizers.normalizers import Replace
 from torch.utils.data import Dataset, DataLoader
 from torchtext.datasets import IMDB
-from tokenizers.normalizers import Replace
 
-from data.utils import TextCollator
-from perceiver.tokenizer import (
+from perceiver.data.utils import TextCollator
+from perceiver.model.tokenizer import (
     create_tokenizer,
     train_tokenizer,
     save_tokenizer,
     load_tokenizer,
 )
-
 
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 

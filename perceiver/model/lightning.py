@@ -1,29 +1,25 @@
-import torch.nn as nn
-import torchmetrics as tm
-import pytorch_lightning as pl
-
-from pytorch_lightning.utilities.cli import instantiate_class
-
-from einops import rearrange
 from typing import Any, List, Optional, Tuple
 
-from perceiver.utils import (
-    freeze,
-    predict_masked_samples
-)
-from perceiver.adapter import (
+import pytorch_lightning as pl
+import torch.nn as nn
+import torchmetrics as tm
+from einops import rearrange
+from pytorch_lightning.utilities.cli import instantiate_class
+
+from perceiver.model.adapter import (
     ImageInputAdapter,
     TextInputAdapter,
     TextOutputAdapter,
     ClassificationOutputAdapter
 )
-from perceiver.model import (
+from perceiver.model.core import (
     PerceiverIO,
     PerceiverMLM,
     PerceiverEncoder,
     PerceiverDecoder,
     TextMasking
 )
+from perceiver.model.utils import freeze, predict_masked_samples
 
 
 class LitModel(pl.LightningModule):

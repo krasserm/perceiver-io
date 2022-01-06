@@ -1,9 +1,9 @@
-import torch
+from typing import Callable, Optional, Union
 
+import torch
 from pl_bolts.datamodules import mnist_datamodule
 from pytorch_lightning.utilities.cli import DATAMODULE_REGISTRY
 from torchvision import transforms
-from typing import Callable, Optional, Union
 
 
 @DATAMODULE_REGISTRY

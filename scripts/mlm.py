@@ -1,12 +1,12 @@
 import torch
-
 from pytorch_lightning.utilities.cli import LightningArgumentParser
 
-from perceiver import LitMaskedLanguageModel
-from cli import CLI
+from perceiver.cli import CLI
+from perceiver.model import LitMaskedLanguageModel
+
 
 # register data module via import
-from data import IMDBDataModule
+from perceiver.data import IMDBDataModule
 
 
 class MaskedLanguageModelCLI(CLI):

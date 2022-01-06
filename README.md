@@ -13,10 +13,17 @@ output adapters (see [Model API](#model-api)). The command line interface is imp
 
 ## Setup
 
+Configure with source code and Conda
+
 ```shell
 conda env create -f environment.yml
 conda activate perceiver-io
 export PYTHONPATH=.
+```
+
+or install package with pip:
+```bash
+pip install .
 ```
 
 ## Tasks
@@ -121,13 +128,13 @@ python scripts/img_clf.py fit \
 
 ## Model API
 
-The [model](perceiver/model.py) API is based on generic encoder and decoder classes (`PerceiverEncoder` and 
-`PerceiverDecoder`) and task-specific input and output [adapters](perceiver/adapter.py). The following snippet 
+The [model](perceiver/model/core.py) API is based on generic encoder and decoder classes (`PerceiverEncoder` and 
+`PerceiverDecoder`) and task-specific input and output [adapters](perceiver/model/adapter.py). The following snippet 
 shows how they can be used to create an MNIST image classifier, for example:
 
 ```python
-from perceiver.adapter import ImageInputAdapter, ClassificationOutputAdapter
-from perceiver.model import PerceiverIO, PerceiverEncoder, PerceiverDecoder
+from perceiver.model import ImageInputAdapter, ClassificationOutputAdapter
+from perceiver.model.core import PerceiverIO, PerceiverEncoder, PerceiverDecoder
 
 latent_shape = (32, 128)
 

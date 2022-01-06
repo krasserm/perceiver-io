@@ -6,7 +6,6 @@ from tokenizers.normalizers import Normalizer, Sequence, Lowercase, StripAccents
 from tokenizers.pre_tokenizers import Whitespace
 from tokenizers.trainers import WordPieceTrainer
 
-
 PAD_TOKEN = '[PAD]'
 UNK_TOKEN = '[UNK]'
 MASK_TOKEN = '[MASK]'
