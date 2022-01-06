@@ -1,4 +1,4 @@
-name: model-io
+name: perceiver-io
 channels:
   - pytorch
   - conda-forge

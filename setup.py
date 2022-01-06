@@ -44,7 +44,8 @@ setup(
         'Development Status :: 4 - Beta',
         # Indicate who your project is intended for
         'Intended Audience :: Developers',
-        'Topic :: Software Development :: Build Tools',
+        'Topic :: Scientific/Engineering',
+        'Topic :: Scientific/Engineering :: Artificial Intelligence
         # Pick your license as you wish
         "License :: OSI Approved :: Apache Software License",
         'Operating System :: OS Independent',

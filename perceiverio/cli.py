@@ -8,6 +8,7 @@ from pytorch_lightning.utilities.cli import (
     LightningCLI,
     LightningArgumentParser,
 )
+from pytorch_lightning.plugins import DDPPlugin
 
 
 class CLI(LightningCLI):

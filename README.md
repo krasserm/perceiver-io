@@ -17,7 +17,7 @@ Configure with source code and Conda
 
 ```shell
 conda env create -f environment.yml
-conda activate model-io
+conda activate perceiver-io
 export PYTHONPATH=.
 ```
 
