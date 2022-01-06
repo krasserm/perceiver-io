@@ -51,8 +51,7 @@ class ImageInputAdapter(InputAdapter):
         self.register_buffer('position_encoding', enc)
 
     def _positions(self, v_min=-1.0, v_max=1.0):
-        """
-        Create evenly spaced position coordinates for self.spatial_shape with values in [v_min, v_max].
+        """Create evenly spaced position coordinates for self.spatial_shape with values in [v_min, v_max].
 
         :param v_min: minimum coordinate value per dimension.
         :param v_max: maximum coordinate value per dimension.
@@ -61,12 +60,10 @@ class ImageInputAdapter(InputAdapter):
         coords = [torch.linspace(v_min, v_max, steps=s) for s in self.spatial_shape]
         return torch.stack(torch.meshgrid(*coords), dim=len(self.spatial_shape))
 
-    def _position_encodings(self,
-                            p: torch.Tensor,
-                            max_frequencies: Optional[Tuple[int, ...]] = None,
-                            include_positions: bool = True) -> torch.Tensor:
-        """
-        Fourier-encode positions p using self.num_bands frequency bands.
+    def _position_encodings(
+        self, p: torch.Tensor, max_frequencies: Optional[Tuple[int, ...]] = None, include_positions: bool = True
+    ) -> torch.Tensor:
+        """Fourier-encode positions p using self.num_bands frequency bands.
 
         :param p: positions of shape (*d, c) where c = len(d).
         :param max_frequencies: maximum frequency for each dimension (1-tuple for sequences,
@@ -79,11 +76,14 @@ class ImageInputAdapter(InputAdapter):
         if max_frequencies is None:
             max_frequencies = p.shape[:-1]
 
-        frequencies = [torch.linspace(1.0, max_freq / 2.0, self.num_frequency_bands, device=p.device) for max_freq in max_frequencies]
+        frequencies = [
+            torch.linspace(1.0, max_freq / 2.0, self.num_frequency_bands, device=p.device)
+            for max_freq in max_frequencies
+        ]
         frequency_grids = []
 
         for i, frequencies_i in enumerate(frequencies):
-            frequency_grids.append(p[..., i:i + 1] * frequencies_i[None, ...])
+            frequency_grids.append(p[..., i : i + 1] * frequencies_i[None, ...])
 
         if include_positions:
             encodings.append(p)
@@ -134,10 +134,7 @@ class TextInputAdapter(InputAdapter):
 
 
 class ClassificationOutputAdapter(OutputAdapter):
-    def __init__(self,
-                 num_classes: int,
-                 num_outputs: int = 1,
-                 num_output_channels: Optional[int] = None):
+    def __init__(self, num_classes: int, num_outputs: int = 1, num_output_channels: Optional[int] = None):
 
         if num_output_channels is None:
             num_output_channels = num_classes
@@ -150,10 +147,5 @@ class ClassificationOutputAdapter(OutputAdapter):
 
 
 class TextOutputAdapter(ClassificationOutputAdapter):
-    def __init__(self,
-                 vocab_size: int,
-                 max_seq_len: int,
-                 num_output_channels: Optional[int] = None):
-        super().__init__(num_classes=vocab_size,
-                         num_outputs=max_seq_len,
-                         num_output_channels=num_output_channels)
+    def __init__(self, vocab_size: int, max_seq_len: int, num_output_channels: Optional[int] = None):
+        super().__init__(num_classes=vocab_size, num_outputs=max_seq_len, num_output_channels=num_output_channels)

@@ -8,23 +8,27 @@ from torchvision import transforms
 
 @DATAMODULE_REGISTRY
 class MNISTDataModule(mnist_datamodule.MNISTDataModule):
-    def __init__(self,
-                 channels_last: bool = True,
-                 random_crop: Optional[int] = None,
-                 data_dir: Optional[str] = '.cache',
-                 val_split: Union[int, float] = 10000,
-                 num_workers: int = 3,
-                 normalize: bool = True,
-                 pin_memory: bool = False,
-                 *args,
-                 **kwargs):
-        super().__init__(data_dir=data_dir,
-                         val_split=val_split,
-                         num_workers=num_workers,
-                         normalize=normalize,
-                         pin_memory=pin_memory,
-                         *args,
-                         **kwargs)
+    def __init__(
+        self,
+        channels_last: bool = True,
+        random_crop: Optional[int] = None,
+        data_dir: Optional[str] = '.cache',
+        val_split: Union[int, float] = 10000,
+        num_workers: int = 3,
+        normalize: bool = True,
+        pin_memory: bool = False,
+        *args,
+        **kwargs
+    ):
+        super().__init__(
+            data_dir=data_dir,
+            val_split=val_split,
+            num_workers=num_workers,
+            normalize=normalize,
+            pin_memory=pin_memory,
+            *args,
+            **kwargs
+        )
         self.save_hyperparameters()
         self._image_shape = super().dims
 
@@ -36,9 +40,11 @@ class MNISTDataModule(mnist_datamodule.MNISTDataModule):
         return self._image_shape
 
     def default_transforms(self) -> Callable:
-        return mnist_transform(normalize=self.hparams.normalize,
-                               channels_last=self.hparams.channels_last,
-                               random_crop=self.hparams.random_crop)
+        return mnist_transform(
+            normalize=self.hparams.normalize,
+            channels_last=self.hparams.channels_last,
+            random_crop=self.hparams.random_crop,
+        )
 
 
 class MNISTPreprocessor:
@@ -55,9 +61,7 @@ class MNISTPreprocessor:
         return torch.stack([self.preprocess(img) for img in img_batch])
 
 
-def mnist_transform(normalize: bool = True,
-                    channels_last: bool = True,
-                    random_crop: Optional[int] = None):
+def mnist_transform(normalize: bool = True, channels_last: bool = True, random_crop: Optional[int] = None):
     transform_list = []
 
     if random_crop:
@@ -66,7 +70,7 @@ def mnist_transform(normalize: bool = True,
     transform_list.append(transforms.ToTensor())
 
     if normalize:
-        transform_list.append(transforms.Normalize(mean=(0.5, ), std=(0.5, )))
+        transform_list.append(transforms.Normalize(mean=(0.5,), std=(0.5,)))
 
     if channels_last:
         transform_list.append(channels_to_last)
@@ -76,5 +80,3 @@ def mnist_transform(normalize: bool = True,
 
 def channels_to_last(img: torch.Tensor):
     return img.permute(1, 2, 0).contiguous()
-
-

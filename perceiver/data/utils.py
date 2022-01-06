@@ -33,5 +33,3 @@ class TextCollator:
     def encode(self, text_batch):
         batch = [(0, text) for text in text_batch]
         return self.collate(batch)[1:]
-
-
