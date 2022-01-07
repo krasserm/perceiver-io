@@ -2,7 +2,8 @@ torch==1.10.*
 torchvision==0.11.*
 torchtext==0.11.*
 fairscale==0.4.*
-pytorch-lightning[extra]==1.5.*
+pytorch-lightning==1.5.*
+jsonargparse[signatures]==4.0.*
 lightning-bolts==0.4.*
 torchmetrics==0.6.*
 tokenizers

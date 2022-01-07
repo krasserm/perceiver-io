@@ -10,3 +10,4 @@ recursive-include perceiver *.yaml
 
 prune .github
 prune .cache
+prune tests

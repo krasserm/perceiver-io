@@ -242,6 +242,8 @@ class PerceiverDecoder(nn.Module):
 
 
 class TextMasking(nn.Module):
+    """Text masking as described in https://arxiv.org/abs/1810.04805."""
+
     def __init__(
         self,
         vocab_size: int,
@@ -250,7 +252,6 @@ class TextMasking(nn.Module):
         num_special_tokens: int = 3,
         mask_p: float = 0.15,
     ):
-        """Text masking as described in https://arxiv.org/abs/1810.04805."""
         super().__init__()
         self.vocab_size = vocab_size
         self.unk_token_id = unk_token_id

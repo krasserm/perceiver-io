@@ -11,7 +11,8 @@ dependencies:
   - fairscale=0.4
   - pip
   - pip:
-    - pytorch-lightning[extra]~=1.5.0
+    - pytorch-lightning~=1.5.0
+    - jsonargparse[signatures]~=4.0.0
     - lightning-bolts~=0.4.0
     - torchmetrics~=0.6.0
     - tokenizers
