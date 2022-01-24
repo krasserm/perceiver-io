@@ -10,8 +10,9 @@ instead of `64`).
 python scripts/mlm.py fit \
   --model.activation_checkpoint=true \
   --model.num_latent_channels=256 \
-  --model.num_encoder_layers=3 \
-  --model.dropout=0.0 \
+  --model.encoder.num_layers=3 \
+  --model.encoder.dropout=0.0 \
+  --model.decoder.dropout=0.0 \
   --data=IMDBDataModule \
   --data.max_seq_len=512 \
   --data.batch_size=64 \

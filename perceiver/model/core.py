@@ -1,5 +1,3 @@
-from typing import Tuple
-
 import torch
 import torch.nn as nn
 from einops import repeat
@@ -107,11 +105,12 @@ class PerceiverEncoder(nn.Module):
     def __init__(
         self,
         input_adapter: InputAdapter,
-        latent_shape: Tuple[int, int],
-        num_layers: int,
+        num_latents: int,
+        num_latent_channels: int,
+        num_layers: int = 3,
         num_cross_attention_heads: int = 4,
         num_self_attention_heads: int = 4,
-        num_self_attention_layers_per_block: int = 2,
+        num_self_attention_layers_per_block: int = 6,
         dropout: float = 0.0,
         activation_checkpoint: bool = False,
     ):
@@ -120,8 +119,8 @@ class PerceiverEncoder(nn.Module):
         :param input_adapter: Transforms and position-encodes task-specific input to an encoder input of shape
                               (B, M, C_input) where B is the batch size, M the input sequence length and C_input
                               the number of input channels.
-        :param latent_shape: Shape of the latent array, (N, C_latent), where N is the number of latent variables
-                             and C_latent the number of latent channels.
+        :param num_latents: Number of latent variables (N).
+        :param num_latent_channels: Number of latent channels (C_latent).
         :param num_layers: Number of encoder layers. An encoder layer is composed of a cross-attention layer and
                            several self-attention layers (= a self-attention block).
         :param num_cross_attention_heads: Number of cross-attention heads.
@@ -135,8 +134,6 @@ class PerceiverEncoder(nn.Module):
 
         self.input_adapter = input_adapter
         self.num_layers = num_layers
-
-        num_latent_channels = latent_shape[1]
 
         def create_perceiver_layer():
             return Sequential(
@@ -163,7 +160,7 @@ class PerceiverEncoder(nn.Module):
             self.layer_n = create_perceiver_layer()
 
         # learnable initial latent vectors
-        self.latent = nn.Parameter(torch.empty(*latent_shape))
+        self.latent = nn.Parameter(torch.empty(num_latents, num_latent_channels))
         self._init_parameters()
 
     def _init_parameters(self):
@@ -190,7 +187,7 @@ class PerceiverDecoder(nn.Module):
     def __init__(
         self,
         output_adapter: OutputAdapter,
-        latent_shape: Tuple[int, int],  # as produced by model encoder
+        num_latent_channels: int,
         num_cross_attention_heads: int = 4,
         dropout: float = 0.0,
         activation_checkpoint: bool = False,
@@ -201,8 +198,7 @@ class PerceiverDecoder(nn.Module):
                                output. B is the batch size, K the output sequence length and C_output the
                                number of output channels. (K, C_output) is specified via the output_shape
                                property of the output_adapter.
-        :param latent_shape: Shape of the latent array, (N, C_latent), as producer by a Perceiver IO encoder,
-                             where N is the number of latent variables and C_latent the number of latent channels.
+        :param num_latent_channels: Number of latent channels (C_latent) as produced by a Perceiver IO encoder.
         :param num_cross_attention_heads: Number of cross-attention heads.
         :param dropout: Dropout for cross-attention layers and residuals.
         :param activation_checkpoint: If True, implements an activation checkpoint for the decoder's cross-attention
@@ -210,11 +206,9 @@ class PerceiverDecoder(nn.Module):
         """
         super().__init__()
 
-        num_latent_channels = latent_shape[1]
         num_output_channels = output_adapter.output_shape[-1]
 
         self.output_adapter = output_adapter
-        self.latent_shape = latent_shape
         self.cross_attention = cross_attention_layer(
             num_q_channels=num_output_channels,
             num_kv_channels=num_latent_channels,
@@ -231,10 +225,7 @@ class PerceiverDecoder(nn.Module):
             self.output.normal_(0.0, 0.02).clamp_(-2.0, 2.0)
 
     def forward(self, x):
-        b, *d = x.shape
-
-        if tuple(d) != self.latent_shape:
-            raise ValueError(f'Latent shape {tuple(d)} different from required shape {self.latent_shape}')
+        b, *_ = x.shape
 
         output = repeat(self.output, '... -> b ...', b=b)
         output = self.cross_attention(output, x)

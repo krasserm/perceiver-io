@@ -29,9 +29,9 @@ pip install .
 
 ## Tasks
 
-In the following subsections, Perceiver IO models are trained on a rather small scale. In particular, hyper-parameters
+In the following subsections, Perceiver IO models are trained on a rather small scale. In particular, hyperparameters
 are set such that parallel training on two NVIDIA GTX 1080 GPUs (8 GB memory each) works quite well. I didn't really
-tune model architectures and other hyper-parameters, so you'll probably get better results with a bit of experimentation.
+tune model architectures and other hyperparameters, so you'll probably get better results with a bit of experimentation.
 Support for more datasets and tasks will be added later.
 
 ### Masked language modeling
@@ -43,8 +43,9 @@ encoder is then used for training a [sentiment classification](#sentiment-classi
 ```shell
 python scripts/mlm.py fit \
   --model.num_latent_channels=64 \
-  --model.num_encoder_layers=3 \
-  --model.dropout=0.0 \
+  --model.encoder.num_layers=3 \
+  --model.encoder.dropout=0.0 \
+  --model.decoder.dropout=0.0 \
   --data=IMDBDataModule \
   --data.max_seq_len=512 \
   --data.batch_size=64 \
@@ -71,9 +72,10 @@ this project.
 python scripts/seq_clf.py fit \
   --model.mlm_ckpt='logs/mlm/version_0/checkpoints/epoch=241-val_loss=4.584.ckpt' \
   --model.num_latent_channels=64 \
-  --model.num_encoder_layers=3 \
-  --model.dropout=0.0 \
-  --model.freeze_encoder=true \
+  --model.encoder.num_layers=3 \
+  --model.encoder.dropout=0.0 \
+  --model.encoder.freeze=true \
+  --model.decoder.dropout=0.0 \
   --data=IMDBDataModule \
   --data.max_seq_len=512 \
   --data.batch_size=128 \
@@ -92,8 +94,9 @@ download checkpoints from [here](https://martin-krasser.com/perceiver/logs-updat
 python scripts/seq_clf.py fit \
   --model.clf_ckpt='logs/seq_clf/version_0/checkpoints/epoch=029-val_loss=0.341.ckpt' \
   --model.num_latent_channels=64 \
-  --model.num_encoder_layers=3 \
-  --model.dropout=0.1 \
+  --model.encoder.num_layers=3 \
+  --model.encoder.dropout=0.0 \
+  --model.decoder.dropout=0.0 \
   --data=IMDBDataModule \
   --data.max_seq_len=512 \
   --data.batch_size=128 \
@@ -111,8 +114,9 @@ Classify MNIST images. See also [Model API](#model-api) for details about the un
 ```shell
 python scripts/img_clf.py fit \
   --model.num_latent_channels=128 \
-  --model.num_encoder_layers=3 \
-  --model.dropout=0.0 \
+  --model.encoder.num_layers=3 \
+  --model.encoder.dropout=0.0 \
+  --model.decoder.dropout=0.0 \
   --data=MNISTDataModule \
   --data.batch_size=128 \
   --optimizer.lr=0.001 \
@@ -137,8 +141,6 @@ shows how they can be used to create an MNIST image classifier, for example:
 from perceiver.model import ImageInputAdapter, ClassificationOutputAdapter
 from perceiver.model.core import PerceiverIO, PerceiverEncoder, PerceiverDecoder
 
-latent_shape = (32, 128)
-
 # Fourier-encode pixel positions and flatten along spatial dimensions
 input_adapter = ImageInputAdapter(image_shape=(28, 28, 1), num_frequency_bands=32)
 
@@ -148,7 +150,8 @@ output_adapter = ClassificationOutputAdapter(num_classes=10, num_output_channels
 # Generic Perceiver encoder
 encoder = PerceiverEncoder(
     input_adapter=input_adapter,
-    latent_shape=latent_shape,
+    num_latents=32,
+    num_latent_channels=128,
     num_layers=3,
     num_cross_attention_heads=4,
     num_self_attention_heads=4,
@@ -159,7 +162,7 @@ encoder = PerceiverEncoder(
 # Generic Perceiver decoder
 decoder = PerceiverDecoder(
     output_adapter=output_adapter,
-    latent_shape=latent_shape,
+    num_latent_channels=128,
     num_cross_attention_heads=1,
     dropout=0.0,
 )
