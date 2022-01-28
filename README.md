@@ -65,16 +65,16 @@ For saving GPU memory and scaling model training, [activation checkpointing](doc
 
 Train a classification decoder using a frozen encoder from [masked language modeling](#masked-language-modeling-mlm).
 If you ran MLM yourself you'll need to modify the `--model.mlm_ckpt` argument accordingly, otherwise download
-checkpoints from [here](https://martin-krasser.com/perceiver/logs-update-1.zip) and extract them in the root directory of
+checkpoints from [here](https://martin-krasser.com/perceiver/logs-update-2.zip) and extract them in the root directory of
 this project.
 
 ```shell
 python scripts/seq_clf.py fit \
-  --model.mlm_ckpt='logs/mlm/version_0/checkpoints/epoch=241-val_loss=4.584.ckpt' \
+  --model.mlm_ckpt='logs/mlm/version_0/checkpoints/epoch=254-val_loss=4.556.ckpt' \
   --model.num_latent_channels=64 \
   --model.encoder.num_layers=3 \
-  --model.encoder.dropout=0.0 \
   --model.encoder.freeze=true \
+  --model.encoder.dropout=0.0 \
   --model.decoder.dropout=0.0 \
   --data=IMDBDataModule \
   --data.max_seq_len=512 \
@@ -88,15 +88,15 @@ python scripts/seq_clf.py fit \
 
 Unfreeze the encoder and jointly fine-tune it together with the decoder that has been trained in the previous step.
 If you ran the previous step yourself you'll need to modify the `--model.clf_ckpt` argument accordingly, otherwise
-download checkpoints from [here](https://martin-krasser.com/perceiver/logs-update-1.zip).
+download checkpoints from [here](https://martin-krasser.com/perceiver/logs-update-2.zip).
 
 ```shell
 python scripts/seq_clf.py fit \
-  --model.clf_ckpt='logs/seq_clf/version_0/checkpoints/epoch=029-val_loss=0.341.ckpt' \
+  --model.clf_ckpt='logs/seq_clf/version_0/checkpoints/epoch=024-val_loss=0.352.ckpt' \
   --model.num_latent_channels=64 \
   --model.encoder.num_layers=3 \
-  --model.encoder.dropout=0.0 \
-  --model.decoder.dropout=0.0 \
+  --model.encoder.dropout=0.1 \
+  --model.decoder.dropout=0.1 \
   --data=IMDBDataModule \
   --data.max_seq_len=512 \
   --data.batch_size=128 \
@@ -130,6 +130,12 @@ python scripts/img_clf.py fit \
 
 - [Image classification](notebooks/img-clf.ipynb)
 - [Sentiment classification](notebooks/txt-clf.ipynb)
+
+Start the notebook server with:
+
+```shell
+PYTHONPATH=.. jupyter notebook
+```
 
 ## Model API
 
