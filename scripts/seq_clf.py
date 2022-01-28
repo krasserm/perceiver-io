@@ -17,8 +17,8 @@ class TextClassifierCLI(CLI):
                 'model.num_classes': 2,
                 'model.num_latents': 64,
                 'model.num_latent_channels': 64,
-                'model.num_encoder_layers': 3,
-                'model.num_decoder_cross_attention_heads': 1,
+                'model.encoder.num_layers': 3,
+                'model.decoder.num_cross_attention_heads': 1,
             }
         )
 

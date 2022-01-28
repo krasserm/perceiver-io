@@ -22,7 +22,7 @@ class MaskedLanguageModelCLI(CLI):
                 'lr_scheduler.cycle_momentum': False,
                 'model.num_latents': 64,
                 'model.num_latent_channels': 64,
-                'model.num_encoder_layers': 3,
+                'model.encoder.num_layers': 3,
                 'model.num_predictions': 5,
                 'model.masked_samples': [
                     'I have watched this <MASK> and it was awesome',

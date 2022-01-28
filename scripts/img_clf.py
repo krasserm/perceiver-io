@@ -17,9 +17,9 @@ class ImageClassifierCLI(CLI):
                 'model.num_frequency_bands': 32,
                 'model.num_latents': 32,
                 'model.num_latent_channels': 128,
-                'model.num_encoder_layers': 3,
-                'model.num_encoder_self_attention_layers_per_block': 3,
-                'model.num_decoder_cross_attention_heads': 1,
+                'model.encoder.num_layers': 3,
+                'model.encoder.num_self_attention_layers_per_block': 3,
+                'model.decoder.num_cross_attention_heads': 1,
             }
         )
 

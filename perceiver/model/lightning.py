@@ -1,3 +1,4 @@
+from dataclasses import asdict, dataclass
 from typing import Any, List, Optional, Tuple
 
 import pytorch_lightning as pl
@@ -7,23 +8,44 @@ from einops import rearrange
 from pytorch_lightning.utilities.cli import instantiate_class
 
 from perceiver.model.adapter import ImageInputAdapter, TextInputAdapter, TextOutputAdapter, ClassificationOutputAdapter
-from perceiver.model.core import PerceiverIO, PerceiverMLM, PerceiverEncoder, PerceiverDecoder, TextMasking
+from perceiver.model.model import PerceiverIO, PerceiverMLM, PerceiverEncoder, PerceiverDecoder, TextMasking
 from perceiver.model.utils import freeze, predict_masked_samples
+
+
+@dataclass
+class Config:
+    dropout: float = 0.0
+    freeze: bool = False
+
+    @property
+    def dict(self):
+        result = asdict(self)
+        del result['freeze']
+        return result
+
+
+@dataclass
+class EncoderConfig(Config):
+    num_layers: int = 3
+    num_cross_attention_heads: int = 4
+    num_self_attention_heads: int = 4
+    num_self_attention_layers_per_block: int = 6
+
+
+@dataclass
+class DecoderConfig(Config):
+    num_cross_attention_heads: int = 4
 
 
 class LitModel(pl.LightningModule):
     def __init__(
         self,
+        num_latents: int,
+        num_latent_channels: int,
+        encoder: EncoderConfig,
+        decoder: DecoderConfig,
         optimizer_init: dict,
         scheduler_init: Optional[dict] = None,
-        num_latents: int = 64,
-        num_latent_channels: int = 64,
-        num_encoder_layers: int = 3,
-        num_encoder_cross_attention_heads: int = 4,
-        num_encoder_self_attention_heads: int = 4,
-        num_encoder_self_attention_layers_per_block: int = 6,
-        num_decoder_cross_attention_heads: int = 4,
-        dropout: float = 0.0,
         activation_checkpoint: bool = False,
     ):
         super().__init__()
@@ -75,7 +97,7 @@ class LitClassifier(LitModel):
 
 class LitImageClassifier(LitClassifier):
     """
-    >>> lit = LitClassifier((64, 64, 3), 2)
+    >>> lit = LitImageClassifier((64, 64, 3), 2, 16, 16, EncoderConfig(), DecoderConfig(), optimizer_init={})
     """
 
     def __init__(
@@ -90,7 +112,6 @@ class LitImageClassifier(LitClassifier):
         self.model = self.create_model()
 
     def create_model(self):
-        latent_shape = (self.hparams.num_latents, self.hparams.num_latent_channels)
 
         input_adapter = ImageInputAdapter(
             image_shape=self.hparams.image_shape, num_frequency_bands=self.hparams.num_frequency_bands
@@ -101,20 +122,16 @@ class LitImageClassifier(LitClassifier):
 
         encoder = PerceiverEncoder(
             input_adapter=input_adapter,
-            latent_shape=latent_shape,
-            num_layers=self.hparams.num_encoder_layers,
-            num_cross_attention_heads=self.hparams.num_encoder_cross_attention_heads,
-            num_self_attention_heads=self.hparams.num_encoder_self_attention_heads,
-            num_self_attention_layers_per_block=self.hparams.num_encoder_self_attention_layers_per_block,
-            dropout=self.hparams.dropout,
+            num_latents=self.hparams.num_latents,
+            num_latent_channels=self.hparams.num_latent_channels,
             activation_checkpoint=self.hparams.activation_checkpoint,
+            **self.hparams.encoder.dict
         )
         decoder = PerceiverDecoder(
             output_adapter=output_adapter,
-            latent_shape=latent_shape,
-            num_cross_attention_heads=self.hparams.num_decoder_cross_attention_heads,
-            dropout=self.hparams.dropout,
+            num_latent_channels=self.hparams.num_latent_channels,
             activation_checkpoint=self.hparams.activation_checkpoint,
+            **self.hparams.decoder.dict
         )
         return PerceiverIO(encoder, decoder)
 
@@ -130,14 +147,13 @@ class LitTextClassifier(LitClassifier):
         vocab_size: int,
         max_seq_len: int,
         *args: Any,
-        freeze_encoder: bool = False,
         mlm_ckpt: Optional[str] = None,
         clf_ckpt: Optional[str] = None,
         **kwargs: Any
     ):
         super().__init__(*args, **kwargs)
 
-        encoder = LitMaskedLanguageModel.create_encoder(self.hparams, self.latent_shape)
+        encoder = LitMaskedLanguageModel.create_encoder(self.hparams)
         self.model = self.create_model(encoder)
 
         if mlm_ckpt is not None:
@@ -147,7 +163,7 @@ class LitTextClassifier(LitClassifier):
             lit_model = LitTextClassifier.load_from_checkpoint(clf_ckpt)
             self.model.load_state_dict(lit_model.model.state_dict())
 
-        if freeze_encoder:
+        if self.hparams.encoder.freeze:
             freeze(self.model.encoder)
 
     def create_model(self, encoder):
@@ -156,15 +172,10 @@ class LitTextClassifier(LitClassifier):
         )
         decoder = PerceiverDecoder(
             output_adapter=output_adapter,
-            latent_shape=self.latent_shape,
-            num_cross_attention_heads=self.hparams.num_decoder_cross_attention_heads,
-            dropout=self.hparams.dropout,
+            num_latent_channels=self.hparams.num_latent_channels,
+            **self.hparams.decoder.dict
         )
         return PerceiverIO(encoder, decoder)
-
-    @property
-    def latent_shape(self):
-        return self.hparams.num_latents, self.hparams.num_latent_channels
 
     def forward(self, batch):
         y, x, x_mask = batch
@@ -186,7 +197,7 @@ class LitMaskedLanguageModel(LitModel):
         self.loss = nn.CrossEntropyLoss()
 
     @staticmethod
-    def create_encoder(hparams, latent_shape):
+    def create_encoder(hparams):
         input_adapter = TextInputAdapter(
             vocab_size=hparams.vocab_size,
             max_seq_len=hparams.max_seq_len,
@@ -194,18 +205,15 @@ class LitMaskedLanguageModel(LitModel):
         )
         encoder = PerceiverEncoder(
             input_adapter=input_adapter,
-            latent_shape=latent_shape,
-            num_layers=hparams.num_encoder_layers,
-            num_cross_attention_heads=hparams.num_encoder_cross_attention_heads,
-            num_self_attention_heads=hparams.num_encoder_self_attention_heads,
-            num_self_attention_layers_per_block=hparams.num_encoder_self_attention_layers_per_block,
-            dropout=hparams.dropout,
+            num_latents=hparams.num_latents,
+            num_latent_channels=hparams.num_latent_channels,
             activation_checkpoint=hparams.activation_checkpoint,
+            **hparams.encoder.dict
         )
         return encoder
 
     def create_model(self):
-        encoder = self.create_encoder(self.hparams, self.latent_shape)
+        encoder = self.create_encoder(self.hparams)
         output_adapter = TextOutputAdapter(
             vocab_size=self.hparams.vocab_size,
             max_seq_len=self.hparams.max_seq_len,
@@ -213,15 +221,10 @@ class LitMaskedLanguageModel(LitModel):
         )
         decoder = PerceiverDecoder(
             output_adapter=output_adapter,
-            latent_shape=self.latent_shape,
-            num_cross_attention_heads=self.hparams.num_decoder_cross_attention_heads,
-            dropout=self.hparams.dropout,
+            num_latent_channels=self.hparams.num_latent_channels,
+            **self.hparams.decoder.dict
         )
         return PerceiverMLM(encoder, decoder, TextMasking(self.hparams.vocab_size))
-
-    @property
-    def latent_shape(self):
-        return self.hparams.num_latents, self.hparams.num_latent_channels
 
     def forward(self, batch):
         _, x, x_mask = batch
