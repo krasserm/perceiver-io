@@ -8,7 +8,7 @@ from einops import rearrange
 from pytorch_lightning.utilities.cli import instantiate_class
 
 from perceiver.model.adapter import ImageInputAdapter, TextInputAdapter, TextOutputAdapter, ClassificationOutputAdapter
-from perceiver.model.core import PerceiverIO, PerceiverMLM, PerceiverEncoder, PerceiverDecoder, TextMasking
+from perceiver.model.model import PerceiverIO, PerceiverMLM, PerceiverEncoder, PerceiverDecoder, TextMasking
 from perceiver.model.utils import freeze, predict_masked_samples
 
 

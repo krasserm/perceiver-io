@@ -133,13 +133,18 @@ python scripts/img_clf.py fit \
 
 ## Model API
 
-The [model](perceiver/model/core.py) API is based on generic encoder and decoder classes (`PerceiverEncoder` and
+The [model](perceiver/model/model.py) API is based on generic encoder and decoder classes (`PerceiverEncoder` and
 `PerceiverDecoder`) and task-specific input and output [adapters](perceiver/model/adapter.py). The following snippet
 shows how they can be used to create an MNIST image classifier, for example:
 
 ```python
-from perceiver.model import ImageInputAdapter, ClassificationOutputAdapter
-from perceiver.model.core import PerceiverIO, PerceiverEncoder, PerceiverDecoder
+from perceiver.model import (
+    PerceiverIO,
+    PerceiverEncoder,
+    PerceiverDecoder,
+    ImageInputAdapter,
+    ClassificationOutputAdapter,
+)
 
 # Fourier-encode pixel positions and flatten along spatial dimensions
 input_adapter = ImageInputAdapter(image_shape=(28, 28, 1), num_frequency_bands=32)
