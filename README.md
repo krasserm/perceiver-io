@@ -13,7 +13,7 @@ output adapters (see [Model API](#model-api)). The command line interface is imp
 
 ## Setup
 
-Configure with source code and Conda
+### conda
 
 ```shell
 conda env create -f environment.yml
@@ -21,7 +21,7 @@ conda activate perceiver-io
 export PYTHONPATH=.
 ```
 
-or install package with pip:
+### pip
 
 ```bash
 pip install .
@@ -49,7 +49,7 @@ python scripts/mlm.py fit \
   --data=IMDBDataModule \
   --data.max_seq_len=512 \
   --data.batch_size=64 \
-  --optimizer.lr=0.003 \
+  --optimizer.lr=3e-3 \
   --optimizer.weight_decay=0.0 \
   --lr_scheduler.pct_start=0.1 \
   --trainer.accelerator=gpu \
@@ -79,7 +79,7 @@ python scripts/seq_clf.py fit \
   --data=IMDBDataModule \
   --data.max_seq_len=512 \
   --data.batch_size=128 \
-  --optimizer.lr=0.001 \
+  --optimizer.lr=1e-3 \
   --optimizer.weight_decay=0.01 \
   --trainer.accelerator=gpu \
   --trainer.devices=-1 \
@@ -100,7 +100,7 @@ python scripts/seq_clf.py fit \
   --data=IMDBDataModule \
   --data.max_seq_len=512 \
   --data.batch_size=128 \
-  --optimizer.lr=0.0001 \
+  --optimizer.lr=1e-4 \
   --optimizer.weight_decay=0.01 \
   --trainer.accelerator=gpu \
   --trainer.devices=-1 \
@@ -119,7 +119,7 @@ python scripts/img_clf.py fit \
   --model.decoder.dropout=0.0 \
   --data=MNISTDataModule \
   --data.batch_size=128 \
-  --optimizer.lr=0.001 \
+  --optimizer.lr=1e-3 \
   --optimizer.weight_decay=0.01 \
   --trainer.accelerator=gpu \
   --trainer.devices=-1 \
