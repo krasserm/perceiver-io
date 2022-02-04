@@ -5,15 +5,7 @@ channels:
 dependencies:
   - python=3.9
   - cudatoolkit=10.2
-  - pytorch=1.10
-  - torchvision=0.11
-  - torchtext=0.11
-  - fairscale=0.4
-  - pip
+  - pip>=21.3
   - pip:
-    - pytorch-lightning==1.5.*
-    - jsonargparse[signatures]==4.1.*
-    - lightning-bolts==0.4.*
-    - torchmetrics==0.6.*
-    - tokenizers
-    - einops
+    - setuptools==59.5.0 # to address pytorch incompatibility (see https://github.com/pytorch/pytorch/pull/69904)
+    - -e '.[dev]'

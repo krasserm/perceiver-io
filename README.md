@@ -13,18 +13,9 @@ output adapters (see [Model API](#model-api)). The command line interface is imp
 
 ## Setup
 
-### conda
-
 ```shell
 conda env create -f environment.yml
 conda activate perceiver-io
-export PYTHONPATH=.
-```
-
-### pip
-
-```bash
-pip install .
 ```
 
 ## Tasks
@@ -180,6 +171,32 @@ decoder = PerceiverDecoder(
 
 # MNIST classifier implemented as Perceiver IO model
 mnist_classifier = PerceiverIO(encoder, decoder)
+```
+
+## Development
+
+### Update project dependencies in conda environment
+
+```bash
+invoke install
+```
+
+### Install pre-commit hook
+
+```bash
+invoke precommit-install
+```
+
+### Run code quality checks
+
+```bash
+invoke cc
+```
+
+### Run tests
+
+```bash
+invoke test
 ```
 
 ## Citations

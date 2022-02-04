@@ -7,8 +7,8 @@ import torchmetrics as tm
 from einops import rearrange
 from pytorch_lightning.utilities.cli import instantiate_class
 
-from perceiver.model.adapter import ImageInputAdapter, TextInputAdapter, TextOutputAdapter, ClassificationOutputAdapter
-from perceiver.model.model import PerceiverIO, PerceiverMLM, PerceiverEncoder, PerceiverDecoder, TextMasking
+from perceiver.model.adapter import ClassificationOutputAdapter, ImageInputAdapter, TextInputAdapter, TextOutputAdapter
+from perceiver.model.model import PerceiverDecoder, PerceiverEncoder, PerceiverIO, PerceiverMLM, TextMasking
 from perceiver.model.utils import freeze, predict_masked_samples
 
 
@@ -20,7 +20,7 @@ class Config:
     @property
     def dict(self):
         result = asdict(self)
-        del result['freeze']
+        del result["freeze"]
         return result
 
 
@@ -60,8 +60,8 @@ class LitModel(pl.LightningModule):
         else:
             scheduler = instantiate_class(optimizer, self.hparams.scheduler_init)
             return {
-                'optimizer': optimizer,
-                'lr_scheduler': {'scheduler': scheduler, 'interval': 'step', 'frequency': 1},
+                "optimizer": optimizer,
+                "lr_scheduler": {"scheduler": scheduler, "interval": "step", "frequency": 1},
             }
 
 
@@ -232,7 +232,7 @@ class LitMaskedLanguageModel(LitModel):
 
     def step(self, batch):
         logits, labels = self(batch)
-        logits = rearrange(logits, 'b m c -> b c m')
+        logits = rearrange(logits, "b m c -> b c m")
         return self.loss(logits, labels)
 
     def training_step(self, batch, batch_idx):
@@ -250,7 +250,7 @@ class LitMaskedLanguageModel(LitModel):
 
     def on_validation_epoch_end(self) -> None:
         if self.hparams.masked_samples:
-            masked_samples = [ms.replace('<MASK>', '[MASK]') for ms in self.hparams.masked_samples]
+            masked_samples = [ms.replace("<MASK>", "[MASK]") for ms in self.hparams.masked_samples]
 
             step = self.trainer.global_step
             dm = self.trainer.datamodule
@@ -264,5 +264,5 @@ class LitMaskedLanguageModel(LitModel):
                 num_predictions=self.hparams.num_predictions,
             )
 
-            text = '\n\n'.join(['  \n'.join([s] + ps) for s, ps in zip(masked_samples, predictions)])
+            text = "\n\n".join(["  \n".join([s] + ps) for s, ps in zip(masked_samples, predictions)])
             self.logger.experiment.add_text("sample predictions", text, step)

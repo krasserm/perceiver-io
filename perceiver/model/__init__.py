@@ -1,3 +1,3 @@
 from perceiver.model.adapter import *
-from perceiver.model.lightning import LitMaskedLanguageModel, LitImageClassifier, LitTextClassifier
-from perceiver.model.model import PerceiverEncoder, PerceiverDecoder, PerceiverIO, PerceiverMLM, TextMasking
+from perceiver.model.lightning import LitImageClassifier, LitMaskedLanguageModel, LitTextClassifier
+from perceiver.model.model import PerceiverDecoder, PerceiverEncoder, PerceiverIO, PerceiverMLM, TextMasking

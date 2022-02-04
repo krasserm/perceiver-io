@@ -2,13 +2,13 @@ from typing import Iterable
 
 from tokenizers import decoders, Tokenizer
 from tokenizers.models import WordPiece
-from tokenizers.normalizers import Normalizer, Sequence, Lowercase, StripAccents, NFD
+from tokenizers.normalizers import Lowercase, NFD, Normalizer, Sequence, StripAccents
 from tokenizers.pre_tokenizers import Whitespace
 from tokenizers.trainers import WordPieceTrainer
 
-PAD_TOKEN = '[PAD]'
-UNK_TOKEN = '[UNK]'
-MASK_TOKEN = '[MASK]'
+PAD_TOKEN = "[PAD]"
+UNK_TOKEN = "[UNK]"
+MASK_TOKEN = "[MASK]"
 
 
 def load_tokenizer(path):
