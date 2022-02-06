@@ -4,24 +4,6 @@ from typing import Optional
 from invoke import task
 
 
-def _use_pty():
-    return platform != "win32"
-
-
-def _run_pytest(c, test_dir, cov=False, cov_report=None, pty=True):
-    c.run(f"pytest {test_dir} {_pytest_cov_options(cov, cov_report)}", pty=pty)
-
-
-def _pytest_cov_options(use_cov: bool, cov_reports: Optional[str]):
-    if not use_cov:
-        return ""
-
-    cov_report_types = cov_reports.split(",") if cov_reports else []
-    cov_report_types = ["term"] + cov_report_types
-    cov_report_params = [f"--cov-report {r}" for r in cov_report_types]
-    return f"--cov {' '.join(cov_report_params)}"
-
-
 @task
 def install(c):
     c.run("conda env update --prune -f environment.yml", pty=_use_pty())
@@ -75,3 +57,21 @@ def code_check(c):
 @task
 def test(c, cov=False, cov_report=None):
     _run_pytest(c, "tests --durations=25 --color=yes", cov, cov_report, _use_pty())
+
+
+def _use_pty():
+    return platform != "win32"
+
+
+def _run_pytest(c, test_dir, cov=False, cov_report=None, pty=True):
+    c.run(f"pytest {test_dir} {_pytest_cov_options(cov, cov_report)}", pty=pty)
+
+
+def _pytest_cov_options(use_cov: bool, cov_reports: Optional[str]):
+    if not use_cov:
+        return ""
+
+    cov_report_types = cov_reports.split(",") if cov_reports else []
+    cov_report_types = ["term"] + cov_report_types
+    cov_report_params = [f"--cov-report {r}" for r in cov_report_types]
+    return f"--cov {' '.join(cov_report_params)}"

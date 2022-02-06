@@ -173,31 +173,33 @@ decoder = PerceiverDecoder(
 mnist_classifier = PerceiverIO(encoder, decoder)
 ```
 
-## Development
+## Development environment
 
-### Update project dependencies in conda environment
+Update the project dependencies in the conda environment:
 
 ```bash
 invoke install
 ```
 
-### Install pre-commit hook
+Install the pre-commit hooks:
 
 ```bash
 invoke precommit-install
 ```
 
-### Run code quality checks
+Run code quality checks:
 
 ```bash
 invoke cc
 ```
 
-### Run tests
+Run tests:
 
 ```bash
 invoke test
 ```
+
+The project and task structure presented here is based on the [Python Project Template](https://github.com/cstub/python-project-template).
 
 ## Citations
 
