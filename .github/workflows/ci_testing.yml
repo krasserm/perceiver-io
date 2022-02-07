@@ -14,7 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-20.04, windows-2019, macOS-10.15]
-        python-version: [3.8]
+        python-version: [3.9]
 
     # Timeout: https://stackoverflow.com/a/59076067/4521646
     timeout-minutes: 15
@@ -37,14 +37,13 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ steps.pip-cache.outputs.dir }}
-        key: ${{ runner.os }}-pip-py${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}
+        key: ${{ runner.os }}-pip-py${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
         restore-keys: |
           ${{ runner.os }}-pip-py${{ matrix.python-version }}-
 
     - name: Install dependencies
       run: |
-        pip install --requirement requirements.txt --upgrade
-        pip install --requirement tests/requirements.txt --upgrade
+        pip install '.[dev]'
         python --version
         pip --version
         pip list
@@ -52,7 +51,7 @@ jobs:
 
     - name: Tests and coverage
       run: |
-        python -m pytest perceiver tests -v --cov=perceiver --durations=25 --doctest-modules --color=yes
+        invoke test --cov
 
     - name: Statistics
       if: success()

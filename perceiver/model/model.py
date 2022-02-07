@@ -174,7 +174,7 @@ class PerceiverEncoder(nn.Module):
         x = self.input_adapter(x)
 
         # repeat initial latent vector along batch dimension
-        x_latent = repeat(self.latent, '... -> b ...', b=b)
+        x_latent = repeat(self.latent, "... -> b ...", b=b)
 
         x_latent = self.layer_1(x_latent, x, pad_mask)
         for i in range(self.num_layers - 1):
@@ -227,7 +227,7 @@ class PerceiverDecoder(nn.Module):
     def forward(self, x):
         b, *_ = x.shape
 
-        output = repeat(self.output, '... -> b ...', b=b)
+        output = repeat(self.output, "... -> b ...", b=b)
         output = self.cross_attention(output, x)
         return self.output_adapter(output)
 
@@ -288,7 +288,7 @@ class PerceiverMLM(nn.Module):
         self.masking = masking
 
     def forward(self, x_input, pad_mask=None, masking=True):
-        _, l = x_input.shape
+        _, l = x_input.shape  # noqa: E741
 
         if masking:
             x_masked, x_labels = self.masking(x_input, pad_mask)

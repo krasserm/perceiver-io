@@ -12,7 +12,7 @@ class MNISTDataModule(mnist_datamodule.MNISTDataModule):
         self,
         channels_last: bool = True,
         random_crop: Optional[int] = None,
-        data_dir: Optional[str] = '.cache',
+        data_dir: Optional[str] = ".cache",
         val_split: Union[int, float] = 10000,
         num_workers: int = 3,
         normalize: bool = True,

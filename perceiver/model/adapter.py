@@ -45,10 +45,10 @@ class ImageInputAdapter(InputAdapter):
         enc = self._position_encodings(pos)
 
         # flatten encodings along spatial dimensions
-        enc = rearrange(enc, '... c -> (...) c')
+        enc = rearrange(enc, "... c -> (...) c")
 
         # position encoding prototype
-        self.register_buffer('position_encoding', enc)
+        self.register_buffer("position_encoding", enc)
 
     def _positions(self, v_min=-1.0, v_max=1.0):
         """Create evenly spaced position coordinates for self.spatial_shape with values in [v_min, v_max].
@@ -100,12 +100,12 @@ class ImageInputAdapter(InputAdapter):
         b, *d = x.shape
 
         if tuple(d) != self.image_shape:
-            raise ValueError(f'Input image shape {tuple(d)} different from required shape {self.image_shape}')
+            raise ValueError(f"Input image shape {tuple(d)} different from required shape {self.image_shape}")
 
         # repeat position encoding along batch dimension
-        x_enc = repeat(self.position_encoding, '... -> b ...', b=b)
+        x_enc = repeat(self.position_encoding, "... -> b ...", b=b)
 
-        x = rearrange(x, 'b ... c -> b (...) c')
+        x = rearrange(x, "b ... c -> b (...) c")
         return torch.cat([x, x_enc], dim=-1)
 
 
@@ -125,10 +125,10 @@ class TextInputAdapter(InputAdapter):
             self.pos_encoding.uniform_(-0.5, 0.5)
 
     def forward(self, x):
-        b, l = x.shape
+        b, l = x.shape  # noqa: E741
 
         # repeat position encodings along batch dimension
-        p_enc = repeat(self.pos_encoding[:l], '... -> b ...', b=b)
+        p_enc = repeat(self.pos_encoding[:l], "... -> b ...", b=b)
 
         return self.text_embedding(x) * self.scale + p_enc
 
