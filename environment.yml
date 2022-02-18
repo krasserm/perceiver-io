@@ -8,4 +8,4 @@ dependencies:
   - pip>=21.3
   - pip:
     - setuptools==59.5.0 # to address pytorch incompatibility (see https://github.com/pytorch/pytorch/pull/69904)
-    - -e '.[dev]'
+    - poetry==1.1.13

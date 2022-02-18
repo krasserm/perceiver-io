@@ -45,8 +45,8 @@ def clean(c):
 
 @task
 def build(c):
-    clean_build(c)
-    c.run("flit build --setup-py", pty=_use_pty())
+    clean(c)
+    c.run("poetry build", pty=_use_pty())
 
 
 @task(aliases=["cc"])

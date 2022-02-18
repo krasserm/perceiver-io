@@ -14,18 +14,24 @@ jobs:
       - uses: actions/checkout@master
       - uses: actions/setup-python@v2
         with:
-          python-version: 3.8
+          python-version: 3.9
+
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v2.0.0
+        with:
+          poetry-version: 1.1.13
 
       - name: Create package
         run: |
-          pip install flit invoke
-          invoke build
+          pip install invoke
+          invoke clean
+          poetry build
 
       - name: Verify package
         run: |
           pip install twine==3.2
           twine check dist/*
-          invoke clean-build
+          invoke clean
 
   pkg-install:
     runs-on: ${{ matrix.os }}
@@ -41,13 +47,19 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v2.0.0
+        with:
+          poetry-version: 1.1.13
+
       - name: Prepare env
         run: |
-          pip install "twine==3.2" flit invoke
+          pip install "twine==3.2" invoke
 
       - name: Create package
         run: |
-          invoke build
+          invoke clean
+          poetry build
 
       - name: Install | Uninstall package - archive
         run: |

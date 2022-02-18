@@ -1,16 +1,17 @@
 [build-system]
-requires = ["flit_core >=3.2,<4"]
-build-backend = "flit_core.buildapi"
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
 
-[project]
+[tool.poetry]
 name = "perceiver-io"
+version = "0.1.0"
+description = "Perceiver IO"
 readme = "README.md"
 authors = [
-    {name = "Martin Krasser", email = "krasserm@googlemail.com"},
-    {name = "Christoph Stumpf", email = "stumpf.christoph@gmail.com"},
+    "Martin Krasser <krasserm@googlemail.com>",
+    "Christoph Stumpf <stumpf.christoph@gmail.com>",
 ]
-requires-python = ">=3.9"
-license = {file = "LICENSE"}
+license = "Apache-2.0"
 keywords= ["perceiver-io", "deep-learning"]
 classifiers = [
     "Environment :: Console",
@@ -23,47 +24,30 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
 ]
-dynamic = ["version", "description"]
-dependencies = [
-    "torch==1.10.*",
-    "torchvision==0.11.*",
-    "torchtext==0.11.*",
-    "fairscale==0.4.*",
-    "pytorch-lightning==1.5.*",
-    "jsonargparse[signatures]==4.1.*",
-    "lightning-bolts==0.4.*",
-    "torchmetrics==0.6.*",
-    "tokenizers",
-    "einops",
-]
-
-[project.optional-dependencies]
-dev = [
-    "flit>=3.2,<4",
-    "invoke",
-    "pre-commit",
-    "pytest>4.0",
-    "pytest-cov",
-]
-
-[project.urls]
 homepage = "https://github.com/krasserm/perceiver-io"
-
-[tool.flit.module]
-name = "perceiver"
-
-[tool.flit.sdist]
-exclude = [
-    ".github",
-    ".cache",
-    ".flake8",
-    ".gitignore",
-    ".pre-commit-config.yaml",
-    "notebooks",
-    "tests",
-    "environment.yml",
-    "tasks.py",
+packages = [
+    { include = "perceiver" },
 ]
+include = ["docs", "scripts"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+torch = "1.10.*"
+torchvision = "0.11.*"
+torchtext = "0.11.*"
+fairscale = "0.4.*"
+pytorch-lightning = "1.5.*"
+lightning-bolts = "0.4.*"
+torchmetrics = "0.6.*"
+einops = "^0.4.0"
+tokenizers = "^0.11.5"
+jsonargparse = {extras = ["signatures"], version = "4.1.*"}
+
+[tool.poetry.dev-dependencies]
+invoke = "^1.6.0"
+pre-commit = "^2.17.0"
+pytest = "^7.0.1"
+pytest-cov = "^3.0.0"
 
 [tool.black]
 line-length = 120

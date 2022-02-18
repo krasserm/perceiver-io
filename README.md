@@ -11,11 +11,13 @@ Perceiver IO models are constructed with generic encoder and decoder classes and
 output adapters (see [Model API](#model-api)). The command line interface is implemented with
 [Lighting CLI](https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_cli.html).
 
+
 ## Setup
 
 ```shell
 conda env create -f environment.yml
 conda activate perceiver-io
+poetry install
 ```
 
 ## Tasks
