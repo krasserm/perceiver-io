@@ -39,8 +39,8 @@ fairscale = "0.4.*"
 pytorch-lightning = "1.5.*"
 lightning-bolts = "0.4.*"
 torchmetrics = "0.6.*"
-einops = "^0.4.0"
-tokenizers = "^0.11.5"
+einops = "0.4.*"
+tokenizers = "0.11.*"
 jsonargparse = {extras = ["signatures"], version = "4.1.*"}
 
 [tool.poetry.dev-dependencies]
