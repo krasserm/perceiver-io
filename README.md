@@ -34,7 +34,7 @@ encoder is then used for training a [sentiment classification](#sentiment-classi
 [Predictions of masked tokens](docs/tensorboard.md) are logged to Tensorboard.
 
 ```shell
-python scripts/mlm.py fit \
+python perceiver/scripts/mlm.py fit \
   --model.num_latent_channels=64 \
   --model.encoder.num_layers=3 \
   --model.encoder.dropout=0.0 \
@@ -62,7 +62,7 @@ checkpoints from [here](https://martin-krasser.com/perceiver/logs-update-2.zip) 
 this project.
 
 ```shell
-python scripts/seq_clf.py fit \
+python perceiver/scripts/seq_clf.py fit \
   --model.mlm_ckpt='logs/mlm/version_0/checkpoints/epoch=254-val_loss=4.556.ckpt' \
   --model.num_latent_channels=64 \
   --model.encoder.num_layers=3 \
@@ -84,7 +84,7 @@ If you ran the previous step yourself you'll need to modify the `--model.clf_ckp
 download checkpoints from [here](https://martin-krasser.com/perceiver/logs-update-2.zip).
 
 ```shell
-python scripts/seq_clf.py fit \
+python perceiver/scripts/seq_clf.py fit \
   --model.clf_ckpt='logs/seq_clf/version_0/checkpoints/epoch=024-val_loss=0.352.ckpt' \
   --model.num_latent_channels=64 \
   --model.encoder.num_layers=3 \
@@ -105,7 +105,7 @@ python scripts/seq_clf.py fit \
 Classify MNIST images. See also [Model API](#model-api) for details about the underlying Perceiver IO model.
 
 ```shell
-python scripts/img_clf.py fit \
+python perceiver/scripts/img_clf.py fit \
   --model.num_latent_channels=128 \
   --model.encoder.num_layers=3 \
   --model.encoder.dropout=0.0 \
