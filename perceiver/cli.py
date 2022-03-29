@@ -1,4 +1,4 @@
-import os
+from importlib.resources import path
 from typing import Any
 
 import torch
@@ -10,7 +10,8 @@ from pytorch_lightning.utilities.cli import LightningArgumentParser, LightningCL
 
 class CLI(LightningCLI):
     def __init__(self, model_class, run=True, **kwargs):
-        trainer_defaults = {"default_config_files": [os.path.join("perceiver", "trainer.yaml")]}
+        with path("perceiver", "trainer.yaml") as p:
+            trainer_defaults = {"default_config_files": [str(p)]}
 
         super().__init__(
             model_class,

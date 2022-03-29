@@ -14,11 +14,22 @@ output adapters (see [Model API](#model-api)). The command line interface is imp
 
 ## Setup
 
+### From sources
+
 ```shell
 conda env create -f environment.yml
 conda activate perceiver-io
 poetry install
 ```
+
+### Via pip
+
+```shell
+pip install perceiver-io
+```
+
+When installing via `pip` make sure you have a CUDA toolkit installed as well (see [environment.yml](environment.yml)
+for details).
 
 ## Tasks
 
@@ -34,7 +45,7 @@ encoder is then used for training a [sentiment classification](#sentiment-classi
 [Predictions of masked tokens](docs/tensorboard.md) are logged to Tensorboard.
 
 ```shell
-python perceiver/scripts/mlm.py fit \
+python -m perceiver.scripts.mlm fit \
   --model.num_latent_channels=64 \
   --model.encoder.num_layers=3 \
   --model.encoder.dropout=0.0 \
@@ -45,6 +56,7 @@ python perceiver/scripts/mlm.py fit \
   --optimizer.lr=3e-3 \
   --optimizer.weight_decay=0.0 \
   --lr_scheduler.pct_start=0.1 \
+  --trainer.default_root_dir=logs \
   --trainer.accelerator=gpu \
   --trainer.devices=-1 \
   --trainer.max_steps=50000 \
@@ -62,7 +74,7 @@ checkpoints from [here](https://martin-krasser.com/perceiver/logs-update-2.zip) 
 this project.
 
 ```shell
-python perceiver/scripts/seq_clf.py fit \
+python -m perceiver.scripts.seq_clf fit \
   --model.mlm_ckpt='logs/mlm/version_0/checkpoints/epoch=254-val_loss=4.556.ckpt' \
   --model.num_latent_channels=64 \
   --model.encoder.num_layers=3 \
@@ -84,7 +96,7 @@ If you ran the previous step yourself you'll need to modify the `--model.clf_ckp
 download checkpoints from [here](https://martin-krasser.com/perceiver/logs-update-2.zip).
 
 ```shell
-python perceiver/scripts/seq_clf.py fit \
+python -m perceiver.scripts.seq_clf fit \
   --model.clf_ckpt='logs/seq_clf/version_0/checkpoints/epoch=024-val_loss=0.352.ckpt' \
   --model.num_latent_channels=64 \
   --model.encoder.num_layers=3 \
@@ -105,7 +117,7 @@ python perceiver/scripts/seq_clf.py fit \
 Classify MNIST images. See also [Model API](#model-api) for details about the underlying Perceiver IO model.
 
 ```shell
-python perceiver/scripts/img_clf.py fit \
+python -m perceiver.scripts.img_clf fit \
   --model.num_latent_channels=128 \
   --model.encoder.num_layers=3 \
   --model.encoder.dropout=0.0 \
