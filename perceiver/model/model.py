@@ -1,42 +1,100 @@
+from typing import Optional
+
 import torch
 import torch.nn as nn
 from einops import repeat
 from fairscale.nn import checkpoint_wrapper
 
 from perceiver.model.adapter import InputAdapter, OutputAdapter
+from perceiver.model.attention import CrossAttention, SelfAttention
 from perceiver.model.utils import Sequential
 
 
-def mlp(num_channels: int):
+def mlp(num_channels: int, widening_factor: int):
     return Sequential(
         nn.LayerNorm(num_channels),
-        nn.Linear(num_channels, num_channels),
+        nn.Linear(num_channels, widening_factor * num_channels),
         nn.GELU(),
-        nn.Linear(num_channels, num_channels),
+        nn.Linear(widening_factor * num_channels, num_channels),
     )
 
 
 def cross_attention_layer(
-    num_q_channels: int, num_kv_channels: int, num_heads: int, dropout: float, activation_checkpoint: bool = False
+    num_heads: int,
+    num_q_input_channels: int,
+    num_kv_input_channels: int,
+    num_qk_channels: Optional[int] = None,
+    num_v_channels: Optional[int] = None,
+    widening_factor: int = 1,
+    dropout: float = 0.0,
+    attention_residual: bool = True,
+    activation_checkpointing: bool = False,
 ):
-    layer = Sequential(
-        Residual(CrossAttention(num_q_channels, num_kv_channels, num_heads, dropout), dropout),
-        Residual(mlp(num_q_channels), dropout),
+    sub_layer_1 = CrossAttention(
+        num_heads=num_heads,
+        num_q_input_channels=num_q_input_channels,
+        num_kv_input_channels=num_kv_input_channels,
+        num_qk_channels=num_qk_channels,
+        num_v_channels=num_v_channels,
+        dropout=dropout,
     )
-    return layer if not activation_checkpoint else checkpoint_wrapper(layer)
+    sub_layer_2 = mlp(num_q_input_channels, widening_factor)
+
+    layer = Sequential(
+        Residual(sub_layer_1, dropout) if attention_residual else sub_layer_1,
+        Residual(sub_layer_2, dropout),
+    )
+    return layer if not activation_checkpointing else checkpoint_wrapper(layer)
 
 
-def self_attention_layer(num_channels: int, num_heads: int, dropout: float, activation_checkpoint: bool = False):
-    layer = Sequential(
-        Residual(SelfAttention(num_channels, num_heads, dropout), dropout), Residual(mlp(num_channels), dropout)
+def self_attention_layer(
+    num_heads: int,
+    num_channels: int,
+    num_qk_channels: Optional[int] = None,
+    num_v_channels: Optional[int] = None,
+    widening_factor: int = 1,
+    dropout: float = 0.0,
+    activation_checkpointing: bool = False,
+):
+
+    sub_layer_1 = SelfAttention(
+        num_heads=num_heads,
+        num_channels=num_channels,
+        num_qk_channels=num_qk_channels,
+        num_v_channels=num_v_channels,
+        dropout=dropout,
     )
-    return layer if not activation_checkpoint else checkpoint_wrapper(layer)
+    sub_layer_2 = mlp(num_channels, widening_factor)
+
+    layer = Sequential(
+        Residual(sub_layer_1, dropout),
+        Residual(sub_layer_2, dropout),
+    )
+    return layer if not activation_checkpointing else checkpoint_wrapper(layer)
 
 
 def self_attention_block(
-    num_layers: int, num_channels: int, num_heads: int, dropout: float, activation_checkpoint: bool = False
+    num_layers: int,
+    num_heads: int,
+    num_channels: int,
+    num_qk_channels: Optional[int] = None,
+    num_v_channels: Optional[int] = None,
+    widening_factor: int = 1,
+    dropout: float = 0.0,
+    activation_checkpointing: bool = False,
 ):
-    layers = [self_attention_layer(num_channels, num_heads, dropout, activation_checkpoint) for _ in range(num_layers)]
+    layers = [
+        self_attention_layer(
+            num_heads=num_heads,
+            num_channels=num_channels,
+            num_qk_channels=num_qk_channels,
+            num_v_channels=num_v_channels,
+            widening_factor=widening_factor,
+            dropout=dropout,
+            activation_checkpointing=activation_checkpointing,
+        )
+        for _ in range(num_layers)
+    ]
     return Sequential(*layers)
 
 
@@ -52,112 +110,76 @@ class Residual(nn.Module):
         return self.dropout(x) + args[0]
 
 
-class MultiHeadAttention(nn.Module):
-    def __init__(self, num_q_channels: int, num_kv_channels: int, num_heads: int, dropout: float):
-        super().__init__()
-        self.attention = nn.MultiheadAttention(
-            embed_dim=num_q_channels,
-            num_heads=num_heads,
-            kdim=num_kv_channels,
-            vdim=num_kv_channels,
-            dropout=dropout,
-            batch_first=True,
-        )
-
-    def forward(self, x_q, x_kv, pad_mask=None, attn_mask=None):
-        return self.attention(x_q, x_kv, x_kv, key_padding_mask=pad_mask, attn_mask=attn_mask)[0]
-
-
-class CrossAttention(nn.Module):
-    # Simplified version of cross-attention module described in https://arxiv.org/abs/2103.03206.
-    # Here, the embedding dimension is determined by the number of query channels (num_q_channels)
-    # whereas in the paper it can be specified separately. This simplification allows re-use of the
-    # torch.nn.MultiHeadAttention module whereas a full implementation of the paper would require a
-    # custom multi-head attention implementation.
-    def __init__(self, num_q_channels: int, num_kv_channels: int, num_heads: int, dropout: float):
-        super().__init__()
-        self.q_norm = nn.LayerNorm(num_q_channels)
-        self.kv_norm = nn.LayerNorm(num_kv_channels)
-        self.attention = MultiHeadAttention(
-            num_q_channels=num_q_channels, num_kv_channels=num_kv_channels, num_heads=num_heads, dropout=dropout
-        )
-
-    def forward(self, x_q, x_kv, pad_mask=None, attn_mask=None):
-        x_q = self.q_norm(x_q)
-        x_kv = self.kv_norm(x_kv)
-        return self.attention(x_q, x_kv, pad_mask=pad_mask, attn_mask=attn_mask)
-
-
-class SelfAttention(nn.Module):
-    def __init__(self, num_channels: int, num_heads: int, dropout: float):
-        super().__init__()
-        self.norm = nn.LayerNorm(num_channels)
-        self.attention = MultiHeadAttention(
-            num_q_channels=num_channels, num_kv_channels=num_channels, num_heads=num_heads, dropout=dropout
-        )
-
-    def forward(self, x, pad_mask=None, attn_mask=None):
-        x = self.norm(x)
-        return self.attention(x, x, pad_mask=pad_mask, attn_mask=attn_mask)
-
-
 class PerceiverEncoder(nn.Module):
     def __init__(
         self,
         input_adapter: InputAdapter,
         num_latents: int,
         num_latent_channels: int,
-        num_layers: int = 3,
         num_cross_attention_heads: int = 4,
+        num_cross_attention_qk_channels: Optional[int] = None,
+        num_cross_attention_v_channels: Optional[int] = None,
+        cross_attention_widening_factor: int = 1,
         num_self_attention_heads: int = 4,
+        num_self_attention_qk_channels: Optional[int] = None,
+        num_self_attention_v_channels: Optional[int] = None,
         num_self_attention_layers_per_block: int = 6,
+        num_self_attention_blocks: int = 1,
+        self_attention_widening_factor: int = 1,
         dropout: float = 0.0,
-        activation_checkpoint: bool = False,
+        activation_checkpointing: bool = False,
     ):
         """Generic Perceiver IO encoder.
 
-        :param input_adapter: Transforms and position-encodes task-specific input to an encoder input of shape
-                              (B, M, C_input) where B is the batch size, M the input sequence length and C_input
-                              the number of input channels.
+        :param input_adapter: Transforms and position-encodes task-specific input to generic encoder input
+            of shape (B, M, C) where B is the batch size, M the input sequence length and C the number of
+            key/value input channels. C is determined by the `num_input_channels` property of the
+            `input_adapter`.
         :param num_latents: Number of latent variables (N).
-        :param num_latent_channels: Number of latent channels (C_latent).
-        :param num_layers: Number of encoder layers. An encoder layer is composed of a cross-attention layer and
-                           several self-attention layers (= a self-attention block).
+        :param num_latent_channels: Number of latent channels (D).
         :param num_cross_attention_heads: Number of cross-attention heads.
+        :param num_cross_attention_qk_channels: Number of query and key channels for cross-attention
+            (see `MultiHeadAttention.num_qk_channels` for details).
+        :param num_cross_attention_v_channels: Number of value channels for cross-attention
+            (see `MultiHeadAttention.num_v_channels` for details).
         :param num_self_attention_heads: Number of self-attention heads.
+        :param num_self_attention_qk_channels: Number of query and key channels for self-attention
+            (see `MultiHeadAttention.num_qk_channels` for details).
+        :param num_self_attention_v_channels: Number of value channels for self-attention
+            (see `MultiHeadAttention.num_v_channels` for details).
         :param num_self_attention_layers_per_block: Number of self-attention layers per self-attention block.
-        :param dropout: Dropout for self- and cross-attention layers and residuals.
-        :param activation_checkpoint: If True, implements an activation checkpoint for each self-attention layer
-                                      and cross-attention layer.
+        :param num_self_attention_blocks: Number of self-attention blocks sharing weights between corresponding
+            self-attention layers.
+        :param dropout: Dropout probability for self- and cross-attention layers and residuals.
+        :param activation_checkpointing: If True, implements an activation checkpoint for each self-attention
+            layer and cross-attention layer.
         """
         super().__init__()
 
         self.input_adapter = input_adapter
-        self.num_layers = num_layers
+        self.num_self_attention_blocks = num_self_attention_blocks
 
-        def create_perceiver_layer():
-            return Sequential(
-                cross_attention_layer(
-                    num_q_channels=num_latent_channels,
-                    num_kv_channels=input_adapter.num_input_channels,
-                    num_heads=num_cross_attention_heads,
-                    dropout=dropout,
-                    activation_checkpoint=activation_checkpoint,
-                ),
-                self_attention_block(
-                    num_layers=num_self_attention_layers_per_block,
-                    num_channels=num_latent_channels,
-                    num_heads=num_self_attention_heads,
-                    dropout=dropout,
-                    activation_checkpoint=activation_checkpoint,
-                ),
-            )
+        self.cross_attn = cross_attention_layer(
+            num_heads=num_cross_attention_heads,
+            num_q_input_channels=num_latent_channels,
+            num_kv_input_channels=input_adapter.num_input_channels,
+            num_qk_channels=num_cross_attention_qk_channels,
+            num_v_channels=num_cross_attention_v_channels,
+            widening_factor=cross_attention_widening_factor,
+            dropout=dropout,
+            activation_checkpointing=activation_checkpointing,
+        )
 
-        self.layer_1 = create_perceiver_layer()
-
-        if num_layers > 1:
-            # will be used recurrently depending on num_layers
-            self.layer_n = create_perceiver_layer()
+        self.self_attn = self_attention_block(
+            num_layers=num_self_attention_layers_per_block,
+            num_heads=num_self_attention_heads,
+            num_channels=num_latent_channels,
+            num_qk_channels=num_self_attention_qk_channels,
+            num_v_channels=num_self_attention_v_channels,
+            widening_factor=self_attention_widening_factor,
+            dropout=dropout,
+            activation_checkpointing=activation_checkpointing,
+        )
 
         # learnable initial latent vectors
         self.latent = nn.Parameter(torch.empty(num_latents, num_latent_channels))
@@ -176,9 +198,9 @@ class PerceiverEncoder(nn.Module):
         # repeat initial latent vector along batch dimension
         x_latent = repeat(self.latent, "... -> b ...", b=b)
 
-        x_latent = self.layer_1(x_latent, x, pad_mask)
-        for i in range(self.num_layers - 1):
-            x_latent = self.layer_n(x_latent, x, pad_mask)
+        x_latent = self.cross_attn(x_latent, x, pad_mask)
+        for _ in range(self.num_self_attention_blocks):
+            x_latent = self.self_attn(x_latent)
 
         return x_latent
 
@@ -189,46 +211,44 @@ class PerceiverDecoder(nn.Module):
         output_adapter: OutputAdapter,
         num_latent_channels: int,
         num_cross_attention_heads: int = 4,
+        num_cross_attention_qk_channels: Optional[int] = None,
+        num_cross_attention_v_channels: Optional[int] = None,
+        cross_attention_widening_factor: int = 1,
         dropout: float = 0.0,
-        activation_checkpoint: bool = False,
+        activation_checkpointing: bool = False,
     ):
         """Generic Perceiver IO decoder.
 
-        :param output_adapter: Transforms generic decoder output of shape (B, K, C_output) to task-specific
-                               output. B is the batch size, K the output sequence length and C_output the
-                               number of output channels. (K, C_output) is specified via the output_shape
-                               property of the output_adapter.
+        :param output_adapter: Transforms generic decoder cross-attention output of shape (B, O, F) to task-specific
+            output. B is the batch size, O the output sequence length and F the number of cross-attention output
+            channels. F is determined by the `num_output_query_channels` property of the `output_adapter`.
         :param num_latent_channels: Number of latent channels (C_latent) as produced by a Perceiver IO encoder.
         :param num_cross_attention_heads: Number of cross-attention heads.
-        :param dropout: Dropout for cross-attention layers and residuals.
-        :param activation_checkpoint: If True, implements an activation checkpoint for the decoder's cross-attention
-                                      layer.
+        :param num_cross_attention_qk_channels: Number of query and key channels for cross-attention
+            (see `MultiHeadAttention.num_qk_channels` for details).
+        :param num_cross_attention_v_channels: Number of value channels for cross-attention
+            (see `MultiHeadAttention.num_v_channels` for details).
+        :param dropout: Dropout probability for cross-attention layers and residuals.
+        :param activation_checkpointing: If True, implements an activation checkpoint for the decoder's
+            cross-attention layer.
         """
         super().__init__()
 
-        num_output_channels = output_adapter.output_shape[-1]
-
         self.output_adapter = output_adapter
         self.cross_attention = cross_attention_layer(
-            num_q_channels=num_output_channels,
-            num_kv_channels=num_latent_channels,
             num_heads=num_cross_attention_heads,
+            num_q_input_channels=output_adapter.num_output_query_channels,
+            num_kv_input_channels=num_latent_channels,
+            num_qk_channels=num_cross_attention_qk_channels,
+            num_v_channels=num_cross_attention_v_channels,
+            widening_factor=cross_attention_widening_factor,
             dropout=dropout,
-            activation_checkpoint=activation_checkpoint,
+            activation_checkpointing=activation_checkpointing,
         )
 
-        self.output = nn.Parameter(torch.empty(*output_adapter.output_shape))
-        self._init_parameters()
-
-    def _init_parameters(self):
-        with torch.no_grad():
-            self.output.normal_(0.0, 0.02).clamp_(-2.0, 2.0)
-
     def forward(self, x):
-        b, *_ = x.shape
-
-        output = repeat(self.output, "... -> b ...", b=b)
-        output = self.cross_attention(output, x)
+        output_query = self.output_adapter.output_query(x)
+        output = self.cross_attention(output_query, x)
         return self.output_adapter(output)
 
 

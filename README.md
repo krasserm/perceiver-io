@@ -46,9 +46,12 @@ encoder is then used for training a [sentiment classification](#sentiment-classi
 
 ```shell
 python -m perceiver.scripts.mlm fit \
+  --model.num_latents=64 \
   --model.num_latent_channels=64 \
-  --model.encoder.num_layers=3 \
+  --model.encoder.num_input_channels=64 \
+  --model.encoder.num_self_attention_blocks=3 \
   --model.encoder.dropout=0.0 \
+  --model.decoder.num_output_query_channels=64 \
   --model.decoder.dropout=0.0 \
   --data=IMDBDataModule \
   --data.max_seq_len=512 \
@@ -64,7 +67,7 @@ python -m perceiver.scripts.mlm fit \
 ```
 
 For saving GPU memory and scaling model training, [activation checkpointing](docs/checkpointing.md) can be enabled with
-`--model.activation_checkpoint=true` (disabled by default).
+`--model.activation_checkpointing=true` (disabled by default).
 
 ### Sentiment classification
 
@@ -75,11 +78,14 @@ this project.
 
 ```shell
 python -m perceiver.scripts.seq_clf fit \
-  --model.mlm_ckpt='logs/mlm/version_0/checkpoints/epoch=254-val_loss=4.556.ckpt' \
+  --model.mlm_ckpt='...' \
+  --model.num_latents=64 \
   --model.num_latent_channels=64 \
-  --model.encoder.num_layers=3 \
-  --model.encoder.freeze=true \
+  --model.encoder.num_input_channels=64 \
+  --model.encoder.num_self_attention_blocks=3 \
   --model.encoder.dropout=0.0 \
+  --model.encoder.freeze=true \
+  --model.decoder.num_output_query_channels=64 \
   --model.decoder.dropout=0.0 \
   --data=IMDBDataModule \
   --data.max_seq_len=512 \
@@ -97,10 +103,13 @@ download checkpoints from [here](https://martin-krasser.com/perceiver/logs-updat
 
 ```shell
 python -m perceiver.scripts.seq_clf fit \
-  --model.clf_ckpt='logs/seq_clf/version_0/checkpoints/epoch=024-val_loss=0.352.ckpt' \
+  --model.clf_ckpt='...' \
+  --model.num_latents=64 \
   --model.num_latent_channels=64 \
-  --model.encoder.num_layers=3 \
+  --model.encoder.num_input_channels=64 \
+  --model.encoder.num_self_attention_blocks=3 \
   --model.encoder.dropout=0.1 \
+  --model.decoder.num_output_query_channels=64 \
   --model.decoder.dropout=0.1 \
   --data=IMDBDataModule \
   --data.max_seq_len=512 \
@@ -118,9 +127,11 @@ Classify MNIST images. See also [Model API](#model-api) for details about the un
 
 ```shell
 python -m perceiver.scripts.img_clf fit \
+  --model.num_latents=32 \
   --model.num_latent_channels=128 \
-  --model.encoder.num_layers=3 \
+  --model.encoder.num_self_attention_blocks=3 \
   --model.encoder.dropout=0.0 \
+  --model.decoder.num_output_query_channels=128 \
   --model.decoder.dropout=0.0 \
   --data=MNISTDataModule \
   --data.batch_size=128 \
@@ -161,17 +172,17 @@ from perceiver.model import (
 input_adapter = ImageInputAdapter(image_shape=(28, 28, 1), num_frequency_bands=32)
 
 # Project generic Perceiver decoder output to specified number of classes
-output_adapter = ClassificationOutputAdapter(num_classes=10, num_output_channels=128)
+output_adapter = ClassificationOutputAdapter(num_classes=10, num_output_query_channels=128)
 
 # Generic Perceiver encoder
 encoder = PerceiverEncoder(
     input_adapter=input_adapter,
     num_latents=32,
     num_latent_channels=128,
-    num_layers=3,
     num_cross_attention_heads=4,
     num_self_attention_heads=4,
     num_self_attention_layers_per_block=3,
+    num_self_attention_blocks=3,
     dropout=0.0,
 )
 

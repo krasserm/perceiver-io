@@ -7,7 +7,11 @@ from einops import rearrange, repeat
 
 
 class InputAdapter(nn.Module):
-    def __init__(self, num_input_channels):
+    def __init__(self, num_input_channels: int):
+        """Transforms and position-encodes task-specific input to generic encoder input.
+
+        :param num_input_channels: Number of channels of the generic encoder input produced by this adapter.
+        """
         super().__init__()
         self._num_input_channels = num_input_channels
 
@@ -20,13 +24,26 @@ class InputAdapter(nn.Module):
 
 
 class OutputAdapter(nn.Module):
-    def __init__(self, output_shape):
+    def __init__(self, output_query: torch.Tensor):
+        """Transforms generic decoder cross-attention output to task-specific output.
+
+        :param output_query: output query prototype (does not include batch dimension) used as query input to
+            generic decoder cross-attention.
+        """
         super().__init__()
-        self._output_shape = output_shape
+        self._output_query = nn.Parameter(output_query)
+        self._init_parameters()
+
+    def _init_parameters(self):
+        with torch.no_grad():
+            self._output_query.normal_(0.0, 0.02).clamp_(-2.0, 2.0)
 
     @property
-    def output_shape(self):
-        return self._output_shape
+    def num_output_query_channels(self):
+        return self._output_query.shape[-1]
+
+    def output_query(self, x):
+        return repeat(self._output_query, "... -> b ...", b=x.shape[0])
 
     def forward(self, x):
         raise NotImplementedError()
@@ -102,9 +119,7 @@ class ImageInputAdapter(InputAdapter):
         if tuple(d) != self.image_shape:
             raise ValueError(f"Input image shape {tuple(d)} different from required shape {self.image_shape}")
 
-        # repeat position encoding along batch dimension
         x_enc = repeat(self.position_encoding, "... -> b ...", b=b)
-
         x = rearrange(x, "b ... c -> b (...) c")
         return torch.cat([x, x_enc], dim=-1)
 
@@ -126,26 +141,30 @@ class TextInputAdapter(InputAdapter):
 
     def forward(self, x):
         b, l = x.shape  # noqa: E741
-
-        # repeat position encodings along batch dimension
-        p_enc = repeat(self.pos_encoding[:l], "... -> b ...", b=b)
-
+        p_enc = rearrange(self.pos_encoding[:l], "... -> () ...")
         return self.text_embedding(x) * self.scale + p_enc
 
 
 class ClassificationOutputAdapter(OutputAdapter):
-    def __init__(self, num_classes: int, num_outputs: int = 1, num_output_channels: Optional[int] = None):
+    def __init__(self, num_classes: int, num_output_queries: int = 1, num_output_query_channels: Optional[int] = None):
 
-        if num_output_channels is None:
-            num_output_channels = num_classes
+        if num_output_query_channels is None:
+            num_output_query_channels = num_classes
 
-        super().__init__(output_shape=(num_outputs, num_output_channels))
-        self.linear = nn.Linear(num_output_channels, num_classes)
+        super().__init__(output_query=torch.empty(num_output_queries, num_output_query_channels))
+        self.linear = nn.Linear(num_output_query_channels, num_classes)
 
     def forward(self, x):
         return self.linear(x).squeeze(dim=1)
 
 
-class TextOutputAdapter(ClassificationOutputAdapter):
-    def __init__(self, vocab_size: int, max_seq_len: int, num_output_channels: Optional[int] = None):
-        super().__init__(num_classes=vocab_size, num_outputs=max_seq_len, num_output_channels=num_output_channels)
+class TextOutputAdapter(OutputAdapter):
+    def __init__(
+        self, vocab_size: int, max_seq_len: int, num_output_query_channels: int, embedding_weights: torch.Tensor
+    ):
+        super().__init__(output_query=torch.empty(max_seq_len, num_output_query_channels))
+        self.embedding_weights = embedding_weights
+        self.bias = nn.Parameter(torch.zeros(vocab_size))
+
+    def forward(self, x):
+        return torch.matmul(x, self.embedding_weights.T) + self.bias
