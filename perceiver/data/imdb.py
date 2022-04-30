@@ -2,7 +2,6 @@ import glob
 import os
 
 import pytorch_lightning as pl
-from pytorch_lightning.utilities.cli import DATAMODULE_REGISTRY
 from tokenizers.normalizers import Replace
 from torch.utils.data import DataLoader, Dataset
 from torchtext.datasets import IMDB
@@ -41,7 +40,6 @@ class IMDBDataset(Dataset):
         return self.raw_y[index], self.raw_x[index]
 
 
-@DATAMODULE_REGISTRY
 class IMDBDataModule(pl.LightningDataModule):
     def __init__(
         self,

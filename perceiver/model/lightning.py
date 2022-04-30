@@ -6,7 +6,6 @@ import pytorch_lightning as pl
 import torch.nn as nn
 import torchmetrics as tm
 from einops import rearrange
-from pytorch_lightning.utilities.cli import instantiate_class
 
 from perceiver.model.adapter import ClassificationOutputAdapter, ImageInputAdapter, TextInputAdapter, TextOutputAdapter
 from perceiver.model.model import PerceiverDecoder, PerceiverEncoder, PerceiverIO, PerceiverMLM, TextMasking
@@ -85,24 +84,10 @@ class LitModel(pl.LightningModule):
         decoder: DecoderConfig,
         num_latents: int,
         num_latent_channels: int,
-        optimizer_init: dict,
-        scheduler_init: Optional[dict] = None,
         activation_checkpointing: bool = False,
     ):
         super().__init__()
         self.save_hyperparameters()
-
-    def configure_optimizers(self):
-        optimizer = instantiate_class(self.parameters(), self.hparams.optimizer_init)
-
-        if self.hparams.scheduler_init is None:
-            return optimizer
-        else:
-            scheduler = instantiate_class(optimizer, self.hparams.scheduler_init)
-            return {
-                "optimizer": optimizer,
-                "lr_scheduler": {"scheduler": scheduler, "interval": "step", "frequency": 1},
-            }
 
 
 class LitClassifier(LitModel):

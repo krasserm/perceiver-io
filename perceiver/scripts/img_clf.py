@@ -1,9 +1,6 @@
 from pytorch_lightning.utilities.cli import LightningArgumentParser
 
 from perceiver.cli import CLI
-
-# register data module via import
-from perceiver.data import MNISTDataModule  # noqa: F401
 from perceiver.model import LitImageClassifier
 
 
@@ -14,7 +11,6 @@ class ImageClassifierCLI(CLI):
         parser.link_arguments("data.num_classes", "model.decoder.num_classes", apply_on="instantiate")
         parser.set_defaults(
             {
-                "experiment": "img_clf",
                 "model.num_latents": 32,
                 "model.num_latent_channels": 128,
                 "model.encoder.num_frequency_bands": 32,

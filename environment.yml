@@ -4,8 +4,7 @@ channels:
   - conda-forge
 dependencies:
   - python=3.9
-  - cudatoolkit=10.2
+  - cudatoolkit=11.3
   - pip>=21.3
   - pip:
-    - setuptools==59.5.0 # to address pytorch incompatibility (see https://github.com/pytorch/pytorch/pull/69904)
     - poetry==1.1.13

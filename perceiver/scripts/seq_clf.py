@@ -1,9 +1,6 @@
 from pytorch_lightning.utilities.cli import LightningArgumentParser
 
 from perceiver.cli import CLI
-
-# register data module via import
-from perceiver.data import IMDBDataModule  # noqa: F401
 from perceiver.model import LitTextClassifier
 
 
@@ -14,7 +11,6 @@ class TextClassifierCLI(CLI):
         parser.link_arguments("data.max_seq_len", "model.encoder.max_seq_len", apply_on="instantiate")
         parser.set_defaults(
             {
-                "experiment": "seq_clf",
                 "model.num_latents": 64,
                 "model.num_latent_channels": 64,
                 "model.encoder.num_input_channels": 64,

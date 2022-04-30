@@ -1,7 +1,7 @@
 ## Activation checkpointing
 
 [Activation checkpointing](https://pytorch-lightning.readthedocs.io/en/latest/advanced/advanced_gpu.html#fairscale-activation-checkpointing)
-can be enabled with `--model.activation_checkpoint=true`. This implements activation checkpoints for each self-attention
+can be enabled with `--model.activation_checkpointing=true`. This implements activation checkpoints for each self-attention
 and cross-attention layer and saves GPU memory during training. For example, the saved GPU memory can be used to run
 [masked language modeling](../README.md#masked-language-modeling) with a higher number of input, latent and output query
 channels (`256` instead of `64`).
@@ -26,7 +26,10 @@ python -m perceiver.scripts.mlm fit \
   --trainer.devices=-1 \
   --trainer.max_steps=50000 \
   --trainer.check_val_every_n_epoch=5 \
-  --trainer.strategy=ddp_static_graph
+  --trainer.strategy=ddp_static_graph \
+  --trainer.logger=TensorBoardLogger \
+  --trainer.logger.save_dir=logs \
+  --trainer.logger.name=mlm
 ```
 
 The following figure compares the validation losses for `64` channels (blue line) and `256` channels (red line),
@@ -34,5 +37,5 @@ demonstrating a performance improvement by increasing the number of input, laten
 
 ![mlm](checkpointing.png)
 
-If `--model.num_encoder_layers` is greater than `2`, the option `--trainer.strategy=ddp_static_graph` must be used in
-order to support checkpointing of shared layers 2-n.
+If `--model.encoder.num_self_attention_blocks` is greater than `1`, the option `--trainer.strategy=ddp_static_graph`
+must be used in order to support checkpointing (as these blocks share their weights).

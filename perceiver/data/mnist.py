@@ -1,13 +1,11 @@
 from typing import Callable, Optional, Union
 
 import torch
-from pl_bolts.datamodules import mnist_datamodule
-from pytorch_lightning.utilities.cli import DATAMODULE_REGISTRY
+from pl_bolts.datamodules.mnist_datamodule import MNISTDataModule as MNISTDataModuleBase
 from torchvision import transforms
 
 
-@DATAMODULE_REGISTRY
-class MNISTDataModule(mnist_datamodule.MNISTDataModule):
+class MNISTDataModule(MNISTDataModuleBase):
     def __init__(
         self,
         channels_last: bool = True,

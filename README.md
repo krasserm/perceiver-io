@@ -59,11 +59,13 @@ python -m perceiver.scripts.mlm fit \
   --optimizer.lr=3e-3 \
   --optimizer.weight_decay=0.0 \
   --lr_scheduler.pct_start=0.1 \
-  --trainer.default_root_dir=logs \
   --trainer.accelerator=gpu \
   --trainer.devices=-1 \
   --trainer.max_steps=50000 \
-  --trainer.check_val_every_n_epoch=5
+  --trainer.check_val_every_n_epoch=5 \
+  --trainer.logger=TensorBoardLogger \
+  --trainer.logger.save_dir=logs \
+  --trainer.logger.name=mlm
 ```
 
 For saving GPU memory and scaling model training, [activation checkpointing](docs/checkpointing.md) can be enabled with
@@ -90,11 +92,15 @@ python -m perceiver.scripts.seq_clf fit \
   --data=IMDBDataModule \
   --data.max_seq_len=512 \
   --data.batch_size=128 \
+  --optimizer=AdamW \
   --optimizer.lr=1e-3 \
   --optimizer.weight_decay=0.01 \
   --trainer.accelerator=gpu \
   --trainer.devices=-1 \
-  --trainer.max_epochs=30
+  --trainer.max_epochs=30 \
+  --trainer.logger=TensorBoardLogger \
+  --trainer.logger.save_dir=logs \
+  --trainer.logger.name=seq_clf
 ```
 
 Unfreeze the encoder and jointly fine-tune it together with the decoder that has been trained in the previous step.
@@ -114,11 +120,15 @@ python -m perceiver.scripts.seq_clf fit \
   --data=IMDBDataModule \
   --data.max_seq_len=512 \
   --data.batch_size=128 \
+  --optimizer=AdamW \
   --optimizer.lr=1e-4 \
   --optimizer.weight_decay=0.01 \
   --trainer.accelerator=gpu \
   --trainer.devices=-1 \
-  --trainer.max_epochs=30
+  --trainer.max_epochs=30 \
+  --trainer.logger=TensorBoardLogger \
+  --trainer.logger.save_dir=logs \
+  --trainer.logger.name=seq_clf
 ```
 
 ### Image classification
@@ -135,11 +145,16 @@ python -m perceiver.scripts.img_clf fit \
   --model.decoder.dropout=0.0 \
   --data=MNISTDataModule \
   --data.batch_size=128 \
+  --optimizer=AdamW \
   --optimizer.lr=1e-3 \
   --optimizer.weight_decay=0.01 \
   --trainer.accelerator=gpu \
   --trainer.devices=-1 \
-  --trainer.max_epochs=20
+  --trainer.max_epochs=20 \
+  --trainer.logger=TensorBoardLogger \
+  --trainer.logger.save_dir=logs \
+  --trainer.logger.name=img_clf
+
 ```
 
 ## Notebooks
