@@ -1,7 +1,7 @@
 from pytorch_lightning.utilities.cli import LightningArgumentParser
 
 from perceiver.cli import CLI
-from perceiver.model import LitTextClassifier
+from perceiver.model.lightning import LitTextClassifier
 
 
 class TextClassifierCLI(CLI):

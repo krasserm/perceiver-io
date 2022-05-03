@@ -1,7 +1,7 @@
 from pytorch_lightning.utilities.cli import LightningArgumentParser
 
 from perceiver.cli import CLI
-from perceiver.model import LitImageClassifier
+from perceiver.model.lightning import LitImageClassifier
 
 
 class ImageClassifierCLI(CLI):

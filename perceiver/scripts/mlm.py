@@ -7,7 +7,7 @@ from pytorch_lightning.utilities.types import LRSchedulerTypeUnion
 from torch.optim import Optimizer
 
 from perceiver.cli import CLI
-from perceiver.model import LitMaskedLanguageModel
+from perceiver.model.lightning import LitMaskedLanguageModel
 
 
 class MaskedLanguageModelCLI(CLI):
