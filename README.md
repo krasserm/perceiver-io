@@ -1,18 +1,25 @@
 # Perceiver IO
 
-A PyTorch implementation of
+This project is a PyTorch implementation of
 
-- [Perceiver: General Perception with Iterative Attention](https://arxiv.org/abs/2103.03206)
+- [Perceiver: General Perception with Iterative Attention](https://arxiv.org/abs/2103.03206) and
 - [Perceiver IO: A General Architecture for Structured Inputs & Outputs](https://arxiv.org/abs/2107.14795)
 
-This project supports training of Perceiver IO models with [Pytorch Lightning](https://www.pytorchlightning.ai/).
-Training examples are given in section [Tasks](#tasks), inference examples in section [Notebooks](#notebooks).
-Perceiver IO models are constructed with generic encoder and decoder classes and task-specific input and
-output adapters (see [Model API](#model-api)). The command line interface is implemented with
-[Lighting CLI](https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_cli.html).
+and supports training of Perceiver IO models with [Pytorch Lightning](https://www.pytorchlightning.ai/). It provides a
+simple yet feature-complete Perceiver-IO implementation that can be easily extended for custom tasks and trained
+on any scale with PyTorch Lightning.
 
+- Section [Architecture](#architecture) explains how the conceptual Perceiver-IO architecture relates to the
+  implementation provided by this project.
+- Section [Model API](#model-api) gives an example how a Perceiver-IO model can be created and configured with the
+  [PyTorch model API](#pytorch-model-api), the [PyTorch Lightning model API](#pytorch-lightning-model-api) and the
+  [command line interface](#pytorch-lightning-model-cli).
+- Section [Training examples](#training-examples) demonstrates how Perceiver-IO models can be trained on some example
+  tasks.
+- Section [Inference examples](#inference-examples) links to notebooks that demonstrate how trained Perceiver-IO
+  models can be used for prediction.
 
-## Setup
+## Installation
 
 ### From sources
 
@@ -28,15 +35,177 @@ poetry install
 pip install perceiver-io
 ```
 
-When installing via `pip` make sure you have a CUDA toolkit installed as well (see [environment.yml](environment.yml)
-for details).
+When installing via `pip` make sure you have a CUDA 11.x toolkit installed as well (see also [environment.yml](environment.yml)).
 
-## Tasks
+## Architecture
 
-In the following subsections, Perceiver IO models are trained on a rather small scale. In particular, hyperparameters
-are set such that parallel training on two NVIDIA GTX 1080 GPUs (8 GB memory each) works quite well. I didn't really
-tune model architectures and other hyperparameters, so you'll probably get better results with a bit of experimentation.
-Support for more datasets and tasks will be added later.
+The following figure shows how the conceptual Perceiver-IO architecture, as specified in the [paper](https://arxiv.org/abs/2107.14795),
+can be mapped to the implementation provided by this project. The names of components in the implementation architecture
+are class names in the [PyTorch model API](#pytorch-model-api) (see also [model.py](perceiver/model/model.py)).
+
+![architecture](docs/architecture.png)
+
+Task-specific input and output adapters are subclasses of `InputAdapter` and `OuptutAdapter`, respectively (see also
+[adapter.py](perceiver/model/adapter.py)). Array dimensions (`M`, `C`), (`N`, `D`) and (`O`, `E`) have the following
+names in code and/or on the command line:
+
+| Array dimension | Configuration parameter name                                                    |
+|-----------------|---------------------------------------------------------------------------------|
+| `M`             | Input-specific name (e.g. `max_seq_len` for text input, ...)                    |
+| `C`             | `num_input_channels` (property of `InputAdapter`)                               |
+| `N`             | `num_latents`                                                                   |
+| `D`             | `num_latent_channels`                                                           |
+| `O`             | Output-specific name (e.g. `num_output_queries` for classification output, ...) |
+| `E`             | Output-specific name (e.g. `num_classes` for classification output, ...)        |
+
+Not shown in the conceptual architecture is the channel dimension `F` of the output query array. The corresponding name
+in code is `num_output_query_channels` (a property of `OutputAdapter`).
+
+The number of layers in a `SelfAttentionBlock` can be specified with `num_self_attention_layers_per_block` and the
+number of blocks with `num_self_attention_blocks` (`L` in the conceptual architecture). Self-attention blocks share
+their weights.
+
+## Model API
+
+### PyTorch model API
+
+The PyTorch model API is based on generic encoder and decoder classes (`PerceiverEncoder` and `PerceiverDecoder`) and
+task-specific input and output adapter classes. These are defined in [model.py](perceiver/model/model.py) and
+[adapter.py](perceiver/model/adapter.py), respectively. The following snippet shows how they can be used to create an
+ImageNet classifier as specified in Appendix A of the [paper](https://arxiv.org/abs/2107.14795) (Perceiver IO, config A,
+with 2D Fourier Features, 48.4M parameters):
+
+```python
+from perceiver.model import (
+    PerceiverIO,
+    PerceiverEncoder,
+    PerceiverDecoder,
+    ImageInputAdapter,
+    ClassificationOutputAdapter,
+)
+
+# Fourier-encodes pixel positions and flatten along spatial dimensions
+input_adapter = ImageInputAdapter(image_shape=(224, 224, 3), num_frequency_bands=64)
+
+# Projects generic Perceiver decoder output to specified number of classes
+output_adapter = ClassificationOutputAdapter(num_classes=1000, num_output_query_channels=1024)
+
+# Generic Perceiver encoder
+encoder = PerceiverEncoder(
+    input_adapter=input_adapter,
+    num_latents=512,
+    num_latent_channels=1024,
+    num_cross_attention_qk_channels=input_adapter.num_input_channels,
+    num_cross_attention_heads=1,
+    num_self_attention_heads=8,
+    num_self_attention_layers_per_block=6,
+    num_self_attention_blocks=8,
+    dropout=0.0,
+)
+
+# Generic Perceiver decoder
+decoder = PerceiverDecoder(
+    output_adapter=output_adapter,
+    num_latent_channels=1024,
+    num_cross_attention_heads=1,
+    dropout=0.0,
+)
+
+# image classifier implemented as Perceiver IO model
+model = PerceiverIO(encoder, decoder)
+```
+
+### PyTorch Lightning model API
+
+Models created with the [PyTorch model API](#pytorch-model-api) are wrapped in task-specific [LightningModule](https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html)s
+(e.g. `LitImageClassifier`) so that they can be trained with the PyTorch Lightning [Trainer](https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html).
+They are defined in [lightning.py](perceiver/model/lightning.py). Part of this API are also task-specific configuration
+classes.
+
+A task-specific encoder configuration class (e.g. `ImageEncoderConfig`) covers the configuration of the generic encoder
+and its task-specific input adapter. A task-specific decoder configuration object (e.g. `ClassificationDecoderConfig`)
+covers the configuration of the generic decoder and its task-specific output adapter.
+
+The same model as in the [previous section](#pytorch-model-api), wrapped in a `LitImageClassifier`, can be created
+with:
+
+```python
+from perceiver.model.lightning import (
+    LitImageClassifier,
+    ImageEncoderConfig,
+    ClassificationDecoderConfig
+)
+
+encoder_cfg = ImageEncoderConfig(
+    image_shape=(224, 224, 3),
+    num_frequency_bands=64,
+    num_cross_attention_qk_channels=261,
+    num_cross_attention_heads=1,
+    num_self_attention_heads=8,
+    num_self_attention_layers_per_block=6,
+    num_self_attention_blocks=8,
+    dropout=0.0,
+)
+decoder_cfg = ClassificationDecoderConfig(
+    num_classes=1000,
+    num_output_query_channels=1024,
+    num_cross_attention_heads=1,
+    dropout=0.0,
+)
+
+lit_model = LitImageClassifier(encoder_cfg, decoder_cfg, num_latents=512, num_latent_channels=1024)
+
+# Wrapped PyTorch model
+model = lit_model.model
+```
+
+### PyTorch Lightning model CLI
+
+The [PyTorch Lightning model API](#pytorch-lightning-model-api) is primarily designed for command-line binding via
+the [Lightning CLI](https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_cli.html). For example, when
+implementing a command line interface for `LitImageClassifier` with `LightningCLI` in a file named `classifier.py`
+
+```python
+# File classifier.py
+
+from pytorch_lightning.utilities.cli import LightningCLI
+from perceiver.model.lightning import LitImageClassifier
+
+if __name__ == "__main__":
+    LightningCLI(model_class=LitImageClassifier)
+```
+
+the same classifier [as before](#pytorch-lightning-model-api) can be created with the following command line options:
+
+```shell
+python classifier.py fit \
+  --model.num_latents=512 \
+  --model.num_latent_channels=1024 \
+  --model.encoder.image_shape=[224,224,3] \
+  --model.encoder.num_frequency_bands=64 \
+  --model.encoder.num_cross_attention_qk_channels=261 \
+  --model.encoder.num_cross_attention_heads=1 \
+  --model.encoder.num_self_attention_heads=8 \
+  --model.encoder.num_self_attention_layers_per_block=6 \
+  --model.encoder.num_self_attention_blocks=8 \
+  --model.encoder.dropout=0.0 \
+  --model.decoder.num_classes=1000 \
+  --model.decoder.num_output_query_channels=1024 \
+  --model.decoder.num_cross_attention_heads=1 \
+  --model.decoder.dropout=0.0 \
+  ...
+```
+
+Task-specific training scripts can set default values so that command lines are usually much shorter (see [img_clf.py](perceiver/scripts/img_clf.py)
+for an example of a training script and section [Image classification](#image-classification) for a usage example).
+
+## Training examples
+
+In the following subsections, Perceiver IO models are trained on a rather small scale (and on small datasets). In
+particular, hyperparameters are set such that parallel training on two NVIDIA GTX 1080 GPUs (8 GB memory each) works
+quite well. I didn't really tune model architectures and other hyperparameters yet, so you'll probably get better
+results with a bit of experimentation. Support for more datasets and tasks as well as instructions for training on
+larger scale will come soon.
 
 ### Masked language modeling
 
@@ -49,11 +218,12 @@ python -m perceiver.scripts.mlm fit \
   --model.num_latents=64 \
   --model.num_latent_channels=64 \
   --model.encoder.num_input_channels=64 \
+  --model.encoder.num_self_attention_layers_per_block=6 \
   --model.encoder.num_self_attention_blocks=3 \
   --model.encoder.dropout=0.0 \
   --model.decoder.num_output_query_channels=64 \
   --model.decoder.dropout=0.0 \
-  --data=IMDBDataModule \
+  --data=ImdbDataModule \
   --data.max_seq_len=512 \
   --data.batch_size=64 \
   --optimizer.lr=3e-3 \
@@ -73,7 +243,7 @@ For saving GPU memory and scaling model training, [activation checkpointing](doc
 
 ### Sentiment classification
 
-Train a classification decoder using a frozen encoder from [masked language modeling](#masked-language-modeling-mlm).
+Train a classification decoder using a frozen encoder from [masked language modeling](#masked-language-modeling).
 If you ran MLM yourself you'll need to modify the `--model.mlm_ckpt` argument accordingly, otherwise download
 checkpoints from [here](https://martin-krasser.com/perceiver/logs-update-2.zip) and extract them in the root directory of
 this project.
@@ -84,12 +254,13 @@ python -m perceiver.scripts.seq_clf fit \
   --model.num_latents=64 \
   --model.num_latent_channels=64 \
   --model.encoder.num_input_channels=64 \
+  --model.encoder.num_self_attention_layers_per_block=6 \
   --model.encoder.num_self_attention_blocks=3 \
   --model.encoder.dropout=0.0 \
   --model.encoder.freeze=true \
   --model.decoder.num_output_query_channels=64 \
   --model.decoder.dropout=0.0 \
-  --data=IMDBDataModule \
+  --data=ImdbDataModule \
   --data.max_seq_len=512 \
   --data.batch_size=128 \
   --optimizer=AdamW \
@@ -113,11 +284,12 @@ python -m perceiver.scripts.seq_clf fit \
   --model.num_latents=64 \
   --model.num_latent_channels=64 \
   --model.encoder.num_input_channels=64 \
+  --model.encoder.num_self_attention_layers_per_block=6 \
   --model.encoder.num_self_attention_blocks=3 \
   --model.encoder.dropout=0.1 \
   --model.decoder.num_output_query_channels=64 \
   --model.decoder.dropout=0.1 \
-  --data=IMDBDataModule \
+  --data=ImdbDataModule \
   --data.max_seq_len=512 \
   --data.batch_size=128 \
   --optimizer=AdamW \
@@ -133,17 +305,18 @@ python -m perceiver.scripts.seq_clf fit \
 
 ### Image classification
 
-Classify MNIST images. See also [Model API](#model-api) for details about the underlying Perceiver IO model.
+Classify MNIST images.
 
 ```shell
 python -m perceiver.scripts.img_clf fit \
   --model.num_latents=32 \
   --model.num_latent_channels=128 \
+  --model.encoder.num_self_attention_layers_per_block=3 \
   --model.encoder.num_self_attention_blocks=3 \
   --model.encoder.dropout=0.0 \
   --model.decoder.num_output_query_channels=128 \
   --model.decoder.dropout=0.0 \
-  --data=MNISTDataModule \
+  --data=MnistDataModule \
   --data.batch_size=128 \
   --optimizer=AdamW \
   --optimizer.lr=1e-3 \
@@ -154,10 +327,9 @@ python -m perceiver.scripts.img_clf fit \
   --trainer.logger=TensorBoardLogger \
   --trainer.logger.save_dir=logs \
   --trainer.logger.name=img_clf
-
 ```
 
-## Notebooks
+## Inference examples
 
 - [Image classification](notebooks/img-clf.ipynb)
 - [Sentiment classification](notebooks/txt-clf.ipynb)
@@ -168,78 +340,33 @@ Start the notebook server with:
 PYTHONPATH=.. jupyter notebook
 ```
 
-## Model API
-
-The [model](perceiver/model/model.py) API is based on generic encoder and decoder classes (`PerceiverEncoder` and
-`PerceiverDecoder`) and task-specific input and output [adapters](perceiver/model/adapter.py). The following snippet
-shows how they can be used to create an MNIST image classifier, for example:
-
-```python
-from perceiver.model import (
-    PerceiverIO,
-    PerceiverEncoder,
-    PerceiverDecoder,
-    ImageInputAdapter,
-    ClassificationOutputAdapter,
-)
-
-# Fourier-encode pixel positions and flatten along spatial dimensions
-input_adapter = ImageInputAdapter(image_shape=(28, 28, 1), num_frequency_bands=32)
-
-# Project generic Perceiver decoder output to specified number of classes
-output_adapter = ClassificationOutputAdapter(num_classes=10, num_output_query_channels=128)
-
-# Generic Perceiver encoder
-encoder = PerceiverEncoder(
-    input_adapter=input_adapter,
-    num_latents=32,
-    num_latent_channels=128,
-    num_cross_attention_heads=4,
-    num_self_attention_heads=4,
-    num_self_attention_layers_per_block=3,
-    num_self_attention_blocks=3,
-    dropout=0.0,
-)
-
-# Generic Perceiver decoder
-decoder = PerceiverDecoder(
-    output_adapter=output_adapter,
-    num_latent_channels=128,
-    num_cross_attention_heads=1,
-    dropout=0.0,
-)
-
-# MNIST classifier implemented as Perceiver IO model
-mnist_classifier = PerceiverIO(encoder, decoder)
-```
-
 ## Development environment
 
 Update the project dependencies in the conda environment:
 
-```bash
+```shell
 invoke install
 ```
 
 Install the pre-commit hooks:
 
-```bash
+```shell
 invoke precommit-install
 ```
 
 Run code quality checks:
 
-```bash
+```shell
 invoke cc
 ```
 
 Run tests:
 
-```bash
+```shell
 invoke test
 ```
 
-The project and task structure presented here is based on the [Python Project Template](https://github.com/cstub/python-project-template).
+The structure of this project is based on the [Python Project Template](https://github.com/cstub/python-project-template).
 
 ## Citations
 

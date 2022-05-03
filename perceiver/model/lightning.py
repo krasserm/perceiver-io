@@ -64,12 +64,13 @@ class ImageEncoderConfig(EncoderConfig):
 @dataclass
 class TextEncoderConfig(EncoderConfig):
     vocab_size: int = 10003
-    max_seq_len: int = 512
+    max_seq_len: int = 256
     num_input_channels: int = 64
 
 
 @dataclass
 class ClassificationDecoderConfig(DecoderConfig):
+    num_output_queries: int = 1
     num_classes: int = 100
 
 
@@ -134,6 +135,7 @@ class LitImageClassifier(LitClassifier):
         )
         output_adapter = ClassificationOutputAdapter(
             num_classes=self.hparams.decoder.num_classes,
+            num_output_queries=self.hparams.decoder.num_output_queries,
             num_output_query_channels=self.hparams.decoder.num_output_query_channels,
         )
 
@@ -185,6 +187,7 @@ class LitTextClassifier(LitClassifier):
     def create_model(self, encoder):
         output_adapter = ClassificationOutputAdapter(
             num_classes=self.hparams.decoder.num_classes,
+            num_output_queries=self.hparams.decoder.num_output_queries,
             num_output_query_channels=self.hparams.decoder.num_output_query_channels,
         )
         decoder = PerceiverDecoder(

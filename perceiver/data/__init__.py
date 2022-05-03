@@ -1,3 +1,3 @@
-from perceiver.data.imdb import IMDBDataModule
-from perceiver.data.mnist import MNISTDataModule, MNISTPreprocessor
+from perceiver.data.imdb import ImdbDataModule
+from perceiver.data.mnist import MnistDataModule, MnistPreprocessor
 from perceiver.data.utils import TextPreprocessor

@@ -11,12 +11,13 @@ python -m perceiver.scripts.mlm fit \
   --model.num_latents=64 \
   --model.num_latent_channels=256 \
   --model.encoder.num_input_channels=256 \
+  --model.encoder.num_self_attention_layers_per_block=6 \
   --model.encoder.num_self_attention_blocks=3 \
   --model.encoder.dropout=0.0 \
   --model.decoder.num_output_query_channels=256 \
   --model.decoder.dropout=0.0 \
   --model.activation_checkpointing=true \
-  --data=IMDBDataModule \
+  --data=ImdbDataModule \
   --data.max_seq_len=512 \
   --data.batch_size=64 \
   --optimizer.lr=0.002 \
@@ -38,4 +39,4 @@ demonstrating a performance improvement by increasing the number of input, laten
 ![mlm](checkpointing.png)
 
 If `--model.encoder.num_self_attention_blocks` is greater than `1`, the option `--trainer.strategy=ddp_static_graph`
-must be used in order to support checkpointing (as these blocks share their weights).
+must be used in order to support checkpointing.

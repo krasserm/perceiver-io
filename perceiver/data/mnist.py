@@ -1,11 +1,11 @@
 from typing import Callable, Optional, Union
 
 import torch
-from pl_bolts.datamodules.mnist_datamodule import MNISTDataModule as MNISTDataModuleBase
+from pl_bolts.datamodules.mnist_datamodule import MNISTDataModule
 from torchvision import transforms
 
 
-class MNISTDataModule(MNISTDataModuleBase):
+class MnistDataModule(MNISTDataModule):
     def __init__(
         self,
         channels_last: bool = True,
@@ -45,7 +45,7 @@ class MNISTDataModule(MNISTDataModuleBase):
         )
 
 
-class MNISTPreprocessor:
+class MnistPreprocessor:
     def __init__(self, transform=None):
         if transform is None:
             self.transform = mnist_transform()
