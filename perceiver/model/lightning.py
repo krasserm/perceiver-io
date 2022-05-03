@@ -126,31 +126,31 @@ class LitClassifier(LitModel):
 class LitImageClassifier(LitClassifier):
     def __init__(self, encoder: ImageEncoderConfig, decoder: ClassificationDecoderConfig, *args: Any, **kwargs: Any):
         super().__init__(encoder, decoder, *args, **kwargs)
-        self.model = self.create_model()
+        self.model = self.create_model(self.hparams)
 
-    def create_model(self):
-
+    @staticmethod
+    def create_model(hparams):
         input_adapter = ImageInputAdapter(
-            image_shape=self.hparams.encoder.image_shape, num_frequency_bands=self.hparams.encoder.num_frequency_bands
+            image_shape=hparams.encoder.image_shape, num_frequency_bands=hparams.encoder.num_frequency_bands
         )
         output_adapter = ClassificationOutputAdapter(
-            num_classes=self.hparams.decoder.num_classes,
-            num_output_queries=self.hparams.decoder.num_output_queries,
-            num_output_query_channels=self.hparams.decoder.num_output_query_channels,
+            num_classes=hparams.decoder.num_classes,
+            num_output_queries=hparams.decoder.num_output_queries,
+            num_output_query_channels=hparams.decoder.num_output_query_channels,
         )
 
         encoder = PerceiverEncoder(
             input_adapter=input_adapter,
-            num_latents=self.hparams.num_latents,
-            num_latent_channels=self.hparams.num_latent_channels,
-            activation_checkpointing=self.hparams.activation_checkpointing,
-            **self.hparams.encoder.gen_kwargs
+            num_latents=hparams.num_latents,
+            num_latent_channels=hparams.num_latent_channels,
+            activation_checkpointing=hparams.activation_checkpointing,
+            **hparams.encoder.gen_kwargs
         )
         decoder = PerceiverDecoder(
             output_adapter=output_adapter,
-            num_latent_channels=self.hparams.num_latent_channels,
-            activation_checkpointing=self.hparams.activation_checkpointing,
-            **self.hparams.decoder.gen_kwargs
+            num_latent_channels=hparams.num_latent_channels,
+            activation_checkpointing=hparams.activation_checkpointing,
+            **hparams.decoder.gen_kwargs
         )
         return PerceiverIO(encoder, decoder)
 
@@ -172,7 +172,7 @@ class LitTextClassifier(LitClassifier):
         super().__init__(encoder, decoder, *args, **kwargs)
 
         encoder = LitMaskedLanguageModel.create_encoder(self.hparams)
-        self.model = self.create_model(encoder)
+        self.model = self.create_model(self.hparams, encoder)
 
         if mlm_ckpt is not None:
             lit_model = LitMaskedLanguageModel.load_from_checkpoint(mlm_ckpt)
@@ -184,16 +184,15 @@ class LitTextClassifier(LitClassifier):
         if self.hparams.encoder.freeze:
             freeze(self.model.encoder)
 
-    def create_model(self, encoder):
+    @staticmethod
+    def create_model(hparams, encoder):
         output_adapter = ClassificationOutputAdapter(
-            num_classes=self.hparams.decoder.num_classes,
-            num_output_queries=self.hparams.decoder.num_output_queries,
-            num_output_query_channels=self.hparams.decoder.num_output_query_channels,
+            num_classes=hparams.decoder.num_classes,
+            num_output_queries=hparams.decoder.num_output_queries,
+            num_output_query_channels=hparams.decoder.num_output_query_channels,
         )
         decoder = PerceiverDecoder(
-            output_adapter=output_adapter,
-            num_latent_channels=self.hparams.num_latent_channels,
-            **self.hparams.decoder.gen_kwargs
+            output_adapter=output_adapter, num_latent_channels=hparams.num_latent_channels, **hparams.decoder.gen_kwargs
         )
         return PerceiverIO(encoder, decoder)
 
@@ -213,7 +212,7 @@ class LitMaskedLanguageModel(LitModel):
         **kwargs: Any
     ):
         super().__init__(encoder, decoder, *args, **kwargs)
-        self.model = self.create_model()
+        self.model = self.create_model(self.hparams)
         self.loss = nn.CrossEntropyLoss()
 
     @staticmethod
@@ -232,20 +231,19 @@ class LitMaskedLanguageModel(LitModel):
         )
         return encoder
 
-    def create_model(self):
-        encoder = self.create_encoder(self.hparams)
+    @staticmethod
+    def create_model(hparams):
+        encoder = LitMaskedLanguageModel.create_encoder(hparams)
         output_adapter = TextOutputAdapter(
-            vocab_size=self.hparams.decoder.vocab_size,
-            max_seq_len=self.hparams.decoder.max_seq_len,
-            num_output_query_channels=self.hparams.decoder.num_output_query_channels,
+            vocab_size=hparams.decoder.vocab_size,
+            max_seq_len=hparams.decoder.max_seq_len,
+            num_output_query_channels=hparams.decoder.num_output_query_channels,
             embedding_weights=encoder.input_adapter.text_embedding.weight,
         )
         decoder = PerceiverDecoder(
-            output_adapter=output_adapter,
-            num_latent_channels=self.hparams.num_latent_channels,
-            **self.hparams.decoder.gen_kwargs
+            output_adapter=output_adapter, num_latent_channels=hparams.num_latent_channels, **hparams.decoder.gen_kwargs
         )
-        return PerceiverMLM(encoder, decoder, TextMasking(self.hparams.encoder.vocab_size))
+        return PerceiverMLM(encoder, decoder, TextMasking(hparams.encoder.vocab_size))
 
     def forward(self, batch):
         _, x, x_mask = batch
