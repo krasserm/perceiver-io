@@ -7,95 +7,97 @@ from fairscale.nn import checkpoint_wrapper
 
 from perceiver.model.adapter import InputAdapter, OutputAdapter
 from perceiver.model.attention import CrossAttention, SelfAttention
-from perceiver.model.utils import Sequential
+from perceiver.model.utils import Sequential, Single
 
 
-def mlp(num_channels: int, widening_factor: int):
-    return Sequential(
-        nn.LayerNorm(num_channels),
-        nn.Linear(num_channels, widening_factor * num_channels),
-        nn.GELU(),
-        nn.Linear(widening_factor * num_channels, num_channels),
-    )
+class MLP(Sequential):
+    def __init__(self, num_channels: int, widening_factor: int):
+        super().__init__(
+            nn.LayerNorm(num_channels),
+            nn.Linear(num_channels, widening_factor * num_channels),
+            nn.GELU(),
+            nn.Linear(widening_factor * num_channels, num_channels),
+        )
 
 
-def cross_attention_layer(
-    num_heads: int,
-    num_q_input_channels: int,
-    num_kv_input_channels: int,
-    num_qk_channels: Optional[int] = None,
-    num_v_channels: Optional[int] = None,
-    widening_factor: int = 1,
-    dropout: float = 0.0,
-    attention_residual: bool = True,
-    activation_checkpointing: bool = False,
-):
-    sub_layer_1 = CrossAttention(
-        num_heads=num_heads,
-        num_q_input_channels=num_q_input_channels,
-        num_kv_input_channels=num_kv_input_channels,
-        num_qk_channels=num_qk_channels,
-        num_v_channels=num_v_channels,
-        dropout=dropout,
-    )
-    sub_layer_2 = mlp(num_q_input_channels, widening_factor)
-
-    layer = Sequential(
-        Residual(sub_layer_1, dropout) if attention_residual else sub_layer_1,
-        Residual(sub_layer_2, dropout),
-    )
-    return layer if not activation_checkpointing else checkpoint_wrapper(layer)
-
-
-def self_attention_layer(
-    num_heads: int,
-    num_channels: int,
-    num_qk_channels: Optional[int] = None,
-    num_v_channels: Optional[int] = None,
-    widening_factor: int = 1,
-    dropout: float = 0.0,
-    activation_checkpointing: bool = False,
-):
-
-    sub_layer_1 = SelfAttention(
-        num_heads=num_heads,
-        num_channels=num_channels,
-        num_qk_channels=num_qk_channels,
-        num_v_channels=num_v_channels,
-        dropout=dropout,
-    )
-    sub_layer_2 = mlp(num_channels, widening_factor)
-
-    layer = Sequential(
-        Residual(sub_layer_1, dropout),
-        Residual(sub_layer_2, dropout),
-    )
-    return layer if not activation_checkpointing else checkpoint_wrapper(layer)
+class CrossAttentionLayer(Single):
+    def __init__(
+        self,
+        num_heads: int,
+        num_q_input_channels: int,
+        num_kv_input_channels: int,
+        num_qk_channels: Optional[int] = None,
+        num_v_channels: Optional[int] = None,
+        widening_factor: int = 1,
+        dropout: float = 0.0,
+        attention_residual: bool = True,
+        activation_checkpointing: bool = False,
+    ):
+        cross_attn = CrossAttention(
+            num_heads=num_heads,
+            num_q_input_channels=num_q_input_channels,
+            num_kv_input_channels=num_kv_input_channels,
+            num_qk_channels=num_qk_channels,
+            num_v_channels=num_v_channels,
+            dropout=dropout,
+        )
+        layer = Sequential(
+            Residual(cross_attn, dropout) if attention_residual else cross_attn,
+            Residual(MLP(num_q_input_channels, widening_factor), dropout),
+        )
+        super().__init__(layer if not activation_checkpointing else checkpoint_wrapper(layer))
 
 
-def self_attention_block(
-    num_layers: int,
-    num_heads: int,
-    num_channels: int,
-    num_qk_channels: Optional[int] = None,
-    num_v_channels: Optional[int] = None,
-    widening_factor: int = 1,
-    dropout: float = 0.0,
-    activation_checkpointing: bool = False,
-):
-    layers = [
-        self_attention_layer(
+class SelfAttentionLayer(Single):
+    def __init__(
+        self,
+        num_heads: int,
+        num_channels: int,
+        num_qk_channels: Optional[int] = None,
+        num_v_channels: Optional[int] = None,
+        widening_factor: int = 1,
+        dropout: float = 0.0,
+        activation_checkpointing: bool = False,
+    ):
+        self_attn = SelfAttention(
             num_heads=num_heads,
             num_channels=num_channels,
             num_qk_channels=num_qk_channels,
             num_v_channels=num_v_channels,
-            widening_factor=widening_factor,
             dropout=dropout,
-            activation_checkpointing=activation_checkpointing,
         )
-        for _ in range(num_layers)
-    ]
-    return Sequential(*layers)
+        layer = Sequential(
+            Residual(self_attn, dropout),
+            Residual(MLP(num_channels, widening_factor), dropout),
+        )
+        super().__init__(layer if not activation_checkpointing else checkpoint_wrapper(layer))
+
+
+class SelfAttentionBlock(Sequential):
+    def __init__(
+        self,
+        num_layers: int,
+        num_heads: int,
+        num_channels: int,
+        num_qk_channels: Optional[int] = None,
+        num_v_channels: Optional[int] = None,
+        widening_factor: int = 1,
+        dropout: float = 0.0,
+        activation_checkpointing: bool = False,
+    ):
+        layers = [
+            SelfAttentionLayer(
+                num_heads=num_heads,
+                num_channels=num_channels,
+                num_qk_channels=num_qk_channels,
+                num_v_channels=num_v_channels,
+                widening_factor=widening_factor,
+                dropout=dropout,
+                activation_checkpointing=activation_checkpointing,
+            )
+            for _ in range(num_layers)
+        ]
+        super().__init__(*layers)
 
 
 class Residual(nn.Module):
@@ -159,7 +161,7 @@ class PerceiverEncoder(nn.Module):
         self.input_adapter = input_adapter
         self.num_self_attention_blocks = num_self_attention_blocks
 
-        self.cross_attn = cross_attention_layer(
+        self.cross_attn = CrossAttentionLayer(
             num_heads=num_cross_attention_heads,
             num_q_input_channels=num_latent_channels,
             num_kv_input_channels=input_adapter.num_input_channels,
@@ -170,7 +172,7 @@ class PerceiverEncoder(nn.Module):
             activation_checkpointing=activation_checkpointing,
         )
 
-        self.self_attn = self_attention_block(
+        self.self_attn = SelfAttentionBlock(
             num_layers=num_self_attention_layers_per_block,
             num_heads=num_self_attention_heads,
             num_channels=num_latent_channels,
@@ -235,7 +237,7 @@ class PerceiverDecoder(nn.Module):
         super().__init__()
 
         self.output_adapter = output_adapter
-        self.cross_attention = cross_attention_layer(
+        self.cross_attention = CrossAttentionLayer(
             num_heads=num_cross_attention_heads,
             num_q_input_channels=output_adapter.num_output_query_channels,
             num_kv_input_channels=num_latent_channels,

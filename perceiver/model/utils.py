@@ -4,14 +4,23 @@ import torch.nn as nn
 from perceiver.tokenizer import MASK_TOKEN
 
 
+class Single(nn.Module):
+    def __init__(self, module: nn.Module):
+        super().__init__()
+        self.module = module
+
+    def forward(self, *x):
+        return self.module(*x)
+
+
 class Sequential(nn.Sequential):
-    def forward(self, *inputs):
+    def forward(self, *x):
         for module in self:
-            if type(inputs) == tuple:
-                inputs = module(*inputs)
+            if type(x) == tuple:
+                x = module(*x)
             else:
-                inputs = module(inputs)
-        return inputs
+                x = module(x)
+        return x
 
 
 def freeze(module: nn.Module):
