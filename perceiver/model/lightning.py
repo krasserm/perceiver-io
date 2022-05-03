@@ -3,13 +3,15 @@ from functools import cached_property
 from typing import Any, List, Optional, Tuple
 
 import pytorch_lightning as pl
+import torch
 import torch.nn as nn
 import torchmetrics as tm
 from einops import rearrange
 
 from perceiver.model.adapter import ClassificationOutputAdapter, ImageInputAdapter, TextInputAdapter, TextOutputAdapter
 from perceiver.model.model import PerceiverDecoder, PerceiverEncoder, PerceiverIO, PerceiverMLM, TextMasking
-from perceiver.model.utils import freeze, predict_masked_samples
+from perceiver.model.utils import freeze
+from perceiver.tokenizer import MASK_TOKEN
 
 
 @dataclass
@@ -271,14 +273,34 @@ class LitMaskedLanguageModel(LitModel):
             step = self.trainer.global_step
             dm = self.trainer.datamodule
 
-            predictions = predict_masked_samples(
+            predictions = self._predict_masked_samples(
                 masked_samples=masked_samples,
                 encode_fn=dm.collator.encode,
                 tokenizer=dm.tokenizer,
-                model=self.model,
-                device=self.device,
-                num_predictions=self.hparams.num_predictions,
             )
 
             text = "\n\n".join(["  \n".join([s] + ps) for s, ps in zip(masked_samples, predictions)])
             self.logger.experiment.add_text("sample predictions", text, step)
+
+    def _predict_masked_samples(self, masked_samples, encode_fn, tokenizer):
+        n = len(masked_samples)
+
+        xs, ms = encode_fn(masked_samples)
+        xs = xs.to(self.device)
+        ms = ms.to(self.device)
+
+        with torch.no_grad():
+            x_logits, _ = self.model(xs, ms, masking=False)
+
+        pred_mask = xs == tokenizer.token_to_id(MASK_TOKEN)
+        _, pred = torch.topk(x_logits[pred_mask], k=self.hparams.num_predictions, dim=-1)
+
+        output = xs.clone()
+        output_dec = [[] for _ in range(n)]
+
+        for i in range(self.hparams.num_predictions):
+            output[pred_mask] = pred[:, i]
+            for j in range(n):
+                output_dec[j].append(tokenizer.decode(output[j].tolist(), skip_special_tokens=True))
+
+        return output_dec
