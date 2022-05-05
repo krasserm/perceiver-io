@@ -120,7 +120,7 @@ model = PerceiverIO(encoder, decoder)
 Models created with the [PyTorch model API](#pytorch-model-api) are wrapped in task-specific [LightningModule](https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html)s
 (e.g. `LitImageClassifier`) so that they can be trained with the PyTorch Lightning [Trainer](https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html).
 They are defined in [lightning.py](perceiver/model/lightning.py). Part of this API are also task-specific configuration
-classes.
+classes defined in [config.py](perceiver/model/config.py).
 
 A task-specific encoder configuration class (e.g. `ImageEncoderConfig`) covers the configuration of the generic encoder
 and its task-specific input adapter. A task-specific decoder configuration object (e.g. `ClassificationDecoderConfig`)
@@ -130,11 +130,8 @@ The same model as in the [previous section](#pytorch-model-api), wrapped in a `L
 with:
 
 ```python
-from perceiver.model.lightning import (
-    LitImageClassifier,
-    ImageEncoderConfig,
-    ClassificationDecoderConfig
-)
+from perceiver.model.config import ImageEncoderConfig, ClassificationDecoderConfig
+from perceiver.model.lightning import LitImageClassifier
 
 encoder_cfg = ImageEncoderConfig(
     image_shape=(224, 224, 3),
@@ -331,8 +328,8 @@ python -m perceiver.scripts.img_clf fit \
 
 ## Inference examples
 
-- [Image classification](notebooks/img-clf.ipynb)
-- [Sentiment classification](notebooks/txt-clf.ipynb)
+- [Image classification](https://colab.research.google.com/github/krasserm/perceiver-io/blob/wip-enhancements/notebooks/img-clf.ipynb)
+- [Sentiment classification]()
 
 Start the notebook server with:
 

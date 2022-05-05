@@ -1,5 +1,4 @@
-from dataclasses import asdict, dataclass, fields
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional
 
 import pytorch_lightning as pl
 import torch
@@ -7,74 +6,19 @@ import torch.nn as nn
 import torchmetrics as tm
 from einops import rearrange
 
-from perceiver.model.factory import (
+from perceiver.model.config import (
+    ClassificationDecoderConfig,
     create_image_classifier,
     create_masked_lm,
     create_text_classifier,
-    create_text_encoder,
+    DecoderConfig,
+    EncoderConfig,
+    ImageEncoderConfig,
+    TextDecoderConfig,
+    TextEncoderConfig,
 )
 from perceiver.model.utils import freeze
 from perceiver.tokenizer import MASK_TOKEN
-
-
-@dataclass
-class Config:
-    num_cross_attention_heads: int = 8
-    num_cross_attention_qk_channels: Optional[int] = None
-    num_cross_attention_v_channels: Optional[int] = None
-    cross_attention_widening_factor: int = 1
-    dropout: float = 0.0
-    freeze: bool = False
-
-
-@dataclass
-class EncoderConfig(Config):
-    num_self_attention_heads: int = 8
-    num_self_attention_qk_channels: Optional[int] = None
-    num_self_attention_v_channels: Optional[int] = None
-    num_self_attention_layers_per_block: int = 8
-    num_self_attention_blocks: int = 1
-    self_attention_widening_factor: int = 1
-
-    @property
-    def base_kwargs(self, exclude=("freeze",)):
-        base_field_names = [field.name for field in fields(EncoderConfig) if field.name not in exclude]
-        return {k: v for k, v in asdict(self).items() if k in base_field_names}
-
-
-@dataclass
-class DecoderConfig(Config):
-    num_output_query_channels: int = 256
-
-    @property
-    def base_kwargs(self, exclude=("freeze", "num_output_query_channels")):
-        base_field_names = [f.name for f in fields(DecoderConfig) if f.name not in exclude]
-        return {k: v for k, v in asdict(self).items() if k in base_field_names}
-
-
-@dataclass
-class ImageEncoderConfig(EncoderConfig):
-    image_shape: Tuple[int, int, int] = (224, 224, 3)
-    num_frequency_bands: int = 32
-
-
-@dataclass
-class TextEncoderConfig(EncoderConfig):
-    vocab_size: int = 10003
-    max_seq_len: int = 256
-    num_input_channels: int = 64
-
-
-@dataclass
-class ClassificationDecoderConfig(DecoderConfig):
-    num_output_queries: int = 1
-    num_classes: int = 100
-
-
-@dataclass
-class TextDecoderConfig(DecoderConfig):
-    vocab_size: int = 10003
-    max_seq_len: int = 512
 
 
 class LitModel(pl.LightningModule):
@@ -123,7 +67,13 @@ class LitClassifier(LitModel):
 class LitImageClassifier(LitClassifier):
     def __init__(self, encoder: ImageEncoderConfig, decoder: ClassificationDecoderConfig, *args: Any, **kwargs: Any):
         super().__init__(encoder, decoder, *args, **kwargs)
-        self.model = create_image_classifier(self.hparams)
+        self.model = create_image_classifier(
+            encoder_config=encoder,
+            decoder_config=decoder,
+            num_latents=self.hparams.num_latents,
+            num_latent_channels=self.hparams.num_latents,
+            activation_checkpointing=self.hparams.activation_checkpointing,
+        )
 
     def forward(self, batch):
         x, y = batch
@@ -142,9 +92,13 @@ class LitTextClassifier(LitClassifier):
     ):
         super().__init__(encoder, decoder, *args, **kwargs)
 
-        encoder = create_text_encoder(self.hparams)
-        self.model = create_text_classifier(self.hparams, encoder)
-
+        self.model = create_text_classifier(
+            encoder_config=encoder,
+            decoder_config=decoder,
+            num_latents=self.hparams.num_latents,
+            num_latent_channels=self.hparams.num_latents,
+            activation_checkpointing=self.hparams.activation_checkpointing,
+        )
         if mlm_ckpt is not None:
             lit_model = LitMaskedLanguageModel.load_from_checkpoint(mlm_ckpt)
             self.model.encoder.load_state_dict(lit_model.model.encoder.state_dict())
@@ -171,7 +125,13 @@ class LitMaskedLanguageModel(LitModel):
         **kwargs: Any
     ):
         super().__init__(encoder, decoder, *args, **kwargs)
-        self.model = create_masked_lm(self.hparams)
+        self.model = create_masked_lm(
+            encoder_config=encoder,
+            decoder_config=decoder,
+            num_latents=self.hparams.num_latents,
+            num_latent_channels=self.hparams.num_latents,
+            activation_checkpointing=self.hparams.activation_checkpointing,
+        )
         self.loss = nn.CrossEntropyLoss()
 
     def forward(self, batch):
