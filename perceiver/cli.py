@@ -5,8 +5,8 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.strategies import DDPStrategy
 from pytorch_lightning.utilities.cli import LightningCLI
 
-# auto-register data module
-from perceiver import data  # noqa: F401
+# auto-register data modules
+from perceiver.data import imdb, mnist  # noqa: F401
 
 
 class CLI(LightningCLI):
