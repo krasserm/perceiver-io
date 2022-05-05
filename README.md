@@ -329,7 +329,7 @@ python -m perceiver.scripts.img_clf fit \
 ## Inference examples
 
 - [Image classification](https://colab.research.google.com/github/krasserm/perceiver-io/blob/wip-enhancements/notebooks/img-clf.ipynb)
-- [Sentiment classification]()
+- Sentiment classification
 
 Start the notebook server with:
 
