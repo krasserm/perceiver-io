@@ -1,5 +1,4 @@
 from dataclasses import asdict, dataclass, fields
-from functools import cached_property
 from typing import Any, List, Optional, Tuple
 
 import pytorch_lightning as pl
@@ -37,26 +36,20 @@ class EncoderConfig(Config):
     num_self_attention_blocks: int = 1
     self_attention_widening_factor: int = 1
 
-    @cached_property
-    def gen_kwargs(self):
-        return {k: v for k, v in asdict(self).items() if k in self._gen_field_names}
-
-    @cached_property
-    def _gen_field_names(self):
-        return [field.name for field in fields(EncoderConfig) if field.name not in ["freeze"]]
+    @property
+    def base_kwargs(self, exclude=("freeze",)):
+        base_field_names = [field.name for field in fields(EncoderConfig) if field.name not in exclude]
+        return {k: v for k, v in asdict(self).items() if k in base_field_names}
 
 
 @dataclass
 class DecoderConfig(Config):
     num_output_query_channels: int = 256
 
-    @cached_property
-    def gen_kwargs(self):
-        return {k: v for k, v in asdict(self).items() if k in self._gen_field_names}
-
-    @cached_property
-    def _gen_field_names(self):
-        return [f.name for f in fields(DecoderConfig) if f.name not in ["freeze", "num_output_query_channels"]]
+    @property
+    def base_kwargs(self, exclude=("freeze", "num_output_query_channels")):
+        base_field_names = [f.name for f in fields(DecoderConfig) if f.name not in exclude]
+        return {k: v for k, v in asdict(self).items() if k in base_field_names}
 
 
 @dataclass

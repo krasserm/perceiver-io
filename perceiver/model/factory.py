@@ -17,13 +17,13 @@ def create_image_classifier(hparams):
         num_latents=hparams.num_latents,
         num_latent_channels=hparams.num_latent_channels,
         activation_checkpointing=hparams.activation_checkpointing,
-        **hparams.encoder.gen_kwargs
+        **hparams.encoder.base_kwargs
     )
     decoder = PerceiverDecoder(
         output_adapter=output_adapter,
         num_latent_channels=hparams.num_latent_channels,
         activation_checkpointing=hparams.activation_checkpointing,
-        **hparams.decoder.gen_kwargs
+        **hparams.decoder.base_kwargs
     )
     return PerceiverIO(encoder, decoder)
 
@@ -37,7 +37,7 @@ def create_text_classifier(hparams, encoder=None):
         num_output_query_channels=hparams.decoder.num_output_query_channels,
     )
     decoder = PerceiverDecoder(
-        output_adapter=output_adapter, num_latent_channels=hparams.num_latent_channels, **hparams.decoder.gen_kwargs
+        output_adapter=output_adapter, num_latent_channels=hparams.num_latent_channels, **hparams.decoder.base_kwargs
     )
     return PerceiverIO(encoder, decoder)
 
@@ -53,7 +53,7 @@ def create_text_encoder(hparams):
         num_latents=hparams.num_latents,
         num_latent_channels=hparams.num_latent_channels,
         activation_checkpointing=hparams.activation_checkpointing,
-        **hparams.encoder.gen_kwargs
+        **hparams.encoder.base_kwargs
     )
     return encoder
 
@@ -67,6 +67,6 @@ def create_masked_lm(hparams):
         embedding_weights=encoder.input_adapter.text_embedding.weight,
     )
     decoder = PerceiverDecoder(
-        output_adapter=output_adapter, num_latent_channels=hparams.num_latent_channels, **hparams.decoder.gen_kwargs
+        output_adapter=output_adapter, num_latent_channels=hparams.num_latent_channels, **hparams.decoder.base_kwargs
     )
     return PerceiverMLM(encoder, decoder, TextMasking(hparams.encoder.vocab_size))
