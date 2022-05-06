@@ -14,6 +14,7 @@ from perceiver.model.config import (
     DecoderConfig,
     EncoderConfig,
     ImageEncoderConfig,
+    PerceiverConfig,
     TextDecoderConfig,
     TextEncoderConfig,
 )
@@ -68,11 +69,13 @@ class LitImageClassifier(LitClassifier):
     def __init__(self, encoder: ImageEncoderConfig, decoder: ClassificationDecoderConfig, *args: Any, **kwargs: Any):
         super().__init__(encoder, decoder, *args, **kwargs)
         self.model = create_image_classifier(
-            encoder_config=encoder,
-            decoder_config=decoder,
-            num_latents=self.hparams.num_latents,
-            num_latent_channels=self.hparams.num_latents,
-            activation_checkpointing=self.hparams.activation_checkpointing,
+            PerceiverConfig(
+                encoder=encoder,
+                decoder=decoder,
+                num_latents=self.hparams.num_latents,
+                num_latent_channels=self.hparams.num_latents,
+                activation_checkpointing=self.hparams.activation_checkpointing,
+            )
         )
 
     def forward(self, batch):
@@ -93,11 +96,13 @@ class LitTextClassifier(LitClassifier):
         super().__init__(encoder, decoder, *args, **kwargs)
 
         self.model = create_text_classifier(
-            encoder_config=encoder,
-            decoder_config=decoder,
-            num_latents=self.hparams.num_latents,
-            num_latent_channels=self.hparams.num_latents,
-            activation_checkpointing=self.hparams.activation_checkpointing,
+            PerceiverConfig(
+                encoder=encoder,
+                decoder=decoder,
+                num_latents=self.hparams.num_latents,
+                num_latent_channels=self.hparams.num_latents,
+                activation_checkpointing=self.hparams.activation_checkpointing,
+            )
         )
         if mlm_ckpt is not None:
             lit_model = LitMaskedLanguageModel.load_from_checkpoint(mlm_ckpt)
@@ -126,11 +131,13 @@ class LitMaskedLanguageModel(LitModel):
     ):
         super().__init__(encoder, decoder, *args, **kwargs)
         self.model = create_masked_lm(
-            encoder_config=encoder,
-            decoder_config=decoder,
-            num_latents=self.hparams.num_latents,
-            num_latent_channels=self.hparams.num_latents,
-            activation_checkpointing=self.hparams.activation_checkpointing,
+            PerceiverConfig(
+                encoder=encoder,
+                decoder=decoder,
+                num_latents=self.hparams.num_latents,
+                num_latent_channels=self.hparams.num_latents,
+                activation_checkpointing=self.hparams.activation_checkpointing,
+            )
         )
         self.loss = nn.CrossEntropyLoss()
 
