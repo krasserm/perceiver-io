@@ -5,18 +5,17 @@ This project is a PyTorch implementation of
 - [Perceiver: General Perception with Iterative Attention](https://arxiv.org/abs/2103.03206) and
 - [Perceiver IO: A General Architecture for Structured Inputs & Outputs](https://arxiv.org/abs/2107.14795)
 
-and supports training of Perceiver IO models with [Pytorch Lightning](https://www.pytorchlightning.ai/). It provides a
-simple yet feature-complete Perceiver-IO implementation that can be easily extended for custom tasks and trained
-on any scale with PyTorch Lightning.
+and supports training of Perceiver and Perceiver IO models with [Pytorch Lightning](https://www.pytorchlightning.ai/)
+at any scale.
 
-- Section [Architecture](#architecture) explains how the conceptual Perceiver-IO architecture relates to the
-  implementation provided by this project.
-- Section [Model API](#model-api) gives an example how a Perceiver-IO model can be created and configured with the
+- Section [Architecture](#architecture) explains how the architectures of Perceiver IO and Perceiver are implemented by
+  this project.
+- Section [Model API](#model-api) gives an example how a Perceiver IO model can be created and configured with the
   [PyTorch model API](#pytorch-model-api), the [PyTorch Lightning model API](#pytorch-lightning-model-api) and the
   [command line interface](#pytorch-lightning-model-cli).
-- Section [Training examples](#training-examples) demonstrates how Perceiver-IO models can be trained on some example
+- Section [Training examples](#training-examples) demonstrates how Perceiver IO models can be trained on some example
   tasks.
-- Section [Inference examples](#inference-examples) links to notebooks that demonstrate how trained Perceiver-IO
+- Section [Inference examples](#inference-examples) links to notebooks that demonstrate how trained Perceiver IO
   models can be used for prediction.
 
 ## Installation
@@ -39,15 +38,17 @@ When installing via `pip` make sure you have a CUDA 11.x toolkit installed as we
 
 ## Architecture
 
-The following figure shows how the conceptual Perceiver-IO architecture, as specified in the [paper](https://arxiv.org/abs/2107.14795),
-can be mapped to the implementation provided by this project. The names of components in the implementation architecture
-are class names in the [PyTorch model API](#pytorch-model-api) (see also [model.py](perceiver/model/model.py)).
+The following sections describe how the conceptual architectures of Perceiver IO and Perceiver can be mapped to the
+implementation provided by this project.
 
-![architecture](docs/architecture.png)
+### Perceiver IO
 
-Task-specific input and output adapters are subclasses of `InputAdapter` and `OuptutAdapter`, respectively (see also
-[adapter.py](perceiver/model/adapter.py)). Array dimensions (`M`, `C`), (`N`, `D`) and (`O`, `E`) have the following
-names in code and/or on the command line:
+![architecture-perceiver-io](docs/architecture-perceiver-io.png)
+
+Names of components shown in the implementation architecture are class names in the [PyTorch model API](#pytorch-model-api)
+(see also [model.py](perceiver/model/model.py)). Task-specific input and output adapters are subclasses of `InputAdapter`
+and `OuptutAdapter`, respectively (see also [adapter.py](perceiver/model/adapter.py)). Array dimensions (`M`, `C`),
+(`N`, `D`), (`O`, `F`)  and (`O`, `E`) have the following names in code and/or on the command line:
 
 | Array dimension | Configuration parameter name                                                    |
 |-----------------|---------------------------------------------------------------------------------|
@@ -57,13 +58,32 @@ names in code and/or on the command line:
 | `D`             | `num_latent_channels`                                                           |
 | `O`             | Output-specific name (e.g. `num_output_queries` for classification output, ...) |
 | `E`             | Output-specific name (e.g. `num_classes` for classification output, ...)        |
-
-Not shown in the conceptual architecture is the channel dimension `F` of the output query array. The corresponding name
-in code is `num_output_query_channels` (a property of `OutputAdapter`).
+| `F`             | `num_output_query_channels` (property of `OutputAdapter`)                       |
 
 The number of layers in a `SelfAttentionBlock` can be specified with `num_self_attention_layers_per_block` and the
 number of blocks with `num_self_attention_blocks` (`L` in the conceptual architecture). Self-attention blocks share
 their weights.
+
+### Perceiver
+
+Perceiver IO does **not** use repeated encoder cross-attention as described the [Perceiver IO](https://arxiv.org/abs/2107.14795)
+paper:
+
+> We omit the repeated encoder cross-attends used in [Perceiver](https://arxiv.org/abs/2103.03206) as we found these to lead to relatively small performance
+> improvements but to significantly slow down training ...
+
+This may be the case for the very large datasets used in the Perceiver IO paper but I found that repeated encoder
+cross-attention actually gives much better training results for smaller datasets. Therefore, the implementation
+provided by this project supports repeated encoder cross-attention.
+
+![architecture-perceiver](docs/architecture-perceiver.png)
+
+The number of repeated cross-attentions can be specified with `num_cross_attention_layers` (`P`) which must be less than
+or equal `num_self_attention_blocks` (`L`). Cross-attention layers 2 - `P` and self-attention blocks 2 - `L` always share
+their weights. Sharing the weights with the first cross-attention layer can be controlled with `first_cross_attention_layer_shared`,
+sharing the weights with the first self-attention block can be controlled with `first_self_attention_block_shared`. The
+default values of these hyperparameters are consistent with the Perceiver IO architecture (1 cross-attention layer, `L`
+self-attention blocks with weight sharing).
 
 ## Model API
 
@@ -85,17 +105,23 @@ from perceiver.model import (
 )
 
 # Fourier-encodes pixel positions and flatten along spatial dimensions
-input_adapter = ImageInputAdapter(image_shape=(224, 224, 3), num_frequency_bands=64)
+input_adapter = ImageInputAdapter(
+    image_shape=(224, 224, 3),  # M = 224 * 224
+    num_frequency_bands=64,
+)
 
 # Projects generic Perceiver decoder output to specified number of classes
-output_adapter = ClassificationOutputAdapter(num_classes=1000, num_output_query_channels=1024)
+output_adapter = ClassificationOutputAdapter(
+    num_classes=1000,
+    num_output_query_channels=1024,  # F
+)  
 
 # Generic Perceiver encoder
 encoder = PerceiverEncoder(
     input_adapter=input_adapter,
-    num_latents=512,
-    num_latent_channels=1024,
-    num_cross_attention_qk_channels=input_adapter.num_input_channels,
+    num_latents=512,  # N
+    num_latent_channels=1024,  # D
+    num_cross_attention_qk_channels=input_adapter.num_input_channels,  # C
     num_cross_attention_heads=1,
     num_self_attention_heads=8,
     num_self_attention_layers_per_block=6,
@@ -106,12 +132,12 @@ encoder = PerceiverEncoder(
 # Generic Perceiver decoder
 decoder = PerceiverDecoder(
     output_adapter=output_adapter,
-    num_latent_channels=1024,
+    num_latent_channels=1024,  # D
     num_cross_attention_heads=1,
     dropout=0.0,
 )
 
-# image classifier implemented as Perceiver IO model
+# Perceiver IO image classifier
 model = PerceiverIO(encoder, decoder)
 ```
 
@@ -136,7 +162,6 @@ from perceiver.model.lightning import LitImageClassifier
 encoder_cfg = ImageEncoderConfig(
     image_shape=(224, 224, 3),
     num_frequency_bands=64,
-    num_cross_attention_qk_channels=261,
     num_cross_attention_heads=1,
     num_self_attention_heads=8,
     num_self_attention_layers_per_block=6,
@@ -180,7 +205,6 @@ python classifier.py fit \
   --model.num_latent_channels=1024 \
   --model.encoder.image_shape=[224,224,3] \
   --model.encoder.num_frequency_bands=64 \
-  --model.encoder.num_cross_attention_qk_channels=261 \
   --model.encoder.num_cross_attention_heads=1 \
   --model.encoder.num_self_attention_heads=8 \
   --model.encoder.num_self_attention_layers_per_block=6 \
@@ -215,6 +239,7 @@ python -m perceiver.scripts.mlm fit \
   --model.num_latents=64 \
   --model.num_latent_channels=64 \
   --model.encoder.num_input_channels=64 \
+  --model.encoder.num_cross_attention_layers=3 \
   --model.encoder.num_self_attention_layers_per_block=6 \
   --model.encoder.num_self_attention_blocks=3 \
   --model.encoder.dropout=0.0 \
@@ -247,10 +272,11 @@ this project.
 
 ```shell
 python -m perceiver.scripts.seq_clf fit \
-  --model.mlm_ckpt='...' \
+  --model.mlm_ckpt='logs/mlm/version_0/checkpoints/epoch=254-val_loss=4.527.ckpt' \
   --model.num_latents=64 \
   --model.num_latent_channels=64 \
   --model.encoder.num_input_channels=64 \
+  --model.encoder.num_cross_attention_layers=3 \
   --model.encoder.num_self_attention_layers_per_block=6 \
   --model.encoder.num_self_attention_blocks=3 \
   --model.encoder.dropout=0.0 \
@@ -277,10 +303,11 @@ download checkpoints from [here](https://martin-krasser.com/perceiver/logs-updat
 
 ```shell
 python -m perceiver.scripts.seq_clf fit \
-  --model.clf_ckpt='...' \
+  --model.clf_ckpt='logs/seq_clf/version_0/checkpoints/epoch=009-val_loss=0.343.ckpt' \
   --model.num_latents=64 \
   --model.num_latent_channels=64 \
   --model.encoder.num_input_channels=64 \
+  --model.encoder.num_cross_attention_layers=3 \
   --model.encoder.num_self_attention_layers_per_block=6 \
   --model.encoder.num_self_attention_blocks=3 \
   --model.encoder.dropout=0.1 \
@@ -294,7 +321,7 @@ python -m perceiver.scripts.seq_clf fit \
   --optimizer.weight_decay=0.01 \
   --trainer.accelerator=gpu \
   --trainer.devices=-1 \
-  --trainer.max_epochs=30 \
+  --trainer.max_epochs=40 \
   --trainer.logger=TensorBoardLogger \
   --trainer.logger.save_dir=logs \
   --trainer.logger.name=seq_clf
@@ -311,7 +338,6 @@ python -m perceiver.scripts.img_clf fit \
   --model.encoder.num_self_attention_layers_per_block=3 \
   --model.encoder.num_self_attention_blocks=3 \
   --model.encoder.dropout=0.0 \
-  --model.decoder.num_output_query_channels=128 \
   --model.decoder.dropout=0.0 \
   --data=MnistDataModule \
   --data.batch_size=128 \

@@ -73,7 +73,7 @@ class LitImageClassifier(LitClassifier):
                 encoder=encoder,
                 decoder=decoder,
                 num_latents=self.hparams.num_latents,
-                num_latent_channels=self.hparams.num_latents,
+                num_latent_channels=self.hparams.num_latent_channels,
                 activation_checkpointing=self.hparams.activation_checkpointing,
             )
         )
@@ -100,7 +100,7 @@ class LitTextClassifier(LitClassifier):
                 encoder=encoder,
                 decoder=decoder,
                 num_latents=self.hparams.num_latents,
-                num_latent_channels=self.hparams.num_latents,
+                num_latent_channels=self.hparams.num_latent_channels,
                 activation_checkpointing=self.hparams.activation_checkpointing,
             )
         )
@@ -135,7 +135,7 @@ class LitMaskedLanguageModel(LitModel):
                 encoder=encoder,
                 decoder=decoder,
                 num_latents=self.hparams.num_latents,
-                num_latent_channels=self.hparams.num_latents,
+                num_latent_channels=self.hparams.num_latent_channels,
                 activation_checkpointing=self.hparams.activation_checkpointing,
             )
         )

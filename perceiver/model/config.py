@@ -1,7 +1,13 @@
 from dataclasses import asdict, dataclass, fields
 from typing import Generic, Optional, Tuple, TypeVar
 
-from perceiver.model.adapter import ClassificationOutputAdapter, ImageInputAdapter, TextInputAdapter, TextOutputAdapter
+from perceiver.model.adapter import (
+    ClassificationOutputAdapter,
+    ImageInputAdapter,
+    TextInputAdapter,
+    TextOutputAdapter,
+    TiedTextOutputAdapter,
+)
 from perceiver.model.model import PerceiverDecoder, PerceiverEncoder, PerceiverIO, PerceiverMLM, TextMasking
 
 
@@ -17,17 +23,20 @@ class ComponentConfig:
 
 @dataclass
 class EncoderConfig(ComponentConfig):
+    num_cross_attention_layers: int = 1
+    first_cross_attention_layer_shared: bool = False
     num_self_attention_heads: int = 8
     num_self_attention_qk_channels: Optional[int] = None
     num_self_attention_v_channels: Optional[int] = None
     num_self_attention_layers_per_block: int = 8
     num_self_attention_blocks: int = 1
+    first_self_attention_block_shared: bool = True
     self_attention_widening_factor: int = 1
 
 
 @dataclass
 class DecoderConfig(ComponentConfig):
-    num_output_query_channels: int = 256
+    pass
 
 
 @dataclass
@@ -46,11 +55,13 @@ class TextEncoderConfig(EncoderConfig):
 @dataclass
 class ClassificationDecoderConfig(DecoderConfig):
     num_output_queries: int = 1
+    num_output_query_channels: int = 256
     num_classes: int = 100
 
 
 @dataclass
 class TextDecoderConfig(DecoderConfig):
+    num_output_query_channels: Optional[int] = None
     vocab_size: int = 10003
     max_seq_len: int = 512
 
@@ -72,12 +83,17 @@ def create_image_classifier(config: PerceiverConfig[ImageEncoderConfig, Classifi
     input_adapter = ImageInputAdapter(
         image_shape=config.encoder.image_shape, num_frequency_bands=config.encoder.num_frequency_bands
     )
+
+    encoder_kwargs = _base_encoder_kwargs(config.encoder)
+    if encoder_kwargs["num_cross_attention_qk_channels"] is None:
+        encoder_kwargs["num_cross_attention_qk_channels"] = input_adapter.num_input_channels
+
     encoder = PerceiverEncoder(
         input_adapter=input_adapter,
         num_latents=config.num_latents,
         num_latent_channels=config.num_latent_channels,
         activation_checkpointing=config.activation_checkpointing,
-        **_base_encoder_kwargs(config.encoder)
+        **encoder_kwargs
     )
     output_adapter = ClassificationOutputAdapter(
         num_classes=config.decoder.num_classes,
@@ -121,12 +137,18 @@ def create_masked_lm(config: PerceiverConfig[TextEncoderConfig, TextDecoderConfi
         num_latent_channels=config.num_latent_channels,
         activation_checkpointing=config.activation_checkpointing,
     )
-    output_adapter = TextOutputAdapter(
-        vocab_size=config.decoder.vocab_size,
-        max_seq_len=config.decoder.max_seq_len,
-        num_output_query_channels=config.decoder.num_output_query_channels,
-        embedding_weights=encoder.input_adapter.text_embedding.weight,
-    )
+    if config.decoder.num_output_query_channels is None:
+        output_adapter = TiedTextOutputAdapter(
+            vocab_size=config.decoder.vocab_size,
+            max_seq_len=config.decoder.max_seq_len,
+            embedding_weights=encoder.input_adapter.text_embedding.weight,
+        )
+    else:
+        output_adapter = TextOutputAdapter(
+            vocab_size=config.decoder.vocab_size,
+            max_seq_len=config.decoder.max_seq_len,
+            num_output_query_channels=config.decoder.num_output_query_channels,
+        )
     decoder = PerceiverDecoder(
         output_adapter=output_adapter,
         num_latent_channels=config.num_latent_channels,

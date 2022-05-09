@@ -18,6 +18,8 @@ class TextClassifierCLI(CLI):
                 "model.encoder.num_self_attention_heads": 4,
                 "model.encoder.num_self_attention_layers_per_block": 6,
                 "model.encoder.num_self_attention_blocks": 3,
+                "model.encoder.first_cross_attention_layer_shared": False,
+                "model.encoder.first_self_attention_block_shared": False,
                 "model.decoder.num_output_query_channels": 64,
                 "model.decoder.num_cross_attention_heads": 1,
                 "model.decoder.num_classes": 2,

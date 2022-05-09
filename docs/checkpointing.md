@@ -11,6 +11,7 @@ python -m perceiver.scripts.mlm fit \
   --model.num_latents=64 \
   --model.num_latent_channels=256 \
   --model.encoder.num_input_channels=256 \
+  --model.encoder.num_cross_attention_layers=3 \
   --model.encoder.num_self_attention_layers_per_block=6 \
   --model.encoder.num_self_attention_blocks=3 \
   --model.encoder.dropout=0.0 \

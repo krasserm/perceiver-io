@@ -4,6 +4,7 @@ from typing import Optional, Tuple
 import torch
 import torch.nn as nn
 from einops import rearrange, repeat
+from torch import Tensor
 
 
 class InputAdapter(nn.Module):
@@ -24,7 +25,7 @@ class InputAdapter(nn.Module):
 
 
 class OutputAdapter(nn.Module):
-    def __init__(self, output_query: torch.Tensor):
+    def __init__(self, output_query: Tensor):
         """Transforms generic decoder cross-attention output to task-specific output.
 
         :param output_query: output query prototype (does not include batch dimension) used as query input to
@@ -78,8 +79,8 @@ class ImageInputAdapter(InputAdapter):
         return torch.stack(torch.meshgrid(*coords), dim=len(self.spatial_shape))
 
     def _position_encodings(
-        self, p: torch.Tensor, max_frequencies: Optional[Tuple[int, ...]] = None, include_positions: bool = True
-    ) -> torch.Tensor:
+        self, p: Tensor, max_frequencies: Optional[Tuple[int, ...]] = None, include_positions: bool = True
+    ) -> Tensor:
         """Fourier-encode positions p using self.num_bands frequency bands.
 
         :param p: positions of shape (*d, c) where c = len(d).
@@ -160,9 +161,21 @@ class ClassificationOutputAdapter(OutputAdapter):
 
 class TextOutputAdapter(OutputAdapter):
     def __init__(
-        self, vocab_size: int, max_seq_len: int, num_output_query_channels: int, embedding_weights: torch.Tensor
+        self,
+        vocab_size: int,
+        max_seq_len: int,
+        num_output_query_channels: int,
     ):
         super().__init__(output_query=torch.empty(max_seq_len, num_output_query_channels))
+        self.linear = nn.Linear(num_output_query_channels, vocab_size)
+
+    def forward(self, x):
+        return self.linear(x).squeeze(dim=1)
+
+
+class TiedTextOutputAdapter(OutputAdapter):
+    def __init__(self, vocab_size: int, max_seq_len: int, embedding_weights: Tensor):
+        super().__init__(output_query=torch.empty(max_seq_len, embedding_weights.shape[1]))
         self.embedding_weights = embedding_weights
         self.bias = nn.Parameter(torch.zeros(vocab_size))
 

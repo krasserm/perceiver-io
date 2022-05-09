@@ -32,7 +32,8 @@ class MaskedLanguageModelCLI(CLI):
                 "model.encoder.num_self_attention_heads": 4,
                 "model.encoder.num_self_attention_layers_per_block": 6,
                 "model.encoder.num_self_attention_blocks": 3,
-                "model.decoder.num_output_query_channels": 64,
+                "model.encoder.first_cross_attention_layer_shared": False,
+                "model.encoder.first_self_attention_block_shared": False,
                 "model.decoder.num_cross_attention_heads": 4,
                 "model.num_predictions": 5,
                 "model.masked_samples": [
