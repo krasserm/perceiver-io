@@ -2,12 +2,11 @@ import glob
 import os
 
 import pytorch_lightning as pl
-from pytorch_lightning.utilities.cli import DATAMODULE_REGISTRY
 from tokenizers.normalizers import Replace
 from torch.utils.data import DataLoader, Dataset
 from torchtext.datasets import IMDB
 
-from perceiver.data.utils import TextCollator
+from perceiver.data.text_preproc import TextCollator
 from perceiver.tokenizer import create_tokenizer, load_tokenizer, save_tokenizer, train_tokenizer
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -30,7 +29,7 @@ def load_split(root, split):
     return raw_x, raw_y
 
 
-class IMDBDataset(Dataset):
+class ImdbDataset(Dataset):
     def __init__(self, root, split):
         self.raw_x, self.raw_y = load_split(root, split)
 
@@ -41,8 +40,7 @@ class IMDBDataset(Dataset):
         return self.raw_y[index], self.raw_x[index]
 
 
-@DATAMODULE_REGISTRY
-class IMDBDataModule(pl.LightningDataModule):
+class ImdbDataModule(pl.LightningDataModule):
     def __init__(
         self,
         data_dir: str = ".cache",
@@ -81,8 +79,8 @@ class IMDBDataModule(pl.LightningDataModule):
         self.tokenizer = load_tokenizer(self.tokenizer_path)
         self.collator = TextCollator(self.tokenizer, self.hparams.max_seq_len)
 
-        self.ds_train = IMDBDataset(root=self.hparams.data_dir, split="train")
-        self.ds_valid = IMDBDataset(root=self.hparams.data_dir, split="test")
+        self.ds_train = ImdbDataset(root=self.hparams.data_dir, split="train")
+        self.ds_valid = ImdbDataset(root=self.hparams.data_dir, split="test")
 
     def train_dataloader(self):
         return DataLoader(

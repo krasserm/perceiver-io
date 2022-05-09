@@ -1,5 +1,5 @@
-from perceiver.model.lightning import DecoderConfig, EncoderConfig, LitImageClassifier
+from perceiver.model.lightning import ClassificationDecoderConfig, ImageEncoderConfig, LitImageClassifier
 
 
 def test_lit_image_classifier():
-    LitImageClassifier((64, 64, 3), 2, 16, 16, EncoderConfig(), DecoderConfig(), optimizer_init={})
+    LitImageClassifier(ImageEncoderConfig(num_cross_attention_heads=1), ClassificationDecoderConfig(), 16, 16)
