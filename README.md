@@ -34,7 +34,7 @@ poetry install
 pip install perceiver-io
 ```
 
-When installing via `pip` make sure you have a CUDA 11.x toolkit installed as well (see also [environment.yml](environment.yml)).
+When installing via `pip` make sure you have a CUDA toolkit installed as well (see also [environment.yml](environment.yml)).
 
 ## Architecture
 

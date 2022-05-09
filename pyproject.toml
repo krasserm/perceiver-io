@@ -32,25 +32,16 @@ include = ["docs", "scripts"]
 
 [tool.poetry.dependencies]
 python = "3.9.*"
-# Temporary workaround for https://github.com/python-poetry/poetry/issues/4885
-torch = [
-    {url = "https://download.pytorch.org/whl/cu113/torch-1.11.0%2Bcu113-cp39-cp39-linux_x86_64.whl", markers = "sys_platform == 'linux'"},
-    {url = "https://download.pytorch.org/whl/cu113/torch-1.11.0%2Bcu113-cp39-cp39-win_amd64.whl", markers = "sys_platform == 'win32'"},
-    {url = "https://download.pytorch.org/whl/cpu/torch-1.11.0-cp39-none-macosx_10_9_x86_64.whl", markers = "sys_platform == 'darwin'"}
-]
+torch = "1.11.*"
 torchvision = "0.12.*"
 torchtext = "0.12.*"
 fairscale = "0.4.*"
 torchmetrics = "0.8.*"
 einops = "0.4.*"
 tokenizers = "0.12.*"
-# Pin versions because of
-# - https://github.com/PyTorchLightning/pytorch-lightning/pull/12918 and
-# - https://github.com/omni-us/jsonargparse/commit/6dc85394e10ea4ee30e5f5dd2617bbee6e5c2893
-# (can be unpinned once pytorch-lightning 1.6.3 is released)
-pytorch-lightning = "1.6.2"
-lightning-bolts = "0.5.0"
-jsonargparse = {extras = ["signatures"], version = "4.7.1"}
+pytorch-lightning = "1.6.*"
+lightning-bolts = "0.5.*"
+jsonargparse = {extras = ["signatures"], version = "4.7.*"}
 
 [tool.poetry.dev-dependencies]
 invoke = "^1.6.0"
