@@ -354,7 +354,7 @@ python -m perceiver.scripts.img_clf fit \
 
 ## Inference examples
 
-- [Sentiment classification](https://colab.research.google.com/github/krasserm/perceiver-io/blob/main/notebooks/seq-clf.ipynb)
+- [Sentiment classification](https://colab.research.google.com/github/krasserm/perceiver-io/blob/main/notebooks/txt-clf.ipynb)
 - [Image classification](https://colab.research.google.com/github/krasserm/perceiver-io/blob/main/notebooks/img-clf.ipynb)
 
 ## Development environment
