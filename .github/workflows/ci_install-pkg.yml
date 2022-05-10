@@ -66,7 +66,7 @@ jobs:
           # install as archive
           pip install dist/*.tar.gz --find-links https://download.pytorch.org/whl/cpu/torch_stable.html
           cd ..
-          python -c "import perceiver ; print(perceiver.__version__)"
+          python -c "import perceiver"
           pip uninstall -y perceiver-io
 
       - name: Install | Uninstall package - wheel
@@ -74,5 +74,5 @@ jobs:
           # install as wheel
           pip install dist/*.whl --find-links https://download.pytorch.org/whl/cpu/torch_stable.html
           cd ..
-          python -c "import perceiver ; print(perceiver.__version__)"
+          python -c "import perceiver"
           pip uninstall -y perceiver-io
