@@ -6,7 +6,7 @@ from tokenizers.normalizers import Replace
 from torch.utils.data import DataLoader, Dataset
 from torchtext.datasets import IMDB
 
-from perceiver.data.text_preproc import TextCollator
+from perceiver.data.text import TextCollator
 from perceiver.tokenizer import create_tokenizer, load_tokenizer, save_tokenizer, train_tokenizer
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"

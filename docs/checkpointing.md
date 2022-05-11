@@ -7,7 +7,7 @@ and cross-attention layer and saves GPU memory during training. For example, the
 channels (`256` instead of `64`).
 
 ```shell
-python -m perceiver.scripts.mlm fit \
+python -m perceiver.scripts.text.mlm fit \
   --model.num_latents=64 \
   --model.num_latent_channels=256 \
   --model.encoder.num_input_channels=256 \

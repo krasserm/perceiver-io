@@ -1,15 +1,6 @@
 import torch.nn as nn
 
 
-class Single(nn.Module):
-    def __init__(self, module: nn.Module):
-        super().__init__()
-        self.module = module
-
-    def forward(self, *x):
-        return self.module(*x)
-
-
 class Sequential(nn.Sequential):
     def forward(self, *x):
         for module in self:

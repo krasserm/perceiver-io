@@ -1,7 +1,10 @@
 from pytorch_lightning.utilities.cli import LightningArgumentParser
 
 from perceiver.cli import CLI
-from perceiver.model.lightning import LitImageClassifier
+
+# auto-register data module
+from perceiver.data import mnist  # noqa: F401
+from perceiver.model.image.classifier import LitImageClassifier
 
 
 class ImageClassifierCLI(CLI):
