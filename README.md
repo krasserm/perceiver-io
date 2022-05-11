@@ -267,7 +267,7 @@ For saving GPU memory and scaling model training, [activation checkpointing](doc
 
 Train a classification decoder using a frozen encoder from [masked language modeling](#masked-language-modeling).
 If you ran MLM yourself you'll need to modify the `--model.mlm_ckpt` argument accordingly, otherwise download
-checkpoints from [here](https://martin-krasser.com/perceiver/logs-update-2.zip) and extract them in the root directory of
+checkpoints from [here](https://martin-krasser.com/perceiver/logs-update-3.zip) and extract them in the root directory of
 this project.
 
 ```shell
@@ -299,7 +299,7 @@ python -m perceiver.scripts.seq_clf fit \
 
 Unfreeze the encoder and jointly fine-tune it together with the decoder that has been trained in the previous step.
 If you ran the previous step yourself you'll need to modify the `--model.clf_ckpt` argument accordingly, otherwise
-download checkpoints from [here](https://martin-krasser.com/perceiver/logs-update-2.zip).
+download checkpoints from [here](https://martin-krasser.com/perceiver/logs-update-3.zip).
 
 ```shell
 python -m perceiver.scripts.seq_clf fit \
