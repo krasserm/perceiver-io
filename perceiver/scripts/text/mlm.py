@@ -7,7 +7,10 @@ from pytorch_lightning.utilities.types import LRSchedulerTypeUnion
 from torch.optim import Optimizer
 
 from perceiver.cli import CLI
-from perceiver.model.lightning import LitMaskedLanguageModel
+
+# auto-register data module
+from perceiver.data import imdb  # noqa: F401
+from perceiver.model.text.mlm import LitMLM
 
 
 class MaskedLanguageModelCLI(CLI):
@@ -54,4 +57,4 @@ class MaskedLanguageModelCLI(CLI):
 
 
 if __name__ == "__main__":
-    MaskedLanguageModelCLI(LitMaskedLanguageModel, description="Masked language model", run=True)
+    MaskedLanguageModelCLI(LitMLM, description="Masked language model", run=True)

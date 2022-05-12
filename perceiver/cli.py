@@ -5,9 +5,6 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.strategies import DDPStrategy
 from pytorch_lightning.utilities.cli import LightningCLI
 
-# auto-register data modules
-from perceiver.data import imdb, mnist  # noqa: F401
-
 
 class CLI(LightningCLI):
     def __init__(self, model_class, run=True, **kwargs):
@@ -30,6 +27,6 @@ class CLI(LightningCLI):
             cfg = self.config_init
 
         if cfg["trainer"]["strategy"] == "ddp_static_graph":
-            cfg["trainer"]["strategy"] = DDPStrategy(static_graph=True)
+            cfg["trainer"]["strategy"] = DDPStrategy(static_graph=True, find_unused_parameters=False)
 
         return super().instantiate_trainer(**kwargs)

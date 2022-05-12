@@ -1,4 +1,6 @@
-from perceiver.model.lightning import ClassificationDecoderConfig, ImageEncoderConfig, LitImageClassifier
+from perceiver.model.core import ClassificationDecoderConfig
+from perceiver.model.image import ImageEncoderConfig
+from perceiver.model.image.classifier import LitImageClassifier
 
 
 def test_lit_image_classifier():

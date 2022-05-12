@@ -1,8 +1,9 @@
 from typing import Callable, Optional, Union
 
-from pl_bolts.datamodules.mnist_datamodule import MNISTDataModule
+import torch
 
-from perceiver.data.mnist_preproc import mnist_transform
+from pl_bolts.datamodules.mnist_datamodule import MNISTDataModule
+from torchvision import transforms
 
 
 class MnistDataModule(MNISTDataModule):
@@ -43,3 +44,38 @@ class MnistDataModule(MNISTDataModule):
             channels_last=self.hparams.channels_last,
             random_crop=self.hparams.random_crop,
         )
+
+
+class MnistPreprocessor:
+    def __init__(self, transform=None):
+        if transform is None:
+            self.transform = mnist_transform()
+        else:
+            self.transform = transform
+
+    def preprocess(self, img):
+        return self.transform(img)
+
+    def preprocess_batch(self, img_batch):
+        return torch.stack([self.preprocess(img) for img in img_batch])
+
+
+def mnist_transform(normalize: bool = True, channels_last: bool = True, random_crop: Optional[int] = None):
+    transform_list = []
+
+    if random_crop:
+        transform_list.append(transforms.RandomCrop(random_crop))
+
+    transform_list.append(transforms.ToTensor())
+
+    if normalize:
+        transform_list.append(transforms.Normalize(mean=(0.5,), std=(0.5,)))
+
+    if channels_last:
+        transform_list.append(channels_to_last)
+
+    return transforms.Compose(transform_list)
+
+
+def channels_to_last(img: torch.Tensor):
+    return img.permute(1, 2, 0).contiguous()

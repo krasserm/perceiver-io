@@ -2,25 +2,159 @@ from typing import Optional
 
 import torch
 import torch.nn as nn
-from einops import repeat
+from einops import rearrange, repeat
 from fairscale.nn import checkpoint_wrapper
+from torch import Tensor
 
-from perceiver.model.adapter import InputAdapter, OutputAdapter
-from perceiver.model.attention import CrossAttention, SelfAttention
-from perceiver.model.utils import Sequential, Single
+from perceiver.model.core.utils import Sequential
 
 
-class MLP(Sequential):
-    def __init__(self, num_channels: int, widening_factor: int):
-        super().__init__(
-            nn.LayerNorm(num_channels),
-            nn.Linear(num_channels, widening_factor * num_channels),
-            nn.GELU(),
-            nn.Linear(widening_factor * num_channels, num_channels),
+class MultiHeadAttention(nn.Module):
+    def __init__(
+        self,
+        num_heads: int,
+        num_q_input_channels: int,
+        num_kv_input_channels: int,
+        num_qk_channels: Optional[int] = None,
+        num_v_channels: Optional[int] = None,
+        num_output_channels: Optional[int] = None,
+        dropout: float = 0.0,
+    ):
+        """Multi-head attention as described in https://arxiv.org/abs/2107.14795 Appendix E.
+
+        :param num_heads: Number of attention heads.
+        :param num_q_input_channels: Number of query input channels.
+        :param num_kv_input_channels: Number of key/value input channels.
+        :param num_qk_channels: Number of channels query and key input channels are projected to,
+            for computing the attention matrix. Defaults to number `num_q_input_channels`
+        :param num_v_channels: Number of channels value input channels are projected to.
+            Defaults to `num_qk_channels`.
+        :param num_output_channels: Number of output channels attention result channels are projected to.
+            Defaults to `num_q_input_channels`
+        :param dropout: Dropout probability for attention matrix values. Defaults to `0.0`
+        """
+        super().__init__()
+
+        if num_qk_channels is None:
+            num_qk_channels = num_q_input_channels
+
+        if num_v_channels is None:
+            num_v_channels = num_qk_channels
+
+        if num_output_channels is None:
+            num_output_channels = num_q_input_channels
+
+        if num_qk_channels % num_heads != 0:
+            raise ValueError("num_qk_channels must be divisible by num_heads")
+
+        if num_v_channels % num_heads != 0:
+            raise ValueError("num_v_channels must be divisible by num_heads")
+
+        num_qk_channels_per_head = num_qk_channels // num_heads
+
+        self.dp_scale = num_qk_channels_per_head ** -0.5
+        self.num_heads = num_heads
+
+        self.q_proj = nn.Linear(num_q_input_channels, num_qk_channels, bias=False)
+        self.k_proj = nn.Linear(num_kv_input_channels, num_qk_channels, bias=False)
+        self.v_proj = nn.Linear(num_kv_input_channels, num_v_channels, bias=False)
+        self.o_proj = nn.Linear(num_v_channels, num_output_channels)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x_q, x_kv, pad_mask=None, attn_mask=None):
+        """
+        :param x_q: Query input of shape (B, N, D) where B is the batch size, N the query sequence length
+            and D the number of query input channels (= `num_q_input_channels`)
+        :param x_kv: Key/value input of shape (B, L, C) where B is the batch size, L the key/value sequence
+            length and C are the number of key/value input channels (= `num_kv_input_channels`)
+        :param pad_mask: Boolean key padding mask. `True` values indicate padding tokens.
+        :param attn_mask: Boolean attention mask. Not needed/supported yet.
+        :return: attention result of shape (B, N, F) where B is the batch size, N the query sequence length
+            and F the number of output channels (= `num_output_channels`)
+        """
+        if attn_mask is not None:
+            raise NotImplementedError("attention masks not supported yet")
+
+        q = self.q_proj(x_q)
+        k = self.k_proj(x_kv)
+        v = self.v_proj(x_kv)
+
+        q, k, v = (rearrange(x, "b n (h c) -> (b h) n c", h=self.num_heads) for x in [q, k, v])
+        attn = torch.einsum("b i c, b j c -> b i j", q, k) * self.dp_scale
+
+        if pad_mask is not None:
+            pad_mask = repeat(pad_mask, "b j -> (b h) () j", h=self.num_heads)
+            attn_max_neg = -torch.finfo(attn.dtype).max
+            attn.masked_fill_(pad_mask, attn_max_neg)
+
+        attn = attn.softmax(dim=-1)
+        attn = self.dropout(attn)
+
+        o = torch.einsum("b i j, b j c -> b i c", attn, v)
+        o = rearrange(o, "(b h) n c -> b n (h c)", h=self.num_heads)
+
+        return self.o_proj(o)
+
+
+class CrossAttention(nn.Module):
+    def __init__(
+        self,
+        num_heads: int,
+        num_q_input_channels: int,
+        num_kv_input_channels: int,
+        num_qk_channels: Optional[int] = None,
+        num_v_channels: Optional[int] = None,
+        dropout: float = 0.0,
+    ):
+        """Multi-head cross-attention (see `MultiHeadAttention` for details)."""
+        super().__init__()
+        self.q_norm = nn.LayerNorm(num_q_input_channels)
+        self.kv_norm = nn.LayerNorm(num_kv_input_channels)
+        self.attention = MultiHeadAttention(
+            num_heads=num_heads,
+            num_q_input_channels=num_q_input_channels,
+            num_kv_input_channels=num_kv_input_channels,
+            num_qk_channels=num_qk_channels,
+            num_v_channels=num_v_channels,
+            dropout=dropout,
         )
 
+    def forward(self, x_q, x_kv, pad_mask=None, attn_mask=None):
+        """Multi-head attention of query input `x_q` to key/value input (`x_kv`) after (separately) applying layer
+        normalization to these inputs."""
+        x_q = self.q_norm(x_q)
+        x_kv = self.kv_norm(x_kv)
+        return self.attention(x_q, x_kv, pad_mask=pad_mask, attn_mask=attn_mask)
 
-class CrossAttentionLayer(Single):
+
+class SelfAttention(nn.Module):
+    def __init__(
+        self,
+        num_heads: int,
+        num_channels: int,
+        num_qk_channels: Optional[int] = None,
+        num_v_channels: Optional[int] = None,
+        dropout: float = 0.0,
+    ):
+        """Multi-head self-attention (see `MultiHeadAttention` and for details)."""
+        super().__init__()
+        self.norm = nn.LayerNorm(num_channels)
+        self.attention = MultiHeadAttention(
+            num_heads=num_heads,
+            num_q_input_channels=num_channels,
+            num_kv_input_channels=num_channels,
+            num_qk_channels=num_qk_channels,
+            num_v_channels=num_v_channels,
+            dropout=dropout,
+        )
+
+    def forward(self, x, pad_mask=None, attn_mask=None):
+        """Multi-head attention of input `x` to itself after applying layer normalization to the input."""
+        x = self.norm(x)
+        return self.attention(x, x, pad_mask=pad_mask, attn_mask=attn_mask)
+
+
+class CrossAttentionLayer(Sequential):
     def __init__(
         self,
         num_heads: int,
@@ -31,7 +165,6 @@ class CrossAttentionLayer(Single):
         widening_factor: int = 1,
         dropout: float = 0.0,
         attention_residual: bool = True,
-        activation_checkpointing: bool = False,
     ):
         cross_attn = CrossAttention(
             num_heads=num_heads,
@@ -41,14 +174,13 @@ class CrossAttentionLayer(Single):
             num_v_channels=num_v_channels,
             dropout=dropout,
         )
-        layer = Sequential(
+        super().__init__(
             Residual(cross_attn, dropout) if attention_residual else cross_attn,
             Residual(MLP(num_q_input_channels, widening_factor), dropout),
         )
-        super().__init__(layer if not activation_checkpointing else checkpoint_wrapper(layer))
 
 
-class SelfAttentionLayer(Single):
+class SelfAttentionLayer(Sequential):
     def __init__(
         self,
         num_heads: int,
@@ -57,7 +189,6 @@ class SelfAttentionLayer(Single):
         num_v_channels: Optional[int] = None,
         widening_factor: int = 1,
         dropout: float = 0.0,
-        activation_checkpointing: bool = False,
     ):
         self_attn = SelfAttention(
             num_heads=num_heads,
@@ -66,11 +197,10 @@ class SelfAttentionLayer(Single):
             num_v_channels=num_v_channels,
             dropout=dropout,
         )
-        layer = Sequential(
+        super().__init__(
             Residual(self_attn, dropout),
             Residual(MLP(num_channels, widening_factor), dropout),
         )
-        super().__init__(layer if not activation_checkpointing else checkpoint_wrapper(layer))
 
 
 class SelfAttentionBlock(Sequential):
@@ -93,11 +223,24 @@ class SelfAttentionBlock(Sequential):
                 num_v_channels=num_v_channels,
                 widening_factor=widening_factor,
                 dropout=dropout,
-                activation_checkpointing=activation_checkpointing,
             )
             for _ in range(num_layers)
         ]
+
+        if activation_checkpointing:
+            layers = [checkpoint_wrapper(layer) for layer in layers]
+
         super().__init__(*layers)
+
+
+class MLP(Sequential):
+    def __init__(self, num_channels: int, widening_factor: int):
+        super().__init__(
+            nn.LayerNorm(num_channels),
+            nn.Linear(num_channels, widening_factor * num_channels),
+            nn.GELU(),
+            nn.Linear(widening_factor * num_channels, num_channels),
+        )
 
 
 class Residual(nn.Module):
@@ -110,6 +253,62 @@ class Residual(nn.Module):
     def forward(self, *args, **kwargs):
         x = self.module(*args, **kwargs)
         return self.dropout(x) + args[0]
+
+
+class InputAdapter(nn.Module):
+    def __init__(self, num_input_channels: int):
+        """Transforms and position-encodes task-specific input to generic encoder input.
+
+        :param num_input_channels: Number of channels of the generic encoder input produced by this adapter.
+        """
+        super().__init__()
+        self._num_input_channels = num_input_channels
+
+    @property
+    def num_input_channels(self):
+        return self._num_input_channels
+
+    def forward(self, x):
+        raise NotImplementedError()
+
+
+class OutputAdapter(nn.Module):
+    def __init__(self, output_query: Tensor):
+        """Transforms generic decoder cross-attention output to task-specific output.
+
+        :param output_query: output query prototype (does not include batch dimension) used as query input to
+            generic decoder cross-attention.
+        """
+        super().__init__()
+        self._output_query = nn.Parameter(output_query)
+        self._init_parameters()
+
+    def _init_parameters(self):
+        with torch.no_grad():
+            self._output_query.normal_(0.0, 0.02).clamp_(-2.0, 2.0)
+
+    @property
+    def num_output_query_channels(self):
+        return self._output_query.shape[-1]
+
+    def output_query(self, x):
+        return repeat(self._output_query, "... -> b ...", b=x.shape[0])
+
+    def forward(self, x):
+        raise NotImplementedError()
+
+
+class ClassificationOutputAdapter(OutputAdapter):
+    def __init__(self, num_classes: int, num_output_queries: int = 1, num_output_query_channels: Optional[int] = None):
+
+        if num_output_query_channels is None:
+            num_output_query_channels = num_classes
+
+        super().__init__(output_query=torch.empty(num_output_queries, num_output_query_channels))
+        self.linear = nn.Linear(num_output_query_channels, num_classes)
+
+    def forward(self, x):
+        return self.linear(x).squeeze(dim=1)
 
 
 class PerceiverEncoder(nn.Module):
@@ -184,7 +383,7 @@ class PerceiverEncoder(nn.Module):
         self.first_self_attention_block_shared = first_self_attention_block_shared
 
         def cross_attn():
-            return CrossAttentionLayer(
+            layer = CrossAttentionLayer(
                 num_heads=num_cross_attention_heads,
                 num_q_input_channels=num_latent_channels,
                 num_kv_input_channels=input_adapter.num_input_channels,
@@ -192,8 +391,8 @@ class PerceiverEncoder(nn.Module):
                 num_v_channels=num_cross_attention_v_channels,
                 widening_factor=cross_attention_widening_factor,
                 dropout=dropout,
-                activation_checkpointing=activation_checkpointing,
             )
+            return checkpoint_wrapper(layer) if activation_checkpointing else layer
 
         def self_attn():
             return SelfAttentionBlock(
@@ -277,8 +476,7 @@ class PerceiverDecoder(nn.Module):
         """
         super().__init__()
 
-        self.output_adapter = output_adapter
-        self.cross_attention = CrossAttentionLayer(
+        cross_attn = CrossAttentionLayer(
             num_heads=num_cross_attention_heads,
             num_q_input_channels=output_adapter.num_output_query_channels,
             num_kv_input_channels=num_latent_channels,
@@ -286,83 +484,18 @@ class PerceiverDecoder(nn.Module):
             num_v_channels=num_cross_attention_v_channels,
             widening_factor=cross_attention_widening_factor,
             dropout=dropout,
-            activation_checkpointing=activation_checkpointing,
         )
+
+        if activation_checkpointing:
+            cross_attn = checkpoint_wrapper(cross_attn)
+
+        self.cross_attn = cross_attn
+        self.output_adapter = output_adapter
 
     def forward(self, x):
         output_query = self.output_adapter.output_query(x)
-        output = self.cross_attention(output_query, x)
+        output = self.cross_attn(output_query, x)
         return self.output_adapter(output)
-
-
-class TextMasking(nn.Module):
-    """Text masking as described in https://arxiv.org/abs/1810.04805."""
-
-    def __init__(
-        self,
-        vocab_size: int,
-        unk_token_id: int = 1,
-        mask_token_id: int = 2,
-        num_special_tokens: int = 3,
-        mask_p: float = 0.15,
-    ):
-        super().__init__()
-        self.vocab_size = vocab_size
-        self.unk_token_id = unk_token_id
-        self.mask_token_id = mask_token_id
-        self.num_special_tokens = num_special_tokens
-        self.mask_p = mask_p
-
-    def forward(self, x, pad_mask):
-        labels = x.clone()
-
-        # Mask special tokens in input (UNK, PAD)
-        is_special = x == self.unk_token_id
-        is_special |= pad_mask
-
-        # Mask non-special tokens
-        is_input = ~is_special
-
-        # Randomly select 15% of non-special tokens
-        is_selected = torch.rand_like(x, dtype=torch.float) < self.mask_p
-        is_selected &= is_input
-
-        # Of those, set 80% to MASK token, 10% to random token and leave 10% unchanged
-        is_selected_1 = is_selected & (torch.rand_like(x, dtype=torch.float) < 0.9)
-        is_selected_2 = is_selected_1 & (torch.rand_like(x, dtype=torch.float) < 1 / 9)
-        x[is_selected_1] = self.mask_token_id
-
-        # Based on the assumption that the id of the first
-        # non-special token is self.num_special_tokens
-        x[is_selected_2] = torch.randint(
-            self.num_special_tokens, self.vocab_size, size=(is_selected_2.sum(),), device=x.device
-        )
-
-        # ignore labels of non-selected elements
-        labels[~is_selected] = -100
-        return x, labels
-
-
-class PerceiverMLM(nn.Module):
-    def __init__(self, encoder: PerceiverEncoder, decoder: PerceiverDecoder, masking: TextMasking):
-        super().__init__()
-        self.encoder = encoder
-        self.decoder = decoder
-        self.masking = masking
-
-    def forward(self, x_input, pad_mask=None, masking=True):
-        _, l = x_input.shape  # noqa: E741
-
-        if masking:
-            x_masked, x_labels = self.masking(x_input, pad_mask)
-        else:
-            x_masked = x_input
-            x_labels = None
-
-        x_latent = self.encoder(x_masked, pad_mask)
-        x_logits = self.decoder(x_latent)[:, :l, :]
-
-        return x_logits, x_labels
 
 
 class PerceiverIO(Sequential):

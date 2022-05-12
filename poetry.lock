@@ -332,7 +332,7 @@ python-versions = "*"
 
 [[package]]
 name = "jsonargparse"
-version = "4.7.2"
+version = "4.7.3"
 description = "Parsing of command line options, yaml/jsonnet config files and/or environment variables based on argparse."
 category = "main"
 optional = false
@@ -365,7 +365,7 @@ name = "lightning-bolts"
 version = "0.5.0"
 description = "PyTorch Lightning Bolts is a community contribution for ML researchers."
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.7"
 
 [package.dependencies]
@@ -448,7 +448,7 @@ name = "pillow"
 version = "9.1.0"
 description = "Python Imaging Library (Fork)"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.7"
 
 [package.extras]
@@ -544,7 +544,7 @@ python-versions = ">=3.6"
 
 [[package]]
 name = "pyparsing"
-version = "3.0.8"
+version = "3.0.9"
 description = "pyparsing module - Classes and methods to define and execute parsing grammars"
 category = "main"
 optional = false
@@ -722,7 +722,7 @@ name = "tokenizers"
 version = "0.12.1"
 description = "Fast and Customizable Tokenizers"
 category = "main"
-optional = false
+optional = true
 python-versions = "*"
 
 [package.extras]
@@ -785,7 +785,7 @@ name = "torchtext"
 version = "0.12.0"
 description = "Text utilities and datasets for PyTorch"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.7"
 
 [package.dependencies]
@@ -799,7 +799,7 @@ name = "torchvision"
 version = "0.12.0"
 description = "image and video datasets and models for torch deep learning"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.7"
 
 [package.dependencies]
@@ -905,10 +905,14 @@ python-versions = ">=3.7"
 docs = ["sphinx", "jaraco.packaging (>=9)", "rst.linker (>=1.9)"]
 testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-cov", "pytest-enabler (>=1.0.1)", "jaraco.itertools", "func-timeout", "pytest-black (>=0.3.7)", "pytest-mypy (>=0.9.1)"]
 
+[extras]
+image = ["torchvision", "lightning-bolts"]
+text = ["torchtext", "tokenizers"]
+
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.7"
-content-hash = "d98a85a438ce2e7067531f7542913ad011cfd82cf7ef9b1bbcc8e71d206f78c3"
+content-hash = "5987b77749a27b426383db7daed41e0c31277ae14b7b723321481d137aa7bad5"
 
 [metadata.files]
 absl-py = [
@@ -1241,8 +1245,8 @@ invoke = [
     {file = "invoke-1.7.0.tar.gz", hash = "sha256:e332e49de40463f2016315f51df42313855772be86435686156bc18f45b5cc6c"},
 ]
 jsonargparse = [
-    {file = "jsonargparse-4.7.2-py3-none-any.whl", hash = "sha256:7f9c097192744d9709d6038015ae2ca0fca8790c4e66edab092ccc41ba5d1318"},
-    {file = "jsonargparse-4.7.2.tar.gz", hash = "sha256:208c85bfc3f3c32b4553583cf86f734193b760ca24d44b5ca09b52d8693ea815"},
+    {file = "jsonargparse-4.7.3-py3-none-any.whl", hash = "sha256:4e218abd4c67770e12597fa9324d1ea4e69806f7654d7887e2d8925dd56e35cb"},
+    {file = "jsonargparse-4.7.3.tar.gz", hash = "sha256:ff3fe6358f493ded4c67a3b12c3066289b0c290c6676ec49b0ed0b9c747f9145"},
 ]
 lightning-bolts = [
     {file = "lightning-bolts-0.5.0.tar.gz", hash = "sha256:4d64a033a7b5b69c88852741ec37d60620c920bed7c11cd9515be3102410994f"},
@@ -1472,8 +1476,8 @@ pydeprecate = [
     {file = "pyDeprecate-0.3.2.tar.gz", hash = "sha256:d481116cc5d7f6c473e7c4be820efdd9b90a16b594b350276e9e66a6cb5bdd29"},
 ]
 pyparsing = [
-    {file = "pyparsing-3.0.8-py3-none-any.whl", hash = "sha256:ef7b523f6356f763771559412c0d7134753f037822dad1b16945b7b846f7ad06"},
-    {file = "pyparsing-3.0.8.tar.gz", hash = "sha256:7bf433498c016c4314268d95df76c81b842a4cb2b276fa3312cfb1e1d85f6954"},
+    {file = "pyparsing-3.0.9-py3-none-any.whl", hash = "sha256:5026bae9a10eeaefb61dab2f09052b9f4307d44aee4eda64b309723d8d206bbc"},
+    {file = "pyparsing-3.0.9.tar.gz", hash = "sha256:2b020ecf7d21b687f219b71ecad3631f644a47f01403fa1d1036b0c6416d70fb"},
 ]
 pytest = [
     {file = "pytest-7.1.2-py3-none-any.whl", hash = "sha256:13d0e3ccfc2b6e26be000cb6568c832ba67ba32e719443bfe725814d3c42433c"},
