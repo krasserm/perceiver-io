@@ -244,14 +244,17 @@ python -m perceiver.scripts.text.mlm fit \
   --model.decoder.num_output_query_channels=64 \
   --model.decoder.dropout=0.0 \
   --data=ImdbDataModule \
+  --data.vocab_size=10003 \
   --data.max_seq_len=512 \
   --data.batch_size=64 \
-  --optimizer.lr=3e-3 \
+  --data.target_task=mlm \
+  --data.chunk_text=false \
+  --optimizer=AdamW \
+  --optimizer.lr=1e-3 \
   --optimizer.weight_decay=0.0 \
-  --lr_scheduler.pct_start=0.1 \
   --trainer.accelerator=gpu \
   --trainer.devices=-1 \
-  --trainer.max_steps=50000 \
+  --trainer.max_epochs=250 \
   --trainer.check_val_every_n_epoch=5 \
   --trainer.logger=TensorBoardLogger \
   --trainer.logger.save_dir=logs \
@@ -282,6 +285,7 @@ python -m perceiver.scripts.text.classifier fit \
   --model.decoder.num_output_query_channels=64 \
   --model.decoder.dropout=0.0 \
   --data=ImdbDataModule \
+  --data.vocab_size=10003 \
   --data.max_seq_len=512 \
   --data.batch_size=128 \
   --optimizer=AdamW \
@@ -312,6 +316,7 @@ python -m perceiver.scripts.text.classifier fit \
   --model.decoder.num_output_query_channels=64 \
   --model.decoder.dropout=0.2 \
   --data=ImdbDataModule \
+  --data.vocab_size=10003 \
   --data.max_seq_len=512 \
   --data.batch_size=128 \
   --optimizer=AdamW \

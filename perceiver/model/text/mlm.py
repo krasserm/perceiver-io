@@ -6,9 +6,12 @@ import torch.nn as nn
 from einops import rearrange
 from torch import Tensor
 
+from perceiver.data.text import TextPreprocessor
 from perceiver.model.core import DecoderConfig, LitModel, OutputAdapter, PerceiverConfig, PerceiverDecoder, PerceiverIO
 from perceiver.model.text.common import TextEncoder, TextEncoderConfig
-from perceiver.tokenizer import MASK_TOKEN
+
+
+MASK_TOKEN = "[MASK]"
 
 
 @dataclass
@@ -69,69 +72,14 @@ class MLM(PerceiverIO):
             **config.decoder.base_kwargs()
         )
         super().__init__(encoder, decoder)
-        self.masking = TextMasking(config.encoder.vocab_size)
 
-    def forward(self, x_input, pad_mask=None, masking=True):
-        _, l = x_input.shape  # noqa: E741
-
-        if masking:
-            x_masked, x_labels = self.masking(x_input, pad_mask)
-        else:
-            x_masked = x_input
-            x_labels = None
+    def forward(self, x_masked, pad_mask=None, masking=True):
+        _, l = x_masked.shape  # noqa: E741
 
         x_latent = self.encoder(x_masked, pad_mask)
         x_logits = self.decoder(x_latent)[:, :l, :]
 
-        return x_logits, x_labels
-
-
-class TextMasking(nn.Module):
-    """Text masking as described in https://arxiv.org/abs/1810.04805."""
-
-    def __init__(
-        self,
-        vocab_size: int,
-        unk_token_id: int = 1,
-        mask_token_id: int = 2,
-        num_special_tokens: int = 3,
-        mask_p: float = 0.15,
-    ):
-        super().__init__()
-        self.vocab_size = vocab_size
-        self.unk_token_id = unk_token_id
-        self.mask_token_id = mask_token_id
-        self.num_special_tokens = num_special_tokens
-        self.mask_p = mask_p
-
-    def forward(self, x, pad_mask):
-        labels = x.clone()
-
-        # Mask special tokens in input (UNK, PAD)
-        is_special = x == self.unk_token_id
-        is_special |= pad_mask
-
-        # Mask non-special tokens
-        is_input = ~is_special
-
-        # Randomly select 15% of non-special tokens
-        is_selected = torch.rand_like(x, dtype=torch.float) < self.mask_p
-        is_selected &= is_input
-
-        # Of those, set 80% to MASK token, 10% to random token and leave 10% unchanged
-        is_selected_1 = is_selected & (torch.rand_like(x, dtype=torch.float) < 0.9)
-        is_selected_2 = is_selected_1 & (torch.rand_like(x, dtype=torch.float) < 1 / 9)
-        x[is_selected_1] = self.mask_token_id
-
-        # Based on the assumption that the id of the first
-        # non-special token is self.num_special_tokens
-        x[is_selected_2] = torch.randint(
-            self.num_special_tokens, self.vocab_size, size=(is_selected_2.sum(),), device=x.device
-        )
-
-        # ignore labels of non-selected elements
-        labels[~is_selected] = -100
-        return x, labels
+        return x_logits
 
 
 class LitMLM(LitModel):
@@ -155,10 +103,16 @@ class LitMLM(LitModel):
             )
         )
         self.loss = nn.CrossEntropyLoss()
+        self.preprocessor = None
+
+    def setup(self, stage: Optional[str] = None):
+        self.preprocessor = TextPreprocessor(
+            tokenizer=self.trainer.datamodule.tokenizer, max_seq_len=self.hparams.encoder.max_seq_len
+        )
 
     def forward(self, batch):
-        _, x, x_mask = batch
-        return self.model(x, x_mask)
+        x, x_labels, x_mask = batch
+        return self.model(x, x_mask), x_labels
 
     def step(self, batch):
         logits, labels = self(batch)
@@ -181,30 +135,22 @@ class LitMLM(LitModel):
     def on_validation_epoch_end(self) -> None:
         if self.hparams.masked_samples:
             masked_samples = [ms.replace("<MASK>", MASK_TOKEN) for ms in self.hparams.masked_samples]
+            mask_predictions = self._predict_masked_samples(masked_samples=masked_samples)
 
-            step = self.trainer.global_step
-            dm = self.trainer.datamodule
+            text = "\n\n".join(["  \n".join([s] + ps) for s, ps in zip(masked_samples, mask_predictions)])
+            self.logger.experiment.add_text("sample predictions", text, self.trainer.global_step)
 
-            predictions = self._predict_masked_samples(
-                masked_samples=masked_samples,
-                encode_fn=dm.collator.encode,
-                tokenizer=dm.tokenizer,
-            )
-
-            text = "\n\n".join(["  \n".join([s] + ps) for s, ps in zip(masked_samples, predictions)])
-            self.logger.experiment.add_text("sample predictions", text, step)
-
-    def _predict_masked_samples(self, masked_samples, encode_fn, tokenizer):
+    def _predict_masked_samples(self, masked_samples):
         n = len(masked_samples)
 
-        xs, ms = encode_fn(masked_samples)
+        xs, ms = self.preprocessor.preprocess_batch(masked_samples)
         xs = xs.to(self.device)
         ms = ms.to(self.device)
 
         with torch.no_grad():
-            x_logits, _ = self.model(xs, ms, masking=False)
+            x_logits = self.model(xs, ms)
 
-        pred_mask = xs == tokenizer.token_to_id(MASK_TOKEN)
+        pred_mask = xs == self.preprocessor.tokenizer.token_to_id(MASK_TOKEN)
         _, pred = torch.topk(x_logits[pred_mask], k=self.hparams.num_predictions, dim=-1)
 
         output = xs.clone()
@@ -213,6 +159,6 @@ class LitMLM(LitModel):
         for i in range(self.hparams.num_predictions):
             output[pred_mask] = pred[:, i]
             for j in range(n):
-                output_dec[j].append(tokenizer.decode(output[j].tolist(), skip_special_tokens=True))
+                output_dec[j].append(self.preprocessor.tokenizer.decode(output[j].tolist(), skip_special_tokens=True))
 
         return output_dec
