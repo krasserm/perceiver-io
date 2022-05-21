@@ -8,15 +8,16 @@ from tokenizers import Tokenizer
 from tokenizers.normalizers import Replace
 from torch.utils.data import DataLoader
 
-from perceiver.data.text.collator import MLMCollator, PaddingCollator, WWMCollator
-from perceiver.data.text.tokenizer import (
+from perceiver.preproc.text import (
     adapt_tokenizer,
     create_tokenizer,
     load_tokenizer,
+    MLMCollator,
+    PaddingCollator,
     save_tokenizer,
     train_tokenizer,
+    WWMCollator,
 )
-
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -48,7 +49,7 @@ class ImdbDataModule(pl.LightningDataModule):
         self._preprocessor = None
 
     def _load_dataset(self):
-        return load_dataset("imdb", "plain_text", cache_dir=self.hparams.data_dir)
+        return load_dataset("imdb", "plain_text", cache_dir=os.path.join(self.hparams.data_dir, "imdb"))
 
     def _tokenize_dataset(self, dataset: DatasetDict, tokenizer: Tokenizer, batch_size: int = 8):
         result = DatasetDict()
@@ -184,23 +185,3 @@ class ImdbDataModule(pl.LightningDataModule):
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
         )
-
-
-class ImdbPreprocessor:
-    def __init__(self, tokenizer: Tokenizer, max_seq_len: int):
-        self._tokenizer = adapt_tokenizer(tokenizer)
-        self._collator = PaddingCollator(tokenizer)
-        self.max_seq_len = max_seq_len
-
-    @property
-    def tokenizer(self):
-        return self._tokenizer.backend_tokenizer
-
-    def preprocess(self, text):
-        xs, pad_mask = self.preprocess_batch([text])
-        return xs[0], pad_mask[0]
-
-    def preprocess_batch(self, text_batch):
-        batch = self._tokenizer(text_batch, padding=True, truncation=True, max_length=self.max_seq_len)
-        batch["labels"] = [0] * len(text_batch)
-        return self._collator(batch)[1:]

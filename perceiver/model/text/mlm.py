@@ -6,9 +6,9 @@ import torch.nn as nn
 from einops import rearrange
 from torch import Tensor
 
-from perceiver.data.text import TextPreprocessor
 from perceiver.model.core import DecoderConfig, LitModel, OutputAdapter, PerceiverConfig, PerceiverDecoder, PerceiverIO
 from perceiver.model.text.common import TextEncoder, TextEncoderConfig
+from perceiver.preproc.text import TextPreprocessor
 
 
 MASK_TOKEN = "[MASK]"
