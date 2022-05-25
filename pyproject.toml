@@ -36,6 +36,7 @@ pytorch-lightning = "1.6.*"
 torch = "1.11.*"
 fairscale = "0.4.*"
 torchmetrics = "0.8.*"
+torch-optimizer = "0.3.*"
 einops = "0.4.*"
 datasets = {version = "2.2.*", optional = true}
 tokenizers = {version = "0.12.*", optional = true}

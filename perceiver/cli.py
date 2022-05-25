@@ -1,6 +1,9 @@
 from importlib.resources import path
 from typing import Any
 
+# auto-register extra optimizers
+import torch_optimizer  # noqa: F401
+
 from pytorch_lightning import Trainer
 from pytorch_lightning.strategies import DDPStrategy
 from pytorch_lightning.utilities.cli import LightningCLI
