@@ -4,6 +4,7 @@ from typing import Any, List, Optional
 import torch
 import torch.nn as nn
 from einops import rearrange
+from pytorch_lightning.loggers import TensorBoardLogger
 from torch import Tensor
 
 from perceiver.model.core import DecoderConfig, LitModel, OutputAdapter, PerceiverConfig, PerceiverDecoder, PerceiverIO
@@ -137,8 +138,12 @@ class LitMLM(LitModel):
             masked_samples = [ms.replace("<MASK>", MASK_TOKEN) for ms in self.hparams.masked_samples]
             mask_predictions = self._predict_masked_samples(masked_samples=masked_samples)
 
-            text = "\n\n".join(["  \n".join([s] + ps) for s, ps in zip(masked_samples, mask_predictions)])
-            self.logger.experiment.add_text("sample predictions", text, self.trainer.global_step)
+            if isinstance(self.logger, TensorBoardLogger):
+                text = "\n\n".join(["  \n".join([s] + ps) for s, ps in zip(masked_samples, mask_predictions)])
+                self.logger.experiment.add_text("sample predictions", text, self.trainer.global_step)
+            else:
+                # support other loggers here ...
+                ...
 
     def _predict_masked_samples(self, masked_samples):
         n = len(masked_samples)
