@@ -252,9 +252,10 @@ python -m perceiver.scripts.text.mlm fit \
   --optimizer=AdamW \
   --optimizer.lr=1e-3 \
   --optimizer.weight_decay=0.0 \
+  --lr_scheduler.warmup_steps=5000 \
   --trainer.accelerator=gpu \
   --trainer.devices=-1 \
-  --trainer.max_epochs=250 \
+  --trainer.max_steps=50000 \
   --trainer.check_val_every_n_epoch=5 \
   --trainer.logger=TensorBoardLogger \
   --trainer.logger.save_dir=logs \
