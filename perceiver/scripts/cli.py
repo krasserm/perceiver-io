@@ -11,7 +11,7 @@ from pytorch_lightning.utilities.cli import LightningCLI
 
 class CLI(LightningCLI):
     def __init__(self, model_class, run=True, **kwargs):
-        with path("perceiver", "trainer.yaml") as p:
+        with path("perceiver.scripts", "trainer.yaml") as p:
             trainer_defaults = {"default_config_files": [str(p)]}
 
         super().__init__(
