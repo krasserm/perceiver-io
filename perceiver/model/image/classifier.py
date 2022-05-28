@@ -122,6 +122,7 @@ class ImageClassifier(PerceiverIO):
             num_classes=config.decoder.num_classes,
             num_output_queries=config.decoder.num_output_queries,
             num_output_query_channels=config.decoder.num_output_query_channels,
+            init_scale=config.decoder.init_scale,
         )
         decoder = PerceiverDecoder(
             output_adapter=output_adapter,

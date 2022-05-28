@@ -28,8 +28,9 @@ class TextOutputAdapter(OutputAdapter):
         vocab_size: int,
         max_seq_len: int,
         num_output_query_channels: int,
+        init_scale: float = 0.02,
     ):
-        super().__init__(output_query=torch.empty(max_seq_len, num_output_query_channels))
+        super().__init__(output_query=torch.empty(max_seq_len, num_output_query_channels), init_scale=init_scale)
         self.linear = nn.Linear(num_output_query_channels, vocab_size)
 
     def forward(self, x):
@@ -37,8 +38,8 @@ class TextOutputAdapter(OutputAdapter):
 
 
 class TiedTextOutputAdapter(OutputAdapter):
-    def __init__(self, vocab_size: int, max_seq_len: int, embedding_weights: Tensor):
-        super().__init__(output_query=torch.empty(max_seq_len, embedding_weights.shape[1]))
+    def __init__(self, vocab_size: int, max_seq_len: int, embedding_weights: Tensor, init_scale: float = 0.02):
+        super().__init__(output_query=torch.empty(max_seq_len, embedding_weights.shape[1]), init_scale=init_scale)
         self.embedding_weights = embedding_weights
         self.bias = nn.Parameter(torch.zeros(vocab_size))
 
@@ -59,12 +60,14 @@ class MLM(PerceiverIO):
                 vocab_size=config.decoder.vocab_size,
                 max_seq_len=config.decoder.max_seq_len,
                 embedding_weights=encoder.input_adapter.text_embedding.weight,
+                init_scale=config.decoder.init_scale,
             )
         else:
             output_adapter = TextOutputAdapter(
                 vocab_size=config.decoder.vocab_size,
                 max_seq_len=config.decoder.max_seq_len,
                 num_output_query_channels=config.decoder.num_output_query_channels,
+                init_scale=config.decoder.init_scale,
             )
         decoder = PerceiverDecoder(
             output_adapter=output_adapter,

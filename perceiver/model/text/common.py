@@ -16,19 +16,18 @@ class TextEncoderConfig(EncoderConfig):
 
 
 class TextInputAdapter(InputAdapter):
-    def __init__(self, vocab_size: int, max_seq_len: int, num_input_channels: int):
+    def __init__(self, vocab_size: int, max_seq_len: int, num_input_channels: int, init_scale: float = 0.02):
         super().__init__(num_input_channels=num_input_channels)
 
         self.text_embedding = nn.Embedding(vocab_size, num_input_channels)
         self.pos_encoding = nn.Parameter(torch.empty(max_seq_len, num_input_channels))
 
         self.scale = math.sqrt(num_input_channels)
-        self._init_parameters()
+        self._init_parameters(init_scale)
 
-    def _init_parameters(self):
+    def _init_parameters(self, init_scale: float):
         with torch.no_grad():
-            self.text_embedding.weight.data.uniform_(-0.1, 0.1)
-            self.pos_encoding.uniform_(-0.5, 0.5)
+            self.pos_encoding.normal_(0.0, init_scale)
 
     def forward(self, x):
         b, l = x.shape  # noqa: E741
@@ -44,6 +43,7 @@ class TextEncoder(PerceiverEncoder):
             vocab_size=config.vocab_size,
             max_seq_len=config.max_seq_len,
             num_input_channels=config.num_input_channels,
+            init_scale=config.init_scale,
         )
         super().__init__(
             input_adapter=input_adapter,
