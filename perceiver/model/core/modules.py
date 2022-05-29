@@ -214,6 +214,7 @@ class SelfAttentionBlock(Sequential):
         widening_factor: int = 1,
         dropout: float = 0.0,
         activation_checkpointing: bool = False,
+        activation_offloading: bool = False,
     ):
         layers = [
             SelfAttentionLayer(
@@ -228,7 +229,7 @@ class SelfAttentionBlock(Sequential):
         ]
 
         if activation_checkpointing:
-            layers = [checkpoint_wrapper(layer) for layer in layers]
+            layers = [checkpoint_wrapper(layer, offload_to_cpu=activation_offloading) for layer in layers]
 
         super().__init__(*layers)
 
@@ -340,6 +341,7 @@ class PerceiverEncoder(nn.Module):
         dropout: float = 0.0,
         init_scale: float = 0.02,
         activation_checkpointing: bool = False,
+        activation_offloading: bool = False,
     ):
         """Generic Perceiver IO encoder.
 
@@ -371,6 +373,7 @@ class PerceiverEncoder(nn.Module):
         :param init_scale: Standard deviation for random normal initialization of parameters.
         :param activation_checkpointing: If True, implements an activation checkpoint for each self-attention
             layer and cross-attention layer.
+        :param activation_offloading: If True, offloads checkpointed activations to CPU.
         """
         super().__init__()
 
@@ -401,7 +404,9 @@ class PerceiverEncoder(nn.Module):
                 widening_factor=cross_attention_widening_factor,
                 dropout=dropout,
             )
-            return checkpoint_wrapper(layer) if activation_checkpointing else layer
+            return (
+                checkpoint_wrapper(layer, offload_to_cpu=activation_offloading) if activation_checkpointing else layer
+            )
 
         def self_attn():
             return SelfAttentionBlock(
@@ -413,6 +418,7 @@ class PerceiverEncoder(nn.Module):
                 widening_factor=self_attention_widening_factor,
                 dropout=dropout,
                 activation_checkpointing=activation_checkpointing,
+                activation_offloading=activation_offloading,
             )
 
         self.cross_attn_n = cross_attn()
@@ -469,6 +475,7 @@ class PerceiverDecoder(nn.Module):
         dropout: float = 0.0,
         init_scale: float = 0.02,
         activation_checkpointing: bool = False,
+        activation_offloading: bool = False,
     ):
         """Generic Perceiver IO decoder.
 
@@ -485,6 +492,7 @@ class PerceiverDecoder(nn.Module):
         :param init_scale: Standard deviation for random normal initialization of parameters.
         :param activation_checkpointing: If True, implements an activation checkpoint for the decoder's
             cross-attention layer.
+        :param activation_offloading: If True, offloads checkpointed activations to CPU.
         """
         super().__init__()
 
@@ -499,7 +507,7 @@ class PerceiverDecoder(nn.Module):
         )
 
         if activation_checkpointing:
-            cross_attn = checkpoint_wrapper(cross_attn)
+            cross_attn = checkpoint_wrapper(cross_attn, offload_to_cpu=activation_offloading)
 
         self.cross_attn = cross_attn
         self.output_adapter = output_adapter

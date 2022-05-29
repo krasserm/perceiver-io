@@ -37,7 +37,12 @@ class TextInputAdapter(InputAdapter):
 
 class TextEncoder(PerceiverEncoder):
     def __init__(
-        self, config: TextEncoderConfig, num_latents: int, num_latent_channels: int, activation_checkpointing: bool
+        self,
+        config: TextEncoderConfig,
+        num_latents: int,
+        num_latent_channels: int,
+        activation_checkpointing: bool,
+        activation_offloading: bool,
     ):
         input_adapter = TextInputAdapter(
             vocab_size=config.vocab_size,
@@ -50,5 +55,6 @@ class TextEncoder(PerceiverEncoder):
             num_latents=num_latents,
             num_latent_channels=num_latent_channels,
             activation_checkpointing=activation_checkpointing,
+            activation_offloading=activation_offloading,
             **config.base_kwargs()
         )

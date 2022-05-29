@@ -54,6 +54,7 @@ class MLM(PerceiverIO):
             num_latents=config.num_latents,
             num_latent_channels=config.num_latent_channels,
             activation_checkpointing=config.activation_checkpointing,
+            activation_offloading=config.activation_offloading,
         )
         if config.decoder.num_output_query_channels is None:
             output_adapter = TiedTextOutputAdapter(
@@ -73,6 +74,7 @@ class MLM(PerceiverIO):
             output_adapter=output_adapter,
             num_latent_channels=config.num_latent_channels,
             activation_checkpointing=config.activation_checkpointing,
+            activation_offloading=config.activation_offloading,
             **config.decoder.base_kwargs()
         )
         super().__init__(encoder, decoder)
@@ -104,6 +106,7 @@ class LitMLM(LitModel):
                 num_latents=self.hparams.num_latents,
                 num_latent_channels=self.hparams.num_latent_channels,
                 activation_checkpointing=self.hparams.activation_checkpointing,
+                activation_offloading=self.hparams.activation_offloading,
             )
         )
         self.loss = nn.CrossEntropyLoss()

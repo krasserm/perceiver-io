@@ -116,6 +116,7 @@ class ImageClassifier(PerceiverIO):
             num_latents=config.num_latents,
             num_latent_channels=config.num_latent_channels,
             activation_checkpointing=config.activation_checkpointing,
+            activation_offloading=config.activation_offloading,
             **encoder_kwargs,
         )
         output_adapter = ClassificationOutputAdapter(
@@ -128,6 +129,7 @@ class ImageClassifier(PerceiverIO):
             output_adapter=output_adapter,
             num_latent_channels=config.num_latent_channels,
             activation_checkpointing=config.activation_checkpointing,
+            activation_offloading=config.activation_offloading,
             **config.decoder.base_kwargs(),
         )
         super().__init__(encoder, decoder)
@@ -143,6 +145,7 @@ class LitImageClassifier(LitClassifier):
                 num_latents=self.hparams.num_latents,
                 num_latent_channels=self.hparams.num_latent_channels,
                 activation_checkpointing=self.hparams.activation_checkpointing,
+                activation_offloading=self.hparams.activation_offloading,
             )
         )
 

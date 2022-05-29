@@ -15,6 +15,7 @@ class LitModel(pl.LightningModule):
         num_latents: int,
         num_latent_channels: int,
         activation_checkpointing: bool = False,
+        activation_offloading: bool = False,
     ):
         super().__init__()
         self.save_hyperparameters()

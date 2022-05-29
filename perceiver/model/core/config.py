@@ -49,7 +49,8 @@ class PerceiverConfig(Generic[E, D]):
     decoder: D
     num_latents: int
     num_latent_channels: int
-    activation_checkpointing: bool
+    activation_checkpointing: bool = False
+    activation_offloading: bool = False
 
 
 @dataclass
