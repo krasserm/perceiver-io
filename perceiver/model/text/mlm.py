@@ -10,9 +10,7 @@ from torch import Tensor
 from perceiver.model.core import DecoderConfig, LitModel, OutputAdapter, PerceiverConfig, PerceiverDecoder, PerceiverIO
 from perceiver.model.text.common import TextEncoder, TextEncoderConfig
 from perceiver.preproc.text import TextPreprocessor
-
-
-MASK_TOKEN = "[MASK]"
+from perceiver.preproc.text.tokenizer import MASK_TOKEN
 
 
 @dataclass
@@ -141,8 +139,8 @@ class LitMLM(LitModel):
 
     def on_validation_epoch_end(self) -> None:
         if self.hparams.masked_samples:
-            masked_samples = [ms.replace("<MASK>", MASK_TOKEN) for ms in self.hparams.masked_samples]
-            mask_predictions = self._predict_masked_samples(masked_samples=masked_samples)
+            masked_samples = [ms.replace(MASK_TOKEN, "[MASK]") for ms in self.hparams.masked_samples]
+            mask_predictions = self._predict_masks(masked_samples=self.hparams.masked_samples)
 
             if isinstance(self.logger, TensorBoardLogger):
                 text = "\n\n".join(["  \n".join([s] + ps) for s, ps in zip(masked_samples, mask_predictions)])
@@ -151,7 +149,7 @@ class LitMLM(LitModel):
                 # support other loggers here ...
                 ...
 
-    def _predict_masked_samples(self, masked_samples):
+    def _predict_masks(self, masked_samples):
         n = len(masked_samples)
 
         xs, ms = self.preprocessor.preprocess_batch(masked_samples)

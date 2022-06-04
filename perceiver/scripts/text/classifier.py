@@ -1,7 +1,7 @@
 from pytorch_lightning.utilities.cli import LightningArgumentParser
 
 # auto-register data module
-from perceiver.data.text import imdb  # noqa: F401
+from perceiver.data import text  # noqa: F401
 from perceiver.model.text.classifier import LitTextClassifier
 from perceiver.scripts.cli import CLI
 

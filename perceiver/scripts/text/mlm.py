@@ -5,7 +5,7 @@ from pytorch_lightning.utilities.cli import LightningArgumentParser, LRScheduler
 from torch.optim import Optimizer
 
 # auto-register data module
-from perceiver.data.text import imdb  # noqa: F401
+from perceiver.data import text  # noqa: F401
 from perceiver.model.text.mlm import LitMLM
 from perceiver.scripts.cli import CLI
 from perceiver.scripts.lrs import CosineWithWarmupLR
@@ -34,8 +34,8 @@ class MaskedLanguageModelCLI(CLI):
                 "model.decoder.num_cross_attention_heads": 4,
                 "model.num_predictions": 5,
                 "model.masked_samples": [
-                    "I have watched this <MASK> and it was awesome",
-                    "I have <MASK> this movie and <MASK> was really terrible",
+                    "I have watched this <mask> and it was awesome",
+                    "I have <mask> this movie and <mask> was really terrible",
                 ],
             }
         )

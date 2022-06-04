@@ -43,5 +43,5 @@ demonstrating a performance improvement by increasing the number of input, laten
 
 ![mlm](checkpointing.png)
 
-If `--model.encoder.num_self_attention_blocks` is greater than `1`, the option `--trainer.strategy=ddp_static_graph`
+If `--model.encoder.num_self_attention_blocks` is greater than `1`, option `--trainer.strategy=ddp_static_graph`
 must be used in order to support checkpointing.

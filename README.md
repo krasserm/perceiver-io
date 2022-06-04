@@ -243,18 +243,21 @@ python -m perceiver.scripts.text.mlm fit \
   --model.encoder.dropout=0.0 \
   --model.decoder.num_output_query_channels=64 \
   --model.decoder.dropout=0.0 \
+  --model.activation_checkpointing=true \
+  --model.activation_offloading=true \
   --data=ImdbDataModule \
-  --data.vocab_size=10003 \
+  --data.dataset_path=.cache/imdb/imdb-grouped \
+  --data.tokenizer_path=.cache/sentencepiece-wikipedia-ext.json \
+  --data.target_task=wwm \
   --data.max_seq_len=512 \
-  --data.batch_size=64 \
-  --data.target_task=mlm \
-  --data.chunk_text=false \
+  --data.batch_size=32 \
   --optimizer=AdamW \
   --optimizer.lr=1e-3 \
   --optimizer.weight_decay=0.0 \
-  --lr_scheduler.warmup_steps=5000 \
+  --lr_scheduler.warmup_steps=100 \
   --trainer.accelerator=gpu \
   --trainer.devices=-1 \
+  --trainer.strategy=ddp_static_graph \
   --trainer.max_steps=50000 \
   --trainer.check_val_every_n_epoch=5 \
   --trainer.logger=TensorBoardLogger \
@@ -262,19 +265,18 @@ python -m perceiver.scripts.text.mlm fit \
   --trainer.logger.name=mlm
 ```
 
-For saving GPU memory and scaling model training, [activation checkpointing](docs/checkpointing.md) can be enabled with
-`--model.activation_checkpointing=true` (disabled by default).
+For saving GPU memory and scaling model training, [activation checkpointing](https://pytorch-lightning.readthedocs.io/en/latest/advanced/advanced_gpu.html#fairscale-activation-checkpointing)
+is enabled with `--model.activation_checkpointing=true`. If `--model.encoder.num_self_attention_blocks` is greater than
+`1`, option `--trainer.strategy=ddp_static_graph` must be used in order to support checkpointing.
 
 ### Sentiment classification
 
-Train a classification decoder using a frozen encoder from [masked language modeling](#masked-language-modeling).
-If you ran MLM yourself you'll need to modify the `--model.mlm_ckpt` argument accordingly, otherwise download
-checkpoints from [here](https://martin-krasser.com/perceiver/logs-update-4.zip) and extract them in the root directory of
-this project.
+Train a classification decoder using a frozen encoder from [masked language modeling](#masked-language-modeling). The
+`--model.mlm_ckpt` argument must be set to a checkpoint from the previous run.
 
 ```shell
 python -m perceiver.scripts.text.classifier fit \
-  --model.mlm_ckpt='logs/mlm/version_0/checkpoints/epoch=249-val_loss=4.616.ckpt' \
+  --model.mlm_ckpt=<path-to-mlm-checkpoint> \
   --model.num_latents=64 \
   --model.num_latent_channels=64 \
   --model.encoder.num_input_channels=64 \
@@ -286,7 +288,8 @@ python -m perceiver.scripts.text.classifier fit \
   --model.decoder.num_output_query_channels=64 \
   --model.decoder.dropout=0.0 \
   --data=ImdbDataModule \
-  --data.vocab_size=10003 \
+  --data.dataset_path=.cache/imdb/imdb-tokenized \
+  --data.tokenizer_path=.cache/sentencepiece-wikipedia-ext.json \
   --data.max_seq_len=512 \
   --data.batch_size=128 \
   --optimizer=AdamW \
@@ -300,13 +303,12 @@ python -m perceiver.scripts.text.classifier fit \
   --trainer.logger.name=seq_clf
 ```
 
-Unfreeze the encoder and jointly fine-tune it together with the decoder that has been trained in the previous step.
-If you ran the previous step yourself you'll need to modify the `--model.clf_ckpt` argument accordingly, otherwise
-download checkpoints from [here](https://martin-krasser.com/perceiver/logs-update-4.zip).
+Unfreeze the encoder and jointly fine-tune it together with the decoder that has been trained in the previous step. The
+`--model.clf_ckpt` argument must be set to a checkpoint from the previous run.
 
 ```shell
 python -m perceiver.scripts.text.classifier fit \
-  --model.clf_ckpt='logs/seq_clf/version_0/checkpoints/epoch=015-val_loss=0.347.ckpt' \
+  --model.clf_ckpt=<path-to-clf-checkpoint> \
   --model.num_latents=64 \
   --model.num_latent_channels=64 \
   --model.encoder.num_input_channels=64 \
@@ -317,7 +319,8 @@ python -m perceiver.scripts.text.classifier fit \
   --model.decoder.num_output_query_channels=64 \
   --model.decoder.dropout=0.2 \
   --data=ImdbDataModule \
-  --data.vocab_size=10003 \
+  --data.dataset_path=.cache/imdb/imdb-tokenized \
+  --data.tokenizer_path=.cache/sentencepiece-wikipedia-ext.json \
   --data.max_seq_len=512 \
   --data.batch_size=128 \
   --optimizer=AdamW \
