@@ -97,8 +97,8 @@ class WWMCollator:
         with mask tokens and replaces 10% with random words and leaves 10% unchanged.
 
         A limitation of this implementation is that it (currently) ignores special tokens i.e. assumes that all input
-        tokens are non-special tokens. This assumption holds when a text dataset has been grouped and chunked with the
-        `group_dataset` function in `perceiver.scripts.text.dataset`.
+        tokens are non-special tokens. This assumption holds when a text dataset has been chunked with the
+        `chunk_dataset` function in `perceiver.scripts.text.dataset`.
         """
         for example in examples:
             word_ids = example.pop("word_ids")

@@ -1,4 +1,5 @@
 import argparse
+import multiprocessing
 import os
 from itertools import chain
 from typing import Sequence
@@ -38,17 +39,17 @@ def tokenize_dataset(dataset: DatasetDict, tokenizer: Tokenizer, batch_size: int
     return result
 
 
-def group_dataset(
+def chunk_dataset(
     dataset: DatasetDict,
     max_seq_len: int,
     batch_size: int,
     num_proc: int,
-    group_keys: Sequence[str] = ("input_ids", "word_ids"),
-    exclude_keys: Sequence[str] = (),
+    include_keys: Sequence[str] = ("input_ids", "word_ids"),
+    remove_keys: Sequence[str] = (),
 ):
-    def group(*args):
-        chained = {k: list(chain(*args[i])) for i, k in enumerate(group_keys)}
-        chained_len = len(chained[group_keys[0]])
+    def chunk(*args):
+        chained = {k: list(chain(*args[i])) for i, k in enumerate(include_keys)}
+        chained_len = len(chained[include_keys[0]])
         if chained_len >= max_seq_len:
             chained_len = (chained_len // max_seq_len) * max_seq_len
         return {k: [t[i : i + max_seq_len] for i in range(0, chained_len, max_seq_len)] for k, t in chained.items()}
@@ -56,14 +57,14 @@ def group_dataset(
     result = DatasetDict()
     for key in dataset.keys():
         result[key] = dataset[key].map(
-            group,
+            chunk,
             batched=True,
             batch_size=batch_size,
-            input_columns=list(group_keys),
-            remove_columns=list(exclude_keys),
+            input_columns=list(include_keys),
+            remove_columns=list(remove_keys),
             num_proc=num_proc,
             load_from_cache_file=False,
-            desc=f"Grouping dataset into chunks of {max_seq_len}",
+            desc=f"Concatenate and split dataset into chunks of size {max_seq_len}",
         )
     return result
 
@@ -73,14 +74,14 @@ def prepare_wikipedia(args):
     dataset = load_dataset("wikipedia", "20220301.en", split="train", cache_dir=args.dataset_path)
     dataset = dataset.train_test_split(train_size=args.train_size, test_size=args.test_size)
     dataset = tokenize_dataset(dataset, tokenizer=tokenizer, batch_size=args.batch_size, num_proc=args.num_proc)
-    dataset = group_dataset(
+    dataset = chunk_dataset(
         dataset,
         max_seq_len=args.max_seq_len,
-        exclude_keys=["id", "url", "title"],
+        remove_keys=["id", "url", "title"],
         batch_size=args.batch_size,
         num_proc=args.num_proc,
     )
-    dataset.save_to_disk(os.path.join(os.path.join(args.dataset_path, "wikipedia-grouped")))
+    dataset.save_to_disk(os.path.join(os.path.join(args.dataset_path, "wikipedia-chunked")))
 
 
 def prepare_imdb(args):
@@ -94,14 +95,14 @@ def prepare_imdb(args):
     DatasetDict(train=dataset["train"], test=dataset["test"]).save_to_disk(
         os.path.join(os.path.join(args.dataset_path, "imdb-tokenized"))
     )
-    dataset = group_dataset(
+    dataset = chunk_dataset(
         DatasetDict(train=dataset["unsupervised"], test=dataset["test"]),
         max_seq_len=args.max_seq_len,
-        exclude_keys=["label"],
+        remove_keys=["label"],
         batch_size=args.batch_size,
         num_proc=args.num_proc,
     )
-    dataset.save_to_disk(os.path.join(os.path.join(args.dataset_path, "imdb-grouped")))
+    dataset.save_to_disk(os.path.join(os.path.join(args.dataset_path, "imdb-chunked")))
 
 
 def main(args):
@@ -111,6 +112,10 @@ def main(args):
         prepare_imdb(args)
     else:
         raise ValueError(f"Invalid dataset {args.dataset}")
+
+
+def default_num_proc():
+    return min(multiprocessing.cpu_count(), 12)
 
 
 if __name__ == "__main__":
@@ -124,5 +129,5 @@ if __name__ == "__main__":
     subparser.add_argument("--train_size", default=None, type=int)
     subparser.add_argument("--test_size", default=None, type=int)
     subparser.add_argument("--batch_size", default=10, type=int)
-    subparser.add_argument("--num_proc", default=5, type=int)
+    subparser.add_argument("--num_proc", default=default_num_proc(), type=int)
     main(parser.parse_args())
