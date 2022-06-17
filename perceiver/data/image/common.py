@@ -1,4 +1,5 @@
 import torch
+from PIL import Image
 
 
 class ImagePreprocessor:
@@ -18,3 +19,11 @@ def lift_transform(transform):
         return examples
 
     return apply
+
+
+def to_rgb(image: Image.Image) -> Image.Image:
+    return image.convert("RGB")
+
+
+def channels_to_last(img: torch.Tensor) -> torch.Tensor:
+    return img.permute(1, 2, 0).contiguous()
