@@ -1,5 +1,4 @@
 import math
-
 from dataclasses import dataclass
 from typing import Any, Optional, Tuple
 
@@ -150,5 +149,7 @@ class LitImageClassifier(LitClassifier):
         )
 
     def forward(self, batch):
-        x, y = batch
+        x = batch["image"]
+        y = batch["label"]
+
         return self.model(x), y

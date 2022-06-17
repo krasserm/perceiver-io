@@ -31,7 +31,8 @@ class LitClassifier(LitModel):
         logits, y = self(batch)
         loss = self.loss(logits, y)
         y_pred = logits.argmax(dim=-1)
-        acc = self.acc(y_pred, y)
+        y_target = y if y.dim() == 1 else y.argmax(dim=-1)
+        acc = self.acc(y_pred, y_target)
         return loss, acc
 
     def training_step(self, batch, batch_idx):

@@ -13,3 +13,14 @@ class CosineWithWarmupLR(LambdaLR):
             return max(0.0, 0.5 * (1.0 + math.cos(math.pi * float(num_cycles) * 2.0 * progress)))
 
         super().__init__(optimizer, lr_lambda, -1)
+
+
+class CosineWithConstantPhaseLR(LambdaLR):
+    def __init__(self, optimizer: Optimizer, training_epochs: int, constant_epochs: int = 0, num_cycles: float = 0.5):
+        def lr_lambda(current_step):
+            if current_step < constant_epochs:
+                return 1
+            progress = float(current_step - constant_epochs) / float(max(1, training_epochs - constant_epochs))
+            return max(0.0, 0.5 * (1.0 + math.cos(math.pi * float(num_cycles) * 2.0 * progress)))
+
+        super().__init__(optimizer, lr_lambda, -1)
