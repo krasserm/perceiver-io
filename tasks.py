@@ -44,9 +44,23 @@ def clean(c):
 
 
 @task
-def build(c):
+def dist(c):
     clean(c)
     c.run("poetry build", pty=_use_pty())
+
+
+@task
+def docker(c, build=True, tag=False, push=False):
+    version = _package_version(c)
+
+    if build:
+        dist(c)
+        c.run(f"docker build -t perceiver-io --build-arg package_version={version} .")
+    if tag:
+        c.run(f"docker tag perceiver-io perceiver-io:{version}")
+    if push:
+        # TODO: implement push
+        ...
 
 
 @task(aliases=["cc"])
@@ -61,6 +75,10 @@ def test(c, cov=False, cov_report=None):
 
 def _use_pty():
     return platform != "win32"
+
+
+def _package_version(c):
+    return c.run("poetry version", dry=False, hide="out").stdout.split(" ")[1].strip()
 
 
 def _run_pytest(c, test_dir, cov=False, cov_report=None, pty=True):
