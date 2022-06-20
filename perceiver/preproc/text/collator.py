@@ -1,4 +1,3 @@
-import warnings
 from collections import defaultdict
 from typing import Optional
 
@@ -6,13 +5,9 @@ import numpy as np
 import torch
 
 from tokenizers import Tokenizer
-from transformers.data.data_collator import (
-    DataCollatorForLanguageModeling,
-    DataCollatorForWholeWordMask,
-    DataCollatorWithPadding,
-)
+from transformers.data.data_collator import DataCollatorForLanguageModeling, DataCollatorWithPadding
 
-from perceiver.preproc.text.tokenizer import adapt_tokenizer, MASK_TOKEN, PAD_TOKEN
+from perceiver.preproc.text.tokenizer import adapt_tokenizer, MASK_TOKEN
 
 
 class TextPreprocessor:
@@ -62,18 +57,6 @@ class MLMCollator:
     def __call__(self, *args, **kwargs):
         result = self.collator(*args, **kwargs)
         return result["input_ids"], result["labels"], ~result["attention_mask"].type(torch.bool)
-
-
-class WWMCollatorOld:
-    def __init__(self, tokenizer: Tokenizer, mlm_probability=0.15):
-        self.pad_token_id = tokenizer.token_to_id(PAD_TOKEN)
-        self.collator = DataCollatorForWholeWordMask(adapt_tokenizer(tokenizer), mlm_probability=mlm_probability)
-
-    def __call__(self, *args, **kwargs):
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            result = self.collator(*args, **kwargs)
-        return result["input_ids"], result["labels"], result["input_ids"] == self.pad_token_id
 
 
 class WWMCollator:

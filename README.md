@@ -45,13 +45,14 @@ articles and then concatenates and splits them into chunks of equal size.
 
 ```shell
 python -m perceiver.scripts.text.dataset preprocess wikipedia \
-  --dataset_path=.cache/wikipedia \
-  --tokenizer_path=.cache/sentencepiece-wikipedia.json \
+  --dataset_dir=.cache/wikipedia \
+  --tokenizer_file=.cache/sentencepiece-wikipedia.json \
+  --output_dir=.cache/wikipedia-preproc \
   --batch_size=10
 ```
 
-The original dataset is downloaded and cached in `.cache/wikipedia`. The preprocessed dataset is stored in subdirectory
-`wikipedia-chunked` and can be used for masked language modeling.
+The original dataset is downloaded and cached in `.cache/wikipedia`. The preprocessed dataset is stored in
+`.cache/wikipedia-preproc` and can be used for masked language modeling.
 
 ### IMDb preprocessing
 
@@ -60,14 +61,14 @@ concatenates and splits them into chunks of equal size.
 
 ```shell
 python -m perceiver.scripts.text.dataset preprocess imdb \
-  --dataset_path=.cache/imdb \
-  --tokenizer_path=.cache/sentencepiece-wikipedia-ext.json \
+  --dataset_dir=.cache/imdb \
+  --tokenizer_file=.cache/sentencepiece-wikipedia-ext.json \
+  --output_dir=.cache/imdb-preproc \
   --batch_size=500
 ```
 
-The original dataset is downloaded and cached in `.cache/imdb`. The tokenized dataset is stored in subdirectory
-`imdb-tokenized` and can be used for sentiment classification. The chunked dataset is stored in subdirectory
-`imdb-chunked` and can be used for masked language modeling.
+The original dataset is downloaded and cached in `.cache/imdb`. The preprocessed dataset is stored in
+`.cache/imdb-preproc` and can be used for masked language modeling and sentiment classification.
 
 ### ImageNet preprocessing
 

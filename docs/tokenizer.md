@@ -6,8 +6,8 @@ trained tokenizer is stored at `.cache/sentencepiece-wikipedia.json`. It was tra
 
 ```shell
 python -m perceiver.scripts.text.tokenizer train wikipedia \
-  --dataset_path=.cache/wikipedia \
-  --tokenizer_path=.cache/sentencepiece-wikipedia.json \
+  --dataset_dir=.cache/wikipedia \
+  --output_file=.cache/sentencepiece-wikipedia.json \
   --vocab_size=32000
 ```
 
@@ -18,6 +18,6 @@ reviews. It has been created with:
 ```shell
 python -m perceiver.scripts.text.tokenizer extend \
   --replacement=["<br />","\n"] \
-  --tokenizer_input_path=.cache/sentencepiece-wikipedia.json \
-  --tokenizer_output_path=.cache/sentencepiece-wikipedia-ext.json
+  --tokenizer_file=.cache/sentencepiece-wikipedia.json \
+  --output_file=.cache/sentencepiece-wikipedia-ext.json
 ```

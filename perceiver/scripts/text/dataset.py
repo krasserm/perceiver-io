@@ -64,14 +64,14 @@ def chunk_dataset(
             remove_columns=list(remove_keys),
             num_proc=num_proc,
             load_from_cache_file=False,
-            desc=f"Concatenate and split dataset into chunks of size {max_seq_len}",
+            desc=f"Split dataset into chunks of size {max_seq_len}",
         )
     return result
 
 
 def prepare_wikipedia(args):
-    tokenizer = Tokenizer.from_file(args.tokenizer_path)
-    dataset = load_dataset("wikipedia", "20220301.en", split="train", cache_dir=args.dataset_path)
+    tokenizer = Tokenizer.from_file(args.tokenizer_file)
+    dataset = load_dataset("wikipedia", "20220301.en", split="train", cache_dir=args.dataset_dir)
     dataset = dataset.train_test_split(train_size=args.train_size, test_size=args.test_size)
     dataset = tokenize_dataset(dataset, tokenizer=tokenizer, batch_size=args.batch_size, num_proc=args.num_proc)
     dataset = chunk_dataset(
@@ -81,28 +81,30 @@ def prepare_wikipedia(args):
         batch_size=args.batch_size,
         num_proc=args.num_proc,
     )
-    dataset.save_to_disk(os.path.join(os.path.join(args.dataset_path, "wikipedia-chunked")))
+    dataset.save_to_disk(os.path.join(args.output_dir, "chunked"))
 
 
 def prepare_imdb(args):
-    tokenizer = Tokenizer.from_file(args.tokenizer_path)
-    dataset = load_dataset("imdb", "plain_text", cache_dir=args.dataset_path)
+    tokenizer = Tokenizer.from_file(args.tokenizer_file)
+    dataset = load_dataset("imdb", "plain_text", cache_dir=args.dataset_dir)
 
     # TODO: apply train_size if defined
     # TODO: apply test_size if defined
 
-    dataset = tokenize_dataset(dataset, tokenizer=tokenizer, batch_size=args.batch_size, num_proc=args.num_proc)
-    DatasetDict(train=dataset["train"], test=dataset["test"]).save_to_disk(
-        os.path.join(os.path.join(args.dataset_path, "imdb-tokenized"))
+    dataset_tokenized = tokenize_dataset(
+        dataset, tokenizer=tokenizer, batch_size=args.batch_size, num_proc=args.num_proc
     )
-    dataset = chunk_dataset(
-        DatasetDict(train=dataset["unsupervised"], test=dataset["test"]),
+    dataset_chunked = chunk_dataset(
+        DatasetDict(train=dataset_tokenized["unsupervised"], test=dataset_tokenized["test"]),
         max_seq_len=args.max_seq_len,
         remove_keys=["label"],
         batch_size=args.batch_size,
         num_proc=args.num_proc,
     )
-    dataset.save_to_disk(os.path.join(os.path.join(args.dataset_path, "imdb-chunked")))
+    dataset_tokenized = DatasetDict(train=dataset_tokenized["train"], test=dataset_tokenized["test"])
+    dataset_tokenized = dataset_tokenized.remove_columns(["word_ids"])
+    dataset_tokenized.save_to_disk(os.path.join(os.path.join(args.output_dir, "tokenized")))
+    dataset_chunked.save_to_disk(os.path.join(args.output_dir, "chunked"))
 
 
 def main(args):
@@ -123,8 +125,9 @@ if __name__ == "__main__":
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparser = subparsers.add_parser("preprocess", description="Preprocess dataset for training")
     subparser.add_argument("dataset", default="wikipedia", choices=["wikipedia", "imdb"])
-    subparser.add_argument("--dataset_path", default=os.path.join(".cache", "wikipedia"))
-    subparser.add_argument("--tokenizer_path", default=os.path.join(".cache", "sentencepiece-wikipedia.json"))
+    subparser.add_argument("--dataset_dir", default=os.path.join(".cache", "wikipedia"))
+    subparser.add_argument("--tokenizer_file", default=os.path.join(".cache", "sentencepiece-wikipedia.json"))
+    subparser.add_argument("--output_dir", default=os.path.join(".cache", "wikipedia-preproc"))
     subparser.add_argument("--max_seq_len", default=512, type=int)
     subparser.add_argument("--train_size", default=None, type=int)
     subparser.add_argument("--test_size", default=None, type=int)

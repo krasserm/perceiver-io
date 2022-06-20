@@ -14,14 +14,10 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
 class TextDataModule(pl.LightningDataModule):
-    class Task(Enum):
-        mlm = 0
-        wwm = 1
-
     def __init__(
         self,
-        dataset_path: str,
-        tokenizer_path: str,
+        dataset_dir: str,
+        tokenizer_file: str,
         max_seq_len: int = 512,
         batch_size: int = 64,
         num_workers: int = 3,
@@ -29,10 +25,18 @@ class TextDataModule(pl.LightningDataModule):
     ):
         super().__init__()
         self.save_hyperparameters()
-        self.tokenizer = Tokenizer.from_file(tokenizer_path)
+        self.tokenizer = Tokenizer.from_file(tokenizer_file)
         self.collator = None
         self.ds_train = None
         self.ds_valid = None
+
+    def setup(self, stage=None):
+        dataset = self.load_dataset()
+        self.ds_train = dataset["train"]
+        self.ds_valid = dataset["test"]
+
+    def load_dataset(self):
+        raise NotImplementedError()
 
     @property
     def vocab_size(self):
@@ -41,11 +45,6 @@ class TextDataModule(pl.LightningDataModule):
     @property
     def max_seq_len(self):
         return self.hparams.max_seq_len
-
-    def setup(self, stage=None):
-        dataset = DatasetDict.load_from_disk(self.hparams.dataset_path)
-        self.ds_train = dataset["train"]
-        self.ds_valid = dataset["test"]
 
     def train_dataloader(self):
         return DataLoader(
@@ -76,19 +75,21 @@ class WikipediaDataModule(TextDataModule):
     def __init__(
         self,
         *args: Any,
-        tokenizer_path: str = os.path.join(".cache", "sentencepiece-wikipedia.json"),
+        tokenizer_file: str = os.path.join(".cache", "sentencepiece-wikipedia.json"),
         target_task: Task = Task.mlm,
         mask_prob: float = 0.15,
         **kwargs: Any,
     ):
-        super().__init__(*args, tokenizer_path=tokenizer_path, **kwargs)
-        self.save_hyperparameters()
+        super().__init__(*args, tokenizer_file=tokenizer_file, **kwargs)
         if target_task == WikipediaDataModule.Task.mlm:
             self.collator = MLMCollator(tokenizer=self.tokenizer, mlm_probability=mask_prob)
         elif target_task == WikipediaDataModule.Task.wwm:
             self.collator = WWMCollator(tokenizer=self.tokenizer, wwm_probability=mask_prob)
         else:
             raise ValueError(f"Invalid target task {target_task}")
+
+    def load_dataset(self):
+        return DatasetDict.load_from_disk(self.hparams.dataset_dir)
 
 
 class ImdbDataModule(TextDataModule):
@@ -100,13 +101,12 @@ class ImdbDataModule(TextDataModule):
     def __init__(
         self,
         *args: Any,
-        tokenizer_path: str = os.path.join(".cache", "sentencepiece-wikipedia-ext.json"),
+        tokenizer_file: str = os.path.join(".cache", "sentencepiece-wikipedia-ext.json"),
         target_task: Task = Task.clf,
         mask_prob: float = 0.15,
         **kwargs: Any,
     ):
-        super().__init__(*args, tokenizer_path=tokenizer_path, **kwargs)
-        self.save_hyperparameters()
+        super().__init__(*args, tokenizer_file=tokenizer_file, **kwargs)
         if target_task == ImdbDataModule.Task.clf:
             self.collator = PaddingCollator(tokenizer=self.tokenizer, max_seq_len=self.hparams.max_seq_len)
         elif target_task == ImdbDataModule.Task.mlm:
@@ -115,3 +115,7 @@ class ImdbDataModule(TextDataModule):
             self.collator = WWMCollator(tokenizer=self.tokenizer, wwm_probability=mask_prob)
         else:
             raise ValueError(f"Invalid target task {target_task}")
+
+    def load_dataset(self):
+        subdir = "tokenized" if self.hparams.target_task == ImdbDataModule.Task.clf else "chunked"
+        return DatasetDict.load_from_disk(os.path.join(self.hparams.dataset_dir, subdir))

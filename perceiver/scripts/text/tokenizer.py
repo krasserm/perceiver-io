@@ -12,9 +12,9 @@ from perceiver.preproc.text.tokenizer import create_tokenizer, SPECIAL_TOKENS, U
 
 def train_tokenizer(args):
     if args.dataset == "wikipedia":
-        dataset = load_dataset("wikipedia", "20220301.en", split="train", cache_dir=args.dataset_path)
+        dataset = load_dataset("wikipedia", "20220301.en", split="train", cache_dir=args.dataset_dir)
     elif args.dataset == "imdb":
-        dataset = load_dataset("imdb", "plain_text", split="unsupervised", cache_dir=args.dataset_path)
+        dataset = load_dataset("imdb", "plain_text", split="unsupervised", cache_dir=args.dataset_dir)
     else:
         raise ValueError(f"Invalid dataset {args.dataset}")
 
@@ -29,7 +29,7 @@ def train_tokenizer(args):
     tokenizer = create_tokenizer()
     trainer = trainers.UnigramTrainer(vocab_size=args.vocab_size, special_tokens=SPECIAL_TOKENS, unk_token=UNK_TOKEN)
     tokenizer.train_from_iterator(text_generator(), trainer=trainer)
-    tokenizer.save(args.tokenizer_path)
+    tokenizer.save(args.output_file)
 
 
 def extend_tokenizer(args):
@@ -45,9 +45,9 @@ def extend_tokenizer(args):
         [Replace(unescape(replacement[0]), unescape(replacement[1])) for replacement in replacements]
     )
 
-    tokenizer = Tokenizer.from_file(args.tokenizer_input_path)
+    tokenizer = Tokenizer.from_file(args.tokenizer_file)
     tokenizer.normalizer = Sequence([replacements, tokenizer.normalizer])
-    tokenizer.save(args.tokenizer_output_path)
+    tokenizer.save(args.output_file)
 
 
 def main(args):
@@ -63,8 +63,8 @@ if __name__ == "__main__":
 
     subparser = jsonargparse.ArgumentParser(description="Train tokenizer")
     subparser.add_argument("dataset", default="wikipedia", choices=["wikipedia", "imdb"])
-    subparser.add_argument("--dataset_path", default=os.path.join(".cache", "wikipedia"))
-    subparser.add_argument("--tokenizer_path", default=os.path.join(".cache", "sentencepiece-wikipedia.json"))
+    subparser.add_argument("--dataset_dir", default=os.path.join(".cache", "wikipedia"))
+    subparser.add_argument("--output_file", default=os.path.join(".cache", "sentencepiece-wikipedia.json"))
     subparser.add_argument("--train_size", default=None, type=int)
     subparser.add_argument("--vocab_size", default=32000, type=int)
     subparser.add_argument("--batch_size", default=1000, type=int)
@@ -74,10 +74,8 @@ if __name__ == "__main__":
     subparser.add_argument(
         "--replacement", default=("<br />", r"\n"), type=Union[Tuple[str, str], List[Tuple[str, str]]]
     )
-    subparser.add_argument("--tokenizer_input_path", default=os.path.join(".cache", "sentencepiece-wikipedia.json"))
-    subparser.add_argument(
-        "--tokenizer_output_path", default=os.path.join(".cache", "sentencepiece-wikipedia-ext.json")
-    )
+    subparser.add_argument("--tokenizer_file", default=os.path.join(".cache", "sentencepiece-wikipedia.json"))
+    subparser.add_argument("--output_file", default=os.path.join(".cache", "sentencepiece-wikipedia-ext.json"))
     subcommands.add_subcommand("extend", subparser)
 
     main(parser.parse_args())
