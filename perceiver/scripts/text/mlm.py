@@ -4,8 +4,6 @@ from pytorch_lightning import LightningModule
 from pytorch_lightning.utilities.cli import LightningArgumentParser, LRSchedulerTypeUnion
 from torch.optim import Optimizer
 
-# auto-register data module
-from perceiver.data import text  # noqa: F401
 from perceiver.model.text.mlm import LitMLM
 from perceiver.scripts.cli import CLI
 from perceiver.scripts.lrs import CosineWithWarmupLR
