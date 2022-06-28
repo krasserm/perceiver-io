@@ -44,7 +44,7 @@ def clean(c):
 
 
 @task
-def dist(c):
+def build(c):
     clean(c)
     c.run("poetry build", pty=_use_pty())
 
@@ -54,8 +54,7 @@ def docker(c, build=True, tag=False, push=False):
     version = _package_version(c)
 
     if build:
-        dist(c)
-        c.run(f"docker build -t perceiver-io --build-arg package_version={version} .")
+        c.run("docker build -t perceiver-io .")
     if tag:
         c.run(f"docker tag perceiver-io perceiver-io:{version}")
     if push:

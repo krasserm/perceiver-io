@@ -27,11 +27,17 @@ pip install perceiver-io[image,text]
 
 ### From sources
 
+This requires a [conda installation](https://docs.conda.io/en/latest/miniconda.html) and a [poetry installation](https://python-poetry.org/docs/master/)
+(1.2.0b2 or higher).
+
 ```shell
 conda env create -f environment.yml
 conda activate perceiver-io
-poetry install -E image -E text
+poetry install --all-extras
 ```
+
+If poetry fails with a `KeyringError`, refer to the [keyring](https://keyring.readthedocs.io/) documentation how to
+[disable keyring](https://keyring.readthedocs.io/en/latest/?badge=latest#disabling-keyring) usage.
 
 ## Datasets
 

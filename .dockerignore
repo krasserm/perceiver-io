@@ -1,6 +1,6 @@
-.cache/imdb
+.cache/imdb*
+.cache/wikipedia*
 .cache/MNIST
-.cache/wikipedia
 .github
 docs
 notebooks
