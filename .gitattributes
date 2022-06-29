@@ -1,3 +1,2 @@
 notebooks/** linguist-vendored
-.cache/sentencepiece-wikipedia.json filter=lfs diff=lfs merge=lfs -text
-.cache/sentencepiece-wikipedia-ext.json filter=lfs diff=lfs merge=lfs -text
+tokenizers/*.json filter=lfs diff=lfs merge=lfs -text

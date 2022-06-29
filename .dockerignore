@@ -1,7 +1,4 @@
-.cache/imdb*
-.cache/wikipedia*
-.cache/MNIST
-.github
+.cache
 docs
 notebooks
 tests

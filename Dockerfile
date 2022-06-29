@@ -14,3 +14,4 @@ RUN /opt/poetry/bin/poetry config virtualenvs.create false
 RUN /opt/poetry/bin/poetry install --no-root --all-extras --without dev
 
 COPY perceiver ./perceiver
+COPY tokenizers ./tokenizers
