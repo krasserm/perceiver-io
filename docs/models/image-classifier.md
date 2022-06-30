@@ -1,14 +1,14 @@
-# Model interfaces
+# Image classifier
 
-The following sections walk through an example how to create an ImageNet classifier with the [PyTorch model API](#pytorch-model-api),
+The following sections demonstrate how to create a Perceiver IO image classifier with the [PyTorch model API](#pytorch-model-api),
 the [PyTorch Lightning model API](#pytorch-lightning-model-api) and the [Pytorch Lightning model CLI](#pytorch-lightning-model-cli).
+The model is specified in Appendix A of the [Perceiver IO paper](https://arxiv.org/abs/2107.14795) (Perceiver IO config A, with
+2D Fourier Features, 48.4M parameters).
 
 ## PyTorch model API
 
-The PyTorch model API is based on generic encoder and decoder classes (`PerceiverEncoder` and `PerceiverDecoder`) and
-task-specific input and output adapter classes. The following snippet shows how they can be used to create an ImageNet
-classifier as specified in Appendix A of the [Perceiver IO paper](https://arxiv.org/abs/2107.14795) (config A, with
-2D Fourier Features, 48.4M parameters):
+With the PyTorch model API, models are constructed from generic encoder and decoder classes and task-specific input and
+output adapter classes.
 
 ```python
 from perceiver.model.core import (
@@ -59,12 +59,13 @@ model = PerceiverIO(encoder, decoder)
 
 ## PyTorch Lightning model API
 
-Models created with the [PyTorch model API](#pytorch-model-api) are wrapped in task-specific [LightningModule](https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html)s
-(e.g. `LitImageClassifier`) so that they can be trained with the PyTorch Lightning [Trainer](https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html).
-A concrete encoder configuration class (e.g. `ImageEncoderConfig`) covers the configuration of the generic encoder and
-its concrete input adapter. A concrete decoder configuration class (`ClassificationDecoderConfig`) covers the configuration
-of the generic decoder and its concrete output adapter. The same model as in the [previous section](#pytorch-model-api),
-wrapped in a `LitImageClassifier`, can be created with:
+A task-specific [LightningModule](https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html)
+(`LitImageClassifier`) internally uses the [PyTorch model API](#pytorch-model-api) to construct PyTorch models from
+configuration objects. A concrete encoder configuration class (`ImageEncoderConfig`) covers the configuration of the
+generic encoder and its concrete input adapter. A concrete decoder configuration class (`ClassificationDecoderConfig`)
+covers the configuration of the generic decoder and its concrete output adapter. The same model as in the
+[previous section](#pytorch-model-api), wrapped in a `LitImageClassifier` instance, can be created with:
+
 
 ```python
 from perceiver.model.core import ClassificationDecoderConfig
@@ -88,7 +89,12 @@ decoder_cfg = ClassificationDecoderConfig(
     dropout=0.0,
 )
 
-lit_model = LitImageClassifier(encoder_cfg, decoder_cfg, num_latents=512, num_latent_channels=1024)
+lit_model = LitImageClassifier(
+    encoder_cfg,
+    decoder_cfg,
+    num_latents=512,
+    num_latent_channels=1024,
+)
 
 # Wrapped PyTorch model
 model = lit_model.model
@@ -98,7 +104,7 @@ model = lit_model.model
 
 The [PyTorch Lightning model API](#pytorch-lightning-model-api) is also designed for command-line binding via the
 [Lightning CLI](https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_cli.html). For example, when
-implementing a command line interface for `LitImageClassifier` with `LightningCLI` in a file named `classifier.py`
+implementing a command line interface for `LitImageClassifier` in a file named `classifier.py`
 
 ```python
 # File classifier.py

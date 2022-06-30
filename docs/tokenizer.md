@@ -2,12 +2,12 @@
 
 NLP examples in this project use a [SentencePiece](https://arxiv.org/abs/1808.06226) tokenizer [constructed](../perceiver/preproc/text/tokenizer.py)
 with the 🤗 [Tokenizers](https://huggingface.co/docs/tokenizers/index) library and trained on English Wikipedia. The
-trained tokenizer is stored at `.cache/sentencepiece-wikipedia.json`. It was trained with:
+trained tokenizer is stored at `tokenizers/sentencepiece-wikipedia.json`. It was trained with:
 
 ```shell
 python -m perceiver.scripts.text.tokenizer train wikipedia \
   --dataset_dir=.cache/wikipedia \
-  --output_file=.cache/sentencepiece-wikipedia.json \
+  --output_file=tokenizers/sentencepiece-wikipedia.json \
   --vocab_size=32000
 ```
 
@@ -18,6 +18,6 @@ reviews. It has been created with:
 ```shell
 python -m perceiver.scripts.text.tokenizer extend \
   --replacement=["<br />","\n"] \
-  --tokenizer_file=.cache/sentencepiece-wikipedia.json \
-  --output_file=.cache/sentencepiece-wikipedia-ext.json
+  --tokenizer_file=tokenizers/sentencepiece-wikipedia.json \
+  --output_file=tokenizers/sentencepiece-wikipedia-ext.json
 ```

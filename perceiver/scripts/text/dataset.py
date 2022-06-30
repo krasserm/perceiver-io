@@ -117,7 +117,7 @@ def main(args):
 
 
 def default_num_proc():
-    return min(multiprocessing.cpu_count(), 12)
+    return multiprocessing.cpu_count()
 
 
 if __name__ == "__main__":
