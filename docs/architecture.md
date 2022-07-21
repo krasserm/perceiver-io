@@ -1,0 +1,46 @@
+# Architecture
+
+This page shows how Perceiver IO and Perceiver concepts map to [core modules](../perceiver/model/core/modules.py)
+in this repository.
+
+## Perceiver IO
+
+![architecture-perceiver-io](images/architecture-perceiver-io.png)
+
+Perceiver IO models are constructed from generic `PerceiverEncoder` and `PerceiverDecoder` classes and task-specific
+`InputAdapter` and `OutputAdapter` subclasses. Array dimensions (`M`, `C`), (`N`, `D`), (`O`, `F`)  and (`O`, `E`)
+have the following names in code and/or on the command line (see also code comments [here](models/image-classifier/construction.md#pytorch-model-api)
+and [here](models/language-model/construction.md#pytorch-model-api)):
+
+| Array dimension | Configuration parameter name                                                    |
+|-----------------|---------------------------------------------------------------------------------|
+| `M`             | Input-specific name (e.g. `max_seq_len` for text input, ...)                    |
+| `C`             | `num_input_channels` (property of `InputAdapter`)                               |
+| `N`             | `num_latents`                                                                   |
+| `D`             | `num_latent_channels`                                                           |
+| `O`             | Output-specific name (e.g. `num_output_queries` for classification output, ...) |
+| `E`             | Output-specific name (e.g. `num_classes` for classification output, ...)        |
+| `F`             | `num_output_query_channels` (property of `OutputAdapter`)                       |
+
+The number of layers in a `SelfAttentionBlock` can be specified with `num_self_attention_layers_per_block` and the
+number of blocks with `num_self_attention_blocks` (`L` in the conceptual architecture).
+
+## Perceiver
+
+![architecture-perceiver](images/architecture-perceiver.png)
+
+[Perceiver IO](#perceiver-io) does **not** use repeated encoder cross-attention as described the [paper](https://arxiv.org/abs/2107.14795):
+
+> We omit the repeated encoder cross-attends used in [Perceiver](https://arxiv.org/abs/2103.03206) as we found these to
+> lead to relatively small performance improvements but to significantly slow down training ...
+
+This may be the case for the very large datasets as used in the Perceiver IO paper, but I found that repeated encoder
+cross-attention actually gives better training results for smaller datasets. Therefore, the implementation also
+supports repeated encoder cross-attention as described in the [Perceiver](https://arxiv.org/abs/2103.03206) paper.
+
+The number of repeated cross-attentions can be specified with `num_cross_attention_layers` (`P`) which must be less
+than or equal `num_self_attention_blocks` (`L`). Cross-attention layers 2 - `P` and self-attention blocks 2 - `L`
+always share their weights. Sharing the weights with the first cross-attention layer can be configured with
+`first_cross_attention_layer_shared`, sharing the weights with the first self-attention block can be configured with
+`first_self_attention_block_shared`. The default values of these configuration parameters are consistent with the
+Perceiver IO architecture (1 cross-attention layer, `L` self-attention blocks with weight sharing).

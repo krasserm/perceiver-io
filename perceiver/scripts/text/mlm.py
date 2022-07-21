@@ -4,14 +4,12 @@ from pytorch_lightning import LightningModule
 from pytorch_lightning.utilities.cli import LightningArgumentParser, LRSchedulerTypeUnion
 from torch.optim import Optimizer
 
-# auto-register data module
-from perceiver.data.text import imdb  # noqa: F401
-from perceiver.model.text.mlm import LitMLM
+from perceiver.model.text.language import LitLanguageModel
 from perceiver.scripts.cli import CLI
-from perceiver.scripts.lrs import CosineWithWarmupLR
+from perceiver.scripts.utils.scheduler import CosineWithWarmupLR
 
 
-class MaskedLanguageModelCLI(CLI):
+class MaskedLanguageModelingCLI(CLI):
     def add_arguments_to_parser(self, parser: LightningArgumentParser) -> None:
         super().add_arguments_to_parser(parser)
         parser.add_lr_scheduler_args(CosineWithWarmupLR)
@@ -22,20 +20,23 @@ class MaskedLanguageModelCLI(CLI):
         parser.link_arguments("data.max_seq_len", "model.decoder.max_seq_len", apply_on="instantiate")
         parser.set_defaults(
             {
-                "model.num_latents": 64,
-                "model.num_latent_channels": 64,
-                "model.encoder.num_input_channels": 64,
+                "model.num_latents": 128,
+                "model.num_latent_channels": 128,
+                "model.encoder.num_input_channels": 128,
+                "model.encoder.num_cross_attention_layers": 3,
                 "model.encoder.num_cross_attention_heads": 4,
                 "model.encoder.num_self_attention_heads": 4,
                 "model.encoder.num_self_attention_layers_per_block": 6,
                 "model.encoder.num_self_attention_blocks": 3,
                 "model.encoder.first_cross_attention_layer_shared": False,
                 "model.encoder.first_self_attention_block_shared": False,
+                "model.encoder.dropout": 0.0,
                 "model.decoder.num_cross_attention_heads": 4,
+                "model.decoder.dropout": 0.0,
                 "model.num_predictions": 5,
                 "model.masked_samples": [
-                    "I have watched this <MASK> and it was awesome",
-                    "I have <MASK> this movie and <MASK> was really terrible",
+                    "I have watched this <mask> and it was awesome",
+                    "I have <mask> this movie and <mask> was really terrible",
                 ],
             }
         )
@@ -52,4 +53,4 @@ class MaskedLanguageModelCLI(CLI):
 
 
 if __name__ == "__main__":
-    MaskedLanguageModelCLI(LitMLM, description="Masked language model", run=True)
+    MaskedLanguageModelingCLI(LitLanguageModel, description="Masked language model", run=True)

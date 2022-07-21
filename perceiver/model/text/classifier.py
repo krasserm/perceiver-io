@@ -10,7 +10,7 @@ from perceiver.model.core import (
 )
 from perceiver.model.core.utils import freeze
 from perceiver.model.text.common import TextEncoder, TextEncoderConfig
-from perceiver.model.text.mlm import LitMLM
+from perceiver.model.text.language import LitLanguageModel
 
 
 class TextClassifier(PerceiverIO):
@@ -20,16 +20,19 @@ class TextClassifier(PerceiverIO):
             num_latents=config.num_latents,
             num_latent_channels=config.num_latent_channels,
             activation_checkpointing=config.activation_checkpointing,
+            activation_offloading=config.activation_offloading,
         )
         output_adapter = ClassificationOutputAdapter(
             num_classes=config.decoder.num_classes,
             num_output_queries=config.decoder.num_output_queries,
             num_output_query_channels=config.decoder.num_output_query_channels,
+            init_scale=config.decoder.init_scale,
         )
         decoder = PerceiverDecoder(
             output_adapter=output_adapter,
             num_latent_channels=config.num_latent_channels,
             activation_checkpointing=config.activation_checkpointing,
+            activation_offloading=config.activation_offloading,
             **config.decoder.base_kwargs()
         )
         super().__init__(encoder, decoder)
@@ -54,10 +57,11 @@ class LitTextClassifier(LitClassifier):
                 num_latents=self.hparams.num_latents,
                 num_latent_channels=self.hparams.num_latent_channels,
                 activation_checkpointing=self.hparams.activation_checkpointing,
+                activation_offloading=self.hparams.activation_offloading,
             )
         )
         if mlm_ckpt is not None:
-            lit_model = LitMLM.load_from_checkpoint(mlm_ckpt)
+            lit_model = LitLanguageModel.load_from_checkpoint(mlm_ckpt)
             self.model.encoder.load_state_dict(lit_model.model.encoder.state_dict())
         elif clf_ckpt is not None:
             lit_model = LitTextClassifier.load_from_checkpoint(clf_ckpt)

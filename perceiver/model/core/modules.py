@@ -55,9 +55,9 @@ class MultiHeadAttention(nn.Module):
         self.dp_scale = num_qk_channels_per_head ** -0.5
         self.num_heads = num_heads
 
-        self.q_proj = nn.Linear(num_q_input_channels, num_qk_channels, bias=False)
-        self.k_proj = nn.Linear(num_kv_input_channels, num_qk_channels, bias=False)
-        self.v_proj = nn.Linear(num_kv_input_channels, num_v_channels, bias=False)
+        self.q_proj = nn.Linear(num_q_input_channels, num_qk_channels)
+        self.k_proj = nn.Linear(num_kv_input_channels, num_qk_channels)
+        self.v_proj = nn.Linear(num_kv_input_channels, num_v_channels)
         self.o_proj = nn.Linear(num_v_channels, num_output_channels)
         self.dropout = nn.Dropout(dropout)
 
@@ -214,6 +214,7 @@ class SelfAttentionBlock(Sequential):
         widening_factor: int = 1,
         dropout: float = 0.0,
         activation_checkpointing: bool = False,
+        activation_offloading: bool = False,
     ):
         layers = [
             SelfAttentionLayer(
@@ -228,7 +229,7 @@ class SelfAttentionBlock(Sequential):
         ]
 
         if activation_checkpointing:
-            layers = [checkpoint_wrapper(layer) for layer in layers]
+            layers = [checkpoint_wrapper(layer, offload_to_cpu=activation_offloading) for layer in layers]
 
         super().__init__(*layers)
 
@@ -273,19 +274,20 @@ class InputAdapter(nn.Module):
 
 
 class OutputAdapter(nn.Module):
-    def __init__(self, output_query: Tensor):
+    def __init__(self, output_query: Tensor, init_scale: float):
         """Transforms generic decoder cross-attention output to task-specific output.
 
-        :param output_query: output query prototype (does not include batch dimension) used as query input to
+        :param output_query: Output query prototype (does not include batch dimension) used as query input to
             generic decoder cross-attention.
+        :param init_scale: Output query parameter initialization scale.
         """
         super().__init__()
         self._output_query = nn.Parameter(output_query)
-        self._init_parameters()
+        self._init_parameters(init_scale)
 
-    def _init_parameters(self):
+    def _init_parameters(self, init_scale: float):
         with torch.no_grad():
-            self._output_query.normal_(0.0, 0.02).clamp_(-2.0, 2.0)
+            self._output_query.normal_(0.0, init_scale)
 
     @property
     def num_output_query_channels(self):
@@ -299,12 +301,18 @@ class OutputAdapter(nn.Module):
 
 
 class ClassificationOutputAdapter(OutputAdapter):
-    def __init__(self, num_classes: int, num_output_queries: int = 1, num_output_query_channels: Optional[int] = None):
+    def __init__(
+        self,
+        num_classes: int,
+        num_output_queries: int = 1,
+        num_output_query_channels: Optional[int] = None,
+        init_scale: float = 0.02,
+    ):
 
         if num_output_query_channels is None:
             num_output_query_channels = num_classes
 
-        super().__init__(output_query=torch.empty(num_output_queries, num_output_query_channels))
+        super().__init__(output_query=torch.empty(num_output_queries, num_output_query_channels), init_scale=init_scale)
         self.linear = nn.Linear(num_output_query_channels, num_classes)
 
     def forward(self, x):
@@ -331,7 +339,9 @@ class PerceiverEncoder(nn.Module):
         first_self_attention_block_shared: bool = True,
         self_attention_widening_factor: int = 1,
         dropout: float = 0.0,
+        init_scale: float = 0.02,
         activation_checkpointing: bool = False,
+        activation_offloading: bool = False,
     ):
         """Generic Perceiver IO encoder.
 
@@ -360,8 +370,10 @@ class PerceiverEncoder(nn.Module):
         :param first_self_attention_block_shared: Whether the first self-attention block should share its weights
             with subsequent self-attention blocks (if any).
         :param dropout: Dropout probability for self- and cross-attention layers and residuals.
+        :param init_scale: Standard deviation for random normal initialization of parameters.
         :param activation_checkpointing: If True, implements an activation checkpoint for each self-attention
             layer and cross-attention layer.
+        :param activation_offloading: If True, offloads checkpointed activations to CPU.
         """
         super().__init__()
 
@@ -392,7 +404,9 @@ class PerceiverEncoder(nn.Module):
                 widening_factor=cross_attention_widening_factor,
                 dropout=dropout,
             )
-            return checkpoint_wrapper(layer) if activation_checkpointing else layer
+            return (
+                checkpoint_wrapper(layer, offload_to_cpu=activation_offloading) if activation_checkpointing else layer
+            )
 
         def self_attn():
             return SelfAttentionBlock(
@@ -404,6 +418,7 @@ class PerceiverEncoder(nn.Module):
                 widening_factor=self_attention_widening_factor,
                 dropout=dropout,
                 activation_checkpointing=activation_checkpointing,
+                activation_offloading=activation_offloading,
             )
 
         self.cross_attn_n = cross_attn()
@@ -421,11 +436,12 @@ class PerceiverEncoder(nn.Module):
 
         # learnable initial latent vectors
         self.latent = nn.Parameter(torch.empty(num_latents, num_latent_channels))
-        self._init_parameters()
+        self._init_parameters(init_scale)
 
-    def _init_parameters(self):
+    def _init_parameters(self, init_scale: float):
         with torch.no_grad():
-            self.latent.normal_(0.0, 0.02).clamp_(-2.0, 2.0)
+            self.latent.normal_(0.0, init_scale)
+            _init_parameters(self, init_scale)
 
     def forward(self, x, pad_mask=None):
         b, *_ = x.shape
@@ -457,7 +473,9 @@ class PerceiverDecoder(nn.Module):
         num_cross_attention_v_channels: Optional[int] = None,
         cross_attention_widening_factor: int = 1,
         dropout: float = 0.0,
+        init_scale: float = 0.02,
         activation_checkpointing: bool = False,
+        activation_offloading: bool = False,
     ):
         """Generic Perceiver IO decoder.
 
@@ -471,8 +489,10 @@ class PerceiverDecoder(nn.Module):
         :param num_cross_attention_v_channels: Number of value channels for cross-attention
             (see `MultiHeadAttention.num_v_channels` for details).
         :param dropout: Dropout probability for cross-attention layers and residuals.
+        :param init_scale: Standard deviation for random normal initialization of parameters.
         :param activation_checkpointing: If True, implements an activation checkpoint for the decoder's
             cross-attention layer.
+        :param activation_offloading: If True, offloads checkpointed activations to CPU.
         """
         super().__init__()
 
@@ -487,10 +507,15 @@ class PerceiverDecoder(nn.Module):
         )
 
         if activation_checkpointing:
-            cross_attn = checkpoint_wrapper(cross_attn)
+            cross_attn = checkpoint_wrapper(cross_attn, offload_to_cpu=activation_offloading)
 
         self.cross_attn = cross_attn
         self.output_adapter = output_adapter
+        self._init_parameters(init_scale)
+
+    def _init_parameters(self, init_scale: float):
+        with torch.no_grad():
+            _init_parameters(self, init_scale)
 
     def forward(self, x):
         output_query = self.output_adapter.output_query(x)
@@ -509,3 +534,13 @@ class PerceiverIO(Sequential):
     @property
     def decoder(self):
         return self[1]
+
+
+def _init_parameters(module, init_scale):
+    for m in module.modules():
+        if isinstance(m, nn.Linear):
+            m.weight.data.normal_(mean=0.0, std=init_scale)
+            if m.bias is not None:
+                m.bias.data.zero_()
+        elif isinstance(m, nn.Embedding):
+            m.weight.data.normal_(mean=0.0, std=init_scale)

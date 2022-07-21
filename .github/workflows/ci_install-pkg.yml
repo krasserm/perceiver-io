@@ -12,14 +12,16 @@ jobs:
 
     steps:
       - uses: actions/checkout@master
+        with:
+          lfs: true
       - uses: actions/setup-python@v2
         with:
           python-version: 3.9
 
       - name: Install Poetry
-        uses: abatilo/actions-poetry@v2.0.0
-        with:
-          poetry-version: 1.1.13
+        shell: bash -l {0}
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 - --version 1.2.0b2
 
       - name: Create package
         run: |
@@ -42,10 +44,11 @@ jobs:
         python-version: [3.9]
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.python-version }}
+          lfs: true
 
       - name: Install Poetry
         uses: abatilo/actions-poetry@v2.0.0

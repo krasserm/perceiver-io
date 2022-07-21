@@ -116,17 +116,20 @@ class ImageClassifier(PerceiverIO):
             num_latents=config.num_latents,
             num_latent_channels=config.num_latent_channels,
             activation_checkpointing=config.activation_checkpointing,
+            activation_offloading=config.activation_offloading,
             **encoder_kwargs,
         )
         output_adapter = ClassificationOutputAdapter(
             num_classes=config.decoder.num_classes,
             num_output_queries=config.decoder.num_output_queries,
             num_output_query_channels=config.decoder.num_output_query_channels,
+            init_scale=config.decoder.init_scale,
         )
         decoder = PerceiverDecoder(
             output_adapter=output_adapter,
             num_latent_channels=config.num_latent_channels,
             activation_checkpointing=config.activation_checkpointing,
+            activation_offloading=config.activation_offloading,
             **config.decoder.base_kwargs(),
         )
         super().__init__(encoder, decoder)
@@ -142,9 +145,10 @@ class LitImageClassifier(LitClassifier):
                 num_latents=self.hparams.num_latents,
                 num_latent_channels=self.hparams.num_latent_channels,
                 activation_checkpointing=self.hparams.activation_checkpointing,
+                activation_offloading=self.hparams.activation_offloading,
             )
         )
 
     def forward(self, batch):
-        x, y = batch
+        y, x = batch["label"], batch["image"]
         return self.model(x), y

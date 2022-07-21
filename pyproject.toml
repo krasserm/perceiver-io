@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "perceiver-io"
-version = "0.3.0"
+version = "0.4.0"
 description = "Perceiver IO"
 readme = "README.md"
 authors = [
@@ -33,16 +33,15 @@ include = ["docs"]
 [tool.poetry.dependencies]
 python = "^3.7"
 pytorch-lightning = "1.6.*"
-torch = "1.11.*"
+torch = "1.11.0"
 fairscale = "0.4.*"
 torchmetrics = "0.8.*"
 torch-optimizer = "0.3.*"
 einops = "0.4.*"
-datasets = {version = "2.2.*", optional = true}
+datasets = {version = "2.3.*", optional = true}
 tokenizers = {version = "0.12.*", optional = true}
 transformers = {version = "4.19.*", optional = true}
-torchvision = {version = "0.12.*", optional = true}
-lightning-bolts = {version = "0.5.*", optional = true}
+torchvision = {version = "0.12.0", optional = true}
 jsonargparse = {extras = ["signatures"], version = "4.7.*"}
 
 [tool.poetry.dev-dependencies]
@@ -53,7 +52,7 @@ pytest-cov = "^3.0.0"
 
 [tool.poetry.extras]
 text = ["datasets", "tokenizers", "transformers"]
-image = ["torchvision", "lightning-bolts"]
+image = ["datasets", "torchvision"]
 
 [tool.black]
 line-length = 120
