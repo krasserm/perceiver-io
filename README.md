@@ -1,20 +1,42 @@
 # Perceiver IO
 
-This project is a PyTorch implementation of
+This repository is a PyTorch and [PyTorch Lightning](https://www.pytorchlightning.ai/) implementation of
 
-- [Perceiver: General Perception with Iterative Attention](https://arxiv.org/abs/2103.03206) and
-- [Perceiver IO: A General Architecture for Structured Inputs & Outputs](https://arxiv.org/abs/2107.14795)
+- [Perceiver IO: A General Architecture for Structured Inputs & Outputs](https://arxiv.org/abs/2107.14795) and
+- [Perceiver: General Perception with Iterative Attention](https://arxiv.org/abs/2103.03206)
 
-and supports training of Perceiver and Perceiver IO models with [Pytorch Lightning](https://www.pytorchlightning.ai/)
-at any scale.
 
-- Section [Architecture](#architecture) explains how this project implements Perceiver IO and Perceiver architectures.
-- Section [Model API](#model-api) gives an example how a Perceiver IO model can be created and configured with the
-  [PyTorch model API](#pytorch-model-api), the [PyTorch Lightning model API](#pytorch-lightning-model-api) and the
-  [command line interface](#pytorch-lightning-model-cli).
-- Section [Training examples](#training-examples) demonstrates how Perceiver IO models can be pretrained and fine-tuned.
-- Section [Inference examples](#inference-examples) links to Colab notebooks that demonstrate how trained Perceiver IO
-  models can be used for prediction.
+The codebase is designed for easy extension to new tasks and datasets. If you are a researcher or practitioner working
+on new Perceiver IO models and use cases, you might find this repository useful. The integration with PyTorch Lightning
+supports model training at any scale. On the other hand, if you are mainly interested in using or fine-tuning models
+from the Perceiver IO paper you may want to take a look at the 🤗 [Perceiver IO](https://huggingface.co/docs/transformers/model_doc/perceiver)
+implementation.
+
+## Overview
+
+The following figure maps Perceiver IO and Perceiver concepts to the [core modules](perceiver/model/core/modules.py) of
+the implementation (see [Architecture](docs/architecture.md) for details).
+
+![architecture](docs/images/architecture.png)
+
+Interfaces are defined on three levels:
+
+- *PyTorch model API*: defines generic `PerceiverEncoder` and `PerceiverDecoder` classes and task-specific `InputAdapter`
+  and `OutputAdapter` subclasses from which PyTorch models can be constructed.
+- *PyTorch Lightning model API*: defines wrappers for PyTorch models to support training with the
+  [PyTorch Lightning Trainer](https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html).
+- *PyTorch Lightning model CLI*: binds the PyTorch Lightning model API to the command line via the
+  [Lightning CLI](https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_cli.html).
+
+Interface usage examples are available for two models from the [Perceiver IO paper](https://arxiv.org/abs/2107.14795):
+
+| Model                                                           | Parameters |                                                              |                                                      |
+|-----------------------------------------------------------------|-----------:|--------------------------------------------------------------|------------------------------------------------------|
+| Language model (Perceiver IO Base, SentencePiece tokenization)  |       223M | [construction](docs/models/language-model/construction.md)   | [training](docs/models/language-model/training.md)   |
+| Image classifier (Perceiver IO config A, 2D Fourier Features)   |      48.4M | [construction](docs/models/image-classifier/construction.md) | [training](docs/models/image-classifier/training.md) |
+
+Training of smaller models is shown in section [Training examples](#training-examples), their usage in section
+[Inference examples](#training-examples).
 
 ## Installation
 
@@ -24,234 +46,80 @@ at any scale.
 pip install perceiver-io[image,text]
 ```
 
-Extra `image` is needed for [image classification](#image-classification), extra `text` is needed for
-[masked language modeling](#masked-language-modeling) and [sentiment classification](#sentiment-classification).
-
 ### From sources
+
+#### Conda + Poetry
 
 ```shell
 conda env create -f environment.yml
 conda activate perceiver-io
-poetry install -E image -E text
+poetry install --all-extras
 ```
 
-## Architecture
+This requires a [Poetry installation](https://python-poetry.org/docs/master/#installation), version 1.2.0b2 or higher.
+If running `poetry` fails with a `KeyringError`, refer to the [keyring](https://keyring.readthedocs.io/) documentation
+how to [disable keyring](https://keyring.readthedocs.io/en/latest/#disabling-keyring) usage.
 
-The following sections describe how the conceptual architectures of Perceiver IO and Perceiver can be mapped to the
-implementation provided by this project.
+#### Docker image
 
-### Perceiver IO
-
-![architecture-perceiver-io](docs/architecture-perceiver-io.png)
-
-Names of components shown in the implementation architecture are class names in the [PyTorch model API](#pytorch-model-api)
-(see also [modules.py](perceiver/model/core/modules.py)). Task- or modality-specific input and output adapters are subclasses
-of `InputAdapter` and `OuptutAdapter`, respectively. Array dimensions (`M`, `C`), (`N`, `D`), (`O`, `F`)  and (`O`, `E`)
-have the following names in code and/or on the command line:
-
-| Array dimension | Configuration parameter name                                                    |
-|-----------------|---------------------------------------------------------------------------------|
-| `M`             | Input-specific name (e.g. `max_seq_len` for text input, ...)                    |
-| `C`             | `num_input_channels` (property of `InputAdapter`)                               |
-| `N`             | `num_latents`                                                                   |
-| `D`             | `num_latent_channels`                                                           |
-| `O`             | Output-specific name (e.g. `num_output_queries` for classification output, ...) |
-| `E`             | Output-specific name (e.g. `num_classes` for classification output, ...)        |
-| `F`             | `num_output_query_channels` (property of `OutputAdapter`)                       |
-
-The number of layers in a `SelfAttentionBlock` can be specified with `num_self_attention_layers_per_block` and the
-number of blocks with `num_self_attention_blocks` (`L` in the conceptual architecture).
-
-### Perceiver
-
-Perceiver IO does **not** use repeated encoder cross-attention as described the [Perceiver IO](https://arxiv.org/abs/2107.14795)
-paper:
-
-> We omit the repeated encoder cross-attends used in [Perceiver](https://arxiv.org/abs/2103.03206) as we found these to
-> lead to relatively small performance improvements but to significantly slow down training ...
-
-This may be the case for the very large datasets as used in the Perceiver IO paper but I found that repeated encoder
-cross-attention actually gives much better training results for smaller datasets. Therefore, the implementation also
-supports repeated encoder cross-attention.
-
-![architecture-perceiver](docs/architecture-perceiver.png)
-
-The number of repeated cross-attentions can be specified with `num_cross_attention_layers` (`P`) which must be less than
-or equal `num_self_attention_blocks` (`L`). Cross-attention layers 2 - `P` and self-attention blocks 2 - `L` always share
-their weights. Sharing the weights with the first cross-attention layer can be controlled with `first_cross_attention_layer_shared`,
-sharing the weights with the first self-attention block can be controlled with `first_self_attention_block_shared`. The
-default values of these hyperparameters are consistent with the Perceiver IO architecture (1 cross-attention layer, `L`
-self-attention blocks with weight sharing).
-
-## Model API
-
-### PyTorch model API
-
-The PyTorch model API is based on generic encoder and decoder classes (`PerceiverEncoder` and `PerceiverDecoder`) and
-task- or modality-specific input and output adapter classes. The following snippet shows how they can be used to create
-an ImageNet classifier as specified in Appendix A of the [Perceiver IO paper](https://arxiv.org/abs/2107.14795)
-(config A, with 2D Fourier Features, 48.4M parameters):
-
-```python
-from perceiver.model.core import (
-    ClassificationOutputAdapter,
-    PerceiverDecoder,
-    PerceiverEncoder,
-    PerceiverIO
-)
-from perceiver.model.image import ImageInputAdapter
-
-
-# Fourier-encodes pixel positions and flatten along spatial dimensions
-input_adapter = ImageInputAdapter(
-  image_shape=(224, 224, 3),  # M = 224 * 224
-  num_frequency_bands=64,
-)
-
-# Projects generic Perceiver decoder output to specified number of classes
-output_adapter = ClassificationOutputAdapter(
-  num_classes=1000,
-  num_output_query_channels=1024,  # F
-)
-
-# Generic Perceiver encoder
-encoder = PerceiverEncoder(
-  input_adapter=input_adapter,
-  num_latents=512,  # N
-  num_latent_channels=1024,  # D
-  num_cross_attention_qk_channels=input_adapter.num_input_channels,  # C
-  num_cross_attention_heads=1,
-  num_self_attention_heads=8,
-  num_self_attention_layers_per_block=6,
-  num_self_attention_blocks=8,
-  dropout=0.0,
-)
-
-# Generic Perceiver decoder
-decoder = PerceiverDecoder(
-  output_adapter=output_adapter,
-  num_latent_channels=1024,  # D
-  num_cross_attention_heads=1,
-  dropout=0.0,
-)
-
-# Perceiver IO image classifier
-model = PerceiverIO(encoder, decoder)
-```
-
-### PyTorch Lightning model API
-
-Models created with the [PyTorch model API](#pytorch-model-api) are wrapped in task-specific [LightningModule](https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html)s
-(e.g. `LitImageClassifier`) so that they can be trained with the PyTorch Lightning [Trainer](https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html).
-
-A concrete encoder configuration class (e.g. `ImageEncoderConfig`) covers the configuration of the generic encoder and
-its concrete input adapter. A concrete decoder configuration class (`ClassificationDecoderConfig`) covers the configuration
-of the generic decoder and its concrete output adapter.
-
-The same model as in the [previous section](#pytorch-model-api), wrapped in a `LitImageClassifier`, can be created
-with:
-
-```python
-from perceiver.model.core import ClassificationDecoderConfig
-from perceiver.model.image import ImageEncoderConfig
-from perceiver.model.image.classifier import LitImageClassifier
-
-
-encoder_cfg = ImageEncoderConfig(
-    image_shape=(224, 224, 3),
-    num_frequency_bands=64,
-    num_cross_attention_heads=1,
-    num_self_attention_heads=8,
-    num_self_attention_layers_per_block=6,
-    num_self_attention_blocks=8,
-    dropout=0.0,
-)
-decoder_cfg = ClassificationDecoderConfig(
-    num_classes=1000,
-    num_output_query_channels=1024,
-    num_cross_attention_heads=1,
-    dropout=0.0,
-)
-
-lit_model = LitImageClassifier(encoder_cfg, decoder_cfg, num_latents=512, num_latent_channels=1024)
-
-# Wrapped PyTorch model
-model = lit_model.model
-```
-
-### PyTorch Lightning model CLI
-
-The [PyTorch Lightning model API](#pytorch-lightning-model-api) is primarily designed for command-line binding via
-the [Lightning CLI](https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_cli.html). For example, when
-implementing a command line interface for `LitImageClassifier` with `LightningCLI` in a file named `classifier.py`
-
-```python
-# File classifier.py
-
-from pytorch_lightning.utilities.cli import LightningCLI
-from perceiver.model.image.classifier import LitImageClassifier
-
-if __name__ == "__main__":
-    LightningCLI(model_class=LitImageClassifier)
-```
-
-the same classifier [as before](#pytorch-lightning-model-api) can be created with the following command line options:
+A `perceiver-io` Docker image can be built with:
 
 ```shell
-python classifier.py fit \
-  --model.num_latents=512 \
-  --model.num_latent_channels=1024 \
-  --model.encoder.image_shape=[224,224,3] \
-  --model.encoder.num_frequency_bands=64 \
-  --model.encoder.num_cross_attention_heads=1 \
-  --model.encoder.num_self_attention_heads=8 \
-  --model.encoder.num_self_attention_layers_per_block=6 \
-  --model.encoder.num_self_attention_blocks=8 \
-  --model.encoder.dropout=0.0 \
-  --model.decoder.num_classes=1000 \
-  --model.decoder.num_output_query_channels=1024 \
-  --model.decoder.num_cross_attention_heads=1 \
-  --model.decoder.dropout=0.0 \
-  ...
+docker build -t perceiver-io .
 ```
 
-Task-specific training scripts can set default values so that command lines are usually much shorter (see [classifier.py](perceiver/scripts/image/classifier.py)
-for an example of a training script and section [Image classification](#image-classification) for a usage example).
+Training of Perceiver IO models with this image is described [here](docs/docker.md).
 
 ## Training examples
 
-In the following subsections, Perceiver IO models are trained on a rather small scale (and on small datasets). In
-particular, hyperparameters are set such that parallel training on two NVIDIA GTX 1080 GPUs (8 GB memory each) works
-quite well. I didn't really tune model architectures and other hyperparameters yet, so you'll probably get better
-results with a bit of experimentation. Support for more datasets and tasks as well as instructions for training on
-larger scale will come soon.
+This section uses rather small Perceiver IO models so that the following training examples can be run on limited hardware
+resources. Training automatically scales to more than one GPU and was tested on 4 RTX 3080 GPUs. For GPUs with less memory
+you may need to reduce the `--data.batch_size` or turn on [activation checkpointing](#activation-checkpointing) for some
+of the examples.
+
+Datasets used for model training are 🤗 [Datasets](https://huggingface.co/docs/datasets) wrapped into PyTorch Lightning
+data modules (see [data](perceiver/data) package). Datasets are automatically downloaded, preprocessed and cached when
+their corresponding Lightning data module is loaded during training. Manual dataset preprocessing is described [here](docs/datasets.md).
+
+An archive with training checkpoints can be downloaded [here](https://martin-krasser.com/perceiver/logs-update-5.zip)
+and should be extracted in project's root directory to be compatible with the example command lines below. It also
+contains Tensorboard logs and config files.
+
+I didn't really tune hyperparameters, so you'll likely get better results with a bit of experimentation
+(see also [training tips](docs/training-tips.md)).
 
 ### Masked language modeling
 
-Pretrain a Perceiver IO model on masked language modeling (MLM) with text from the IMDB training set. The pretrained
-encoder is then used for training a [sentiment classification](#sentiment-classification) model.
-[Predictions of masked tokens](docs/tensorboard.md) are logged to Tensorboard.
+This section trains a very small language model (2.9M parameters) on masked language modeling with whole word masking.
+It is first pretrained on [WikiText-103](https://huggingface.co/datasets/wikitext) and then adapted to the [IMDb](https://huggingface.co/datasets/imdb)
+dataset. The encoder of the trained language model is then used for [sentiment classification](#sentiment-classification).
+
+The tokenizer is a customized BERT tokenizer (`tokenizers/bert-base-uncased-10k-bookcorpus-ext`), trained on [BookCorpus](https://huggingface.co/datasets/bookcorpus)
+with a vocabulary size of 10,000. You can also use any other 🤗 [fast tokenizer](https://huggingface.co/docs/transformers/fast_tokenizers)
+from the 🤗 Hub with the `--data.tokenizer` option (see [Tokenizers](docs/tokenizer.md) for details).
+
+The training script is [mlm.py](perceiver/scripts/text/mlm.py). It implements the command line interface and defines
+training defaults (see also [trainer.yaml](perceiver/scripts/trainer.yaml) for further defaults). Pretraining on
+WikiText-103 can be started with:
 
 ```shell
 python -m perceiver.scripts.text.mlm fit \
-  --model.num_latents=64 \
-  --model.num_latent_channels=64 \
-  --model.encoder.num_input_channels=64 \
+  --model.num_latents=128 \
+  --model.num_latent_channels=128 \
+  --model.encoder.num_input_channels=128 \
   --model.encoder.num_cross_attention_layers=3 \
   --model.encoder.num_self_attention_layers_per_block=6 \
   --model.encoder.num_self_attention_blocks=3 \
-  --model.encoder.dropout=0.0 \
-  --model.decoder.num_output_query_channels=64 \
-  --model.decoder.dropout=0.0 \
-  --data=ImdbDataModule \
-  --data.vocab_size=10003 \
+  --model.encoder.first_self_attention_block_shared=false \
+  --model.encoder.dropout=0.1 \
+  --model.decoder.dropout=0.1 \
+  --data=WikiTextDataModule \
+  --data.tokenizer=tokenizers/bert-base-uncased-10k-bookcorpus-ext \
   --data.max_seq_len=512 \
   --data.batch_size=64 \
-  --data.target_task=mlm \
-  --data.chunk_text=false \
   --optimizer=AdamW \
   --optimizer.lr=1e-3 \
-  --optimizer.weight_decay=0.0 \
+  --optimizer.weight_decay=0.01 \
   --lr_scheduler.warmup_steps=5000 \
   --trainer.accelerator=gpu \
   --trainer.devices=-1 \
@@ -262,88 +130,152 @@ python -m perceiver.scripts.text.mlm fit \
   --trainer.logger.name=mlm
 ```
 
-For saving GPU memory and scaling model training, [activation checkpointing](docs/checkpointing.md) can be enabled with
-`--model.activation_checkpointing=true` (disabled by default).
+| Model parameters                                                                           | Validation loss                           | Mask prediction samples                     |
+|--------------------------------------------------------------------------------------------|-------------------------------------------|---------------------------------------------|
+| <pre>Total params:      2.9M<br/>Frozen params:       0M<br/>Trainable params:  2.9M</pre> | ![val-loss-1](docs/images/val-loss-1.png) | ![mask-pred-1](docs/images/mask-pred-1.png) |
 
-### Sentiment classification
-
-Train a classification decoder using a frozen encoder from [masked language modeling](#masked-language-modeling).
-If you ran MLM yourself you'll need to modify the `--model.mlm_ckpt` argument accordingly, otherwise download
-checkpoints from [here](https://martin-krasser.com/perceiver/logs-update-4.zip) and extract them in the root directory of
-this project.
+Starting from the best pretraining checkpoint, the language model is then adapted to the IMDb dataset for further 15,000
+steps. If you ran pretraining yourself, you'll need to modify the `--model.ckpt` value accordingly, otherwise the checkpoint
+from the downloaded archive is used.
 
 ```shell
-python -m perceiver.scripts.text.classifier fit \
-  --model.mlm_ckpt='logs/mlm/version_0/checkpoints/epoch=249-val_loss=4.616.ckpt' \
-  --model.num_latents=64 \
-  --model.num_latent_channels=64 \
-  --model.encoder.num_input_channels=64 \
+python -m perceiver.scripts.text.mlm fit \
+  --model.ckpt="logs/mlm/version_0/checkpoints/epoch=044-val_loss=3.917.ckpt" \
+  --model.num_latents=128 \
+  --model.num_latent_channels=128 \
+  --model.encoder.num_input_channels=128 \
   --model.encoder.num_cross_attention_layers=3 \
   --model.encoder.num_self_attention_layers_per_block=6 \
   --model.encoder.num_self_attention_blocks=3 \
-  --model.encoder.dropout=0.0 \
-  --model.encoder.freeze=true \
-  --model.decoder.num_output_query_channels=64 \
-  --model.decoder.dropout=0.0 \
+  --model.encoder.first_self_attention_block_shared=false \
+  --model.encoder.dropout=0.1 \
+  --model.decoder.dropout=0.1 \
   --data=ImdbDataModule \
-  --data.vocab_size=10003 \
+  --data.tokenizer=tokenizers/bert-base-uncased-10k-bookcorpus-ext \
   --data.max_seq_len=512 \
-  --data.batch_size=128 \
+  --data.batch_size=64 \
   --optimizer=AdamW \
   --optimizer.lr=1e-3 \
   --optimizer.weight_decay=0.01 \
+  --lr_scheduler.warmup_steps=1000 \
   --trainer.accelerator=gpu \
   --trainer.devices=-1 \
-  --trainer.max_epochs=30 \
+  --trainer.max_steps=15000 \
+  --trainer.check_val_every_n_epoch=3 \
   --trainer.logger=TensorBoardLogger \
   --trainer.logger.save_dir=logs \
-  --trainer.logger.name=seq_clf
+  --trainer.logger.name=mlm
 ```
 
-Unfreeze the encoder and jointly fine-tune it together with the decoder that has been trained in the previous step.
-If you ran the previous step yourself you'll need to modify the `--model.clf_ckpt` argument accordingly, otherwise
-download checkpoints from [here](https://martin-krasser.com/perceiver/logs-update-4.zip).
+| Model parameters                                                                           | Validation loss                           | Mask prediction samples                     |
+|--------------------------------------------------------------------------------------------|-------------------------------------------|---------------------------------------------|
+| <pre>Total params:      2.9M<br/>Frozen params:       0M<br/>Trainable params:  2.9M</pre> | ![val-loss-2](docs/images/val-loss-2.png) | ![mask-pred-2](docs/images/mask-pred-2.png) |
+
+After adaption to IMDb, mask prediction samples are obviously more related to movie reviews compared to pretraining on
+WikiText-103 only. Prediction samples are screenshots from Tensorboard logs.
+
+### Sentiment classification
+
+This section trains a Perceiver IO text classifier on IMDb reviews. The encoder is initialized with weights from
+[masked language modeling](#masked-language-modeling) (`--model.mlm_ckpt` option), the decoder is a randomly initialized
+classification decoder. In a first step, only the decoder is trained and the encoder is frozen. The training script is
+[classifier.py](perceiver/scripts/text/classifier.py).
 
 ```shell
 python -m perceiver.scripts.text.classifier fit \
-  --model.clf_ckpt='logs/seq_clf/version_0/checkpoints/epoch=015-val_loss=0.347.ckpt' \
-  --model.num_latents=64 \
-  --model.num_latent_channels=64 \
-  --model.encoder.num_input_channels=64 \
+  --model.mlm_ckpt="logs/mlm/version_1/checkpoints/epoch=113-val_loss=3.904.ckpt" \
+  --model.num_latents=128 \
+  --model.num_latent_channels=128 \
+  --model.encoder.num_input_channels=128 \
   --model.encoder.num_cross_attention_layers=3 \
   --model.encoder.num_self_attention_layers_per_block=6 \
   --model.encoder.num_self_attention_blocks=3 \
+  --model.encoder.first_self_attention_block_shared=false \
   --model.encoder.dropout=0.1 \
-  --model.decoder.num_output_query_channels=64 \
-  --model.decoder.dropout=0.2 \
+  --model.encoder.freeze=true \
+  --model.decoder.num_output_query_channels=128 \
+  --model.decoder.dropout=0.1 \
   --data=ImdbDataModule \
-  --data.vocab_size=10003 \
+  --data.tokenizer=tokenizers/bert-base-uncased-10k-bookcorpus-ext \
+  --data.target_task=clf \
   --data.max_seq_len=512 \
-  --data.batch_size=128 \
+  --data.batch_size=256 \
   --optimizer=AdamW \
   --optimizer.lr=1e-4 \
   --optimizer.weight_decay=0.01 \
   --trainer.accelerator=gpu \
   --trainer.devices=-1 \
-  --trainer.max_epochs=20 \
+  --trainer.max_epochs=30 \
+  --trainer.log_every_n_steps=10 \
   --trainer.logger=TensorBoardLogger \
   --trainer.logger.save_dir=logs \
-  --trainer.logger.name=seq_clf
+  --trainer.logger.name=clf
 ```
+
+| Model parameters                                                                           | Validation accuracy                     |
+|--------------------------------------------------------------------------------------------|-----------------------------------------|
+| <pre>Total params:      2.9M<br/>Frozen params:     2.8M<br/>Trainable params:  100K</pre> | ![val-acc-1](docs/images/val-acc-1.png) |
+
+The small classification decoder (100K parameters) can be trained to a validation accuracy of 88% when using an
+encoder that has been adapted to the IMDb dataset (red line). When using an encoder that has been pretrained on
+WikiText-103 only, the validation accuracy saturates at 78% (pink line). Unfreezing the encoder and fine-tuning it
+jointly with the classification decoder further improves validation accuracy:
+
+```shell
+python -m perceiver.scripts.text.classifier fit \
+  --model.clf_ckpt="logs/clf/version_0/checkpoints/epoch=028-val_loss=0.301.ckpt" \
+  --model.num_latents=128 \
+  --model.num_latent_channels=128 \
+  --model.encoder.num_input_channels=128 \
+  --model.encoder.num_cross_attention_layers=3 \
+  --model.encoder.num_self_attention_layers_per_block=6 \
+  --model.encoder.num_self_attention_blocks=3 \
+  --model.encoder.first_self_attention_block_shared=false \
+  --model.encoder.dropout=0.1 \
+  --model.decoder.num_output_query_channels=128 \
+  --model.decoder.dropout=0.1 \
+  --data=ImdbDataModule \
+  --data.tokenizer=tokenizers/bert-base-uncased-10k-bookcorpus-ext \
+  --data.target_task=clf \
+  --data.max_seq_len=512 \
+  --data.batch_size=256 \
+  --optimizer=AdamW \
+  --optimizer.lr=1e-5 \
+  --optimizer.weight_decay=0.01 \
+  --trainer.accelerator=gpu \
+  --trainer.devices=-1 \
+  --trainer.max_epochs=30 \
+  --trainer.log_every_n_steps=10 \
+  --trainer.logger=TensorBoardLogger \
+  --trainer.logger.save_dir=logs \
+  --trainer.logger.name=clf
+```
+
+| Model parameters                                                                           | Validation accuracy                     |
+|--------------------------------------------------------------------------------------------|-----------------------------------------|
+| <pre>Total params:      2.9M<br/>Frozen params:       0M<br/>Trainable params:  2.9M</pre> | ![val-acc-2](docs/images/val-acc-2.png) |
 
 ### Image classification
 
-Classify MNIST images.
+This section trains a tiny Perceiver IO image classifier (805K parameters) on MNIST digits. The model attends to each
+pixel in input images and does not use convolutional layers. In contrast to other examples only a single cross-attention
+layer is used. The training script is [classifier.py](perceiver/scripts/image/classifier.py).
 
 ```shell
 python -m perceiver.scripts.image.classifier fit \
   --model.num_latents=32 \
   --model.num_latent_channels=128 \
+  --model.encoder.num_frequency_bands=32 \
+  --model.encoder.num_cross_attention_layers=1 \
   --model.encoder.num_self_attention_layers_per_block=3 \
   --model.encoder.num_self_attention_blocks=3 \
+  --model.encoder.first_self_attention_block_shared=false \
   --model.encoder.dropout=0.0 \
+  --model.encoder.init_scale=0.1 \
+  --model.decoder.num_output_query_channels=128 \
   --model.decoder.dropout=0.0 \
-  --data=MnistDataModule \
+  --model.decoder.init_scale=0.1 \
+  --data=MNISTDataModule \
   --data.batch_size=128 \
   --optimizer=AdamW \
   --optimizer.lr=1e-3 \
@@ -353,56 +285,16 @@ python -m perceiver.scripts.image.classifier fit \
   --trainer.max_epochs=20 \
   --trainer.logger=TensorBoardLogger \
   --trainer.logger.save_dir=logs \
-  --trainer.logger.name=img_clf
+  --trainer.logger.name=exp
 ```
+
+| Model parameters                                                                           | Validation accuracy                     |
+|--------------------------------------------------------------------------------------------|-----------------------------------------|
+| <pre>Total params:      805K<br/>Frozen params:       0K<br/>Trainable params:  805K</pre> | ![val-acc-3](docs/images/val-acc-3.png) |
 
 ## Inference examples
 
-- [Sentiment classification](https://colab.research.google.com/github/krasserm/perceiver-io/blob/main/notebooks/txt-clf.ipynb)
-- [Image classification](https://colab.research.google.com/github/krasserm/perceiver-io/blob/main/notebooks/img-clf.ipynb)
-
-## Development environment
-
-Checkout the project and install [from sources](#from-sources). Then Install pre-commit hooks:
-
-```shell
-invoke precommit-install
-```
-
-Run code quality checks:
-
-```shell
-invoke cc
-```
-
-Run tests:
-
-```shell
-invoke test
-```
-
-See [Python Project Template](https://github.com/cstub/python-project-template) for further details.
-
-## Citations
-
-```bibtex
-@misc{jaegle2103,
-    title   = {Perceiver: General Perception with Iterative Attention},
-    author  = {Andrew Jaegle and Felix Gimeno and Andrew Brock and Andrew Zisserman and Oriol Vinyals and Joao Carreira},
-    year    = {2021},
-    eprint  = {2103.03206},
-    archivePrefix = {arXiv},
-    primaryClass = {cs.CV}
-}
-```
-
-```bibtex
-@misc{jaegle2107,
-    title   = {Perceiver IO: A General Architecture for Structured Inputs & Outputs},
-    author  = {Andrew Jaegle and Sebastian Borgeaud and Jean-Baptiste Alayrac and Carl Doersch and Catalin Ionescu and David Ding and Skanda Koppula and Andrew Brock and Evan Shelhamer and Olivier Hénaff and Matthew M. Botvinick and Andrew Zisserman and Oriol Vinyals and João Carreira},
-    year    = {2021},
-    eprint  = {2107.14795},
-    archivePrefix = {arXiv},
-    primaryClass = {cs.LG}
-}
-```
+- Sentiment classification  
+  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/krasserm/perceiver-io/blob/main/notebooks/txt-clf.ipynb)
+- Image classification  
+  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/krasserm/perceiver-io/blob/main/notebooks/img-clf.ipynb)

@@ -1,3 +1,4 @@
+import html
 from dataclasses import dataclass
 from typing import Any, List, Optional
 
@@ -9,10 +10,6 @@ from torch import Tensor
 
 from perceiver.model.core import DecoderConfig, LitModel, OutputAdapter, PerceiverConfig, PerceiverDecoder, PerceiverIO
 from perceiver.model.text.common import TextEncoder, TextEncoderConfig
-from perceiver.preproc.text import TextPreprocessor
-
-
-MASK_TOKEN = "[MASK]"
 
 
 @dataclass
@@ -28,8 +25,9 @@ class TextOutputAdapter(OutputAdapter):
         vocab_size: int,
         max_seq_len: int,
         num_output_query_channels: int,
+        init_scale: float = 0.02,
     ):
-        super().__init__(output_query=torch.empty(max_seq_len, num_output_query_channels))
+        super().__init__(output_query=torch.empty(max_seq_len, num_output_query_channels), init_scale=init_scale)
         self.linear = nn.Linear(num_output_query_channels, vocab_size)
 
     def forward(self, x):
@@ -37,39 +35,43 @@ class TextOutputAdapter(OutputAdapter):
 
 
 class TiedTextOutputAdapter(OutputAdapter):
-    def __init__(self, vocab_size: int, max_seq_len: int, embedding_weights: Tensor):
-        super().__init__(output_query=torch.empty(max_seq_len, embedding_weights.shape[1]))
-        self.embedding_weights = embedding_weights
-        self.bias = nn.Parameter(torch.zeros(vocab_size))
+    def __init__(self, max_seq_len: int, embedding_weights: Tensor, init_scale: float = 0.02):
+        vocab_size, num_input_channels = embedding_weights.shape
+        super().__init__(output_query=torch.empty(max_seq_len, num_input_channels), init_scale=init_scale)
+        self.proj = nn.Linear(num_input_channels, vocab_size)
+        self.proj.weight = embedding_weights
 
     def forward(self, x):
-        return torch.matmul(x, self.embedding_weights.T) + self.bias
+        return self.proj(x)
 
 
-class MLM(PerceiverIO):
+class LanguageModel(PerceiverIO):
     def __init__(self, config: PerceiverConfig[TextEncoderConfig, TextDecoderConfig]):
         encoder = TextEncoder(
             config.encoder,
             num_latents=config.num_latents,
             num_latent_channels=config.num_latent_channels,
             activation_checkpointing=config.activation_checkpointing,
+            activation_offloading=config.activation_offloading,
         )
         if config.decoder.num_output_query_channels is None:
             output_adapter = TiedTextOutputAdapter(
-                vocab_size=config.decoder.vocab_size,
                 max_seq_len=config.decoder.max_seq_len,
                 embedding_weights=encoder.input_adapter.text_embedding.weight,
+                init_scale=config.decoder.init_scale,
             )
         else:
             output_adapter = TextOutputAdapter(
                 vocab_size=config.decoder.vocab_size,
                 max_seq_len=config.decoder.max_seq_len,
                 num_output_query_channels=config.decoder.num_output_query_channels,
+                init_scale=config.decoder.init_scale,
             )
         decoder = PerceiverDecoder(
             output_adapter=output_adapter,
             num_latent_channels=config.num_latent_channels,
             activation_checkpointing=config.activation_checkpointing,
+            activation_offloading=config.activation_offloading,
             **config.decoder.base_kwargs()
         )
         super().__init__(encoder, decoder)
@@ -83,36 +85,41 @@ class MLM(PerceiverIO):
         return x_logits
 
 
-class LitMLM(LitModel):
+class LitLanguageModel(LitModel):
     def __init__(
         self,
         encoder: TextEncoderConfig,
         decoder: TextDecoderConfig,
         *args: Any,
+        ckpt: Optional[str] = None,
         masked_samples: Optional[List[str]] = None,
         num_predictions: int = 3,
         **kwargs: Any
     ):
         super().__init__(encoder, decoder, *args, **kwargs)
-        self.model = MLM(
+        self.model = LanguageModel(
             PerceiverConfig(
                 encoder=encoder,
                 decoder=decoder,
                 num_latents=self.hparams.num_latents,
                 num_latent_channels=self.hparams.num_latent_channels,
                 activation_checkpointing=self.hparams.activation_checkpointing,
+                activation_offloading=self.hparams.activation_offloading,
             )
         )
+
+        if ckpt is not None:
+            lit_model = LitLanguageModel.load_from_checkpoint(ckpt)
+            self.model.load_state_dict(lit_model.model.state_dict())
+
         self.loss = nn.CrossEntropyLoss()
         self.preprocessor = None
 
     def setup(self, stage: Optional[str] = None):
-        self.preprocessor = TextPreprocessor(
-            tokenizer=self.trainer.datamodule.tokenizer, max_seq_len=self.hparams.encoder.max_seq_len
-        )
+        self.preprocessor = self.trainer.datamodule.text_preprocessor()
 
     def forward(self, batch):
-        x, x_labels, x_mask = batch
+        x_labels, x, x_mask = batch
         return self.model(x, x_mask), x_labels
 
     def step(self, batch):
@@ -135,17 +142,20 @@ class LitMLM(LitModel):
 
     def on_validation_epoch_end(self) -> None:
         if self.hparams.masked_samples:
-            masked_samples = [ms.replace("<MASK>", MASK_TOKEN) for ms in self.hparams.masked_samples]
-            mask_predictions = self._predict_masked_samples(masked_samples=masked_samples)
+            masked_samples = [
+                ms.replace("<mask>", self.preprocessor.tokenizer.mask_token) for ms in self.hparams.masked_samples
+            ]
+            predictions = self._fill_masks(masked_samples=masked_samples)
 
             if isinstance(self.logger, TensorBoardLogger):
-                text = "\n\n".join(["  \n".join([s] + ps) for s, ps in zip(masked_samples, mask_predictions)])
-                self.logger.experiment.add_text("sample predictions", text, self.trainer.global_step)
+                self.logger.experiment.add_text(
+                    "sample predictions", self._to_markdown(predictions), self.trainer.global_step
+                )
             else:
                 # support other loggers here ...
                 ...
 
-    def _predict_masked_samples(self, masked_samples):
+    def _fill_masks(self, masked_samples):
         n = len(masked_samples)
 
         xs, ms = self.preprocessor.preprocess_batch(masked_samples)
@@ -155,7 +165,7 @@ class LitMLM(LitModel):
         with torch.no_grad():
             x_logits = self.model(xs, ms)
 
-        pred_mask = xs == self.preprocessor.tokenizer.token_to_id(MASK_TOKEN)
+        pred_mask = xs == self.preprocessor.tokenizer.mask_token_id
         _, pred = torch.topk(x_logits[pred_mask], k=self.hparams.num_predictions, dim=-1)
 
         output = xs.clone()
@@ -164,6 +174,10 @@ class LitMLM(LitModel):
         for i in range(self.hparams.num_predictions):
             output[pred_mask] = pred[:, i]
             for j in range(n):
-                output_dec[j].append(self.preprocessor.tokenizer.decode(output[j].tolist(), skip_special_tokens=True))
+                output_dec[j].append(self.preprocessor.tokenizer.decode(output[j], skip_special_tokens=True))
 
         return output_dec
+
+    def _to_markdown(self, predictions):
+        headers = self.hparams.masked_samples
+        return "\n\n".join(["  \n".join([html.escape(s)] + ps) for s, ps in zip(headers, predictions)])

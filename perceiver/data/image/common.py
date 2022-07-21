@@ -10,3 +10,11 @@ class ImagePreprocessor:
 
     def preprocess_batch(self, img_batch):
         return torch.stack([self.preprocess(img) for img in img_batch])
+
+
+def lift_transform(transform):
+    def apply(examples):
+        examples["image"] = [transform(image) for image in examples["image"]]
+        return examples
+
+    return apply

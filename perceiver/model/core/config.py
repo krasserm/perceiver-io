@@ -18,6 +18,7 @@ class EncoderConfig:
     first_self_attention_block_shared: bool = True
     self_attention_widening_factor: int = 1
     dropout: float = 0.0
+    init_scale: float = 0.02
     freeze: bool = False
 
     def base_kwargs(self, exclude=("freeze",)):
@@ -31,6 +32,7 @@ class DecoderConfig:
     num_cross_attention_v_channels: Optional[int] = None
     cross_attention_widening_factor: int = 1
     dropout: float = 0.0
+    init_scale: float = 0.02
     freeze: bool = False
 
     def base_kwargs(self, exclude=("freeze",)):
@@ -47,7 +49,8 @@ class PerceiverConfig(Generic[E, D]):
     decoder: D
     num_latents: int
     num_latent_channels: int
-    activation_checkpointing: bool
+    activation_checkpointing: bool = False
+    activation_offloading: bool = False
 
 
 @dataclass

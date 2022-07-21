@@ -1,55 +1,89 @@
-from typing import Callable, Optional, Union
+import os
+from typing import Optional
 
+import pytorch_lightning as pl
 import torch
-
-from pl_bolts.datamodules.mnist_datamodule import MNISTDataModule
+from datasets import load_dataset
+from torch.utils.data import DataLoader
 from torchvision import transforms
 
+from perceiver.data.image.common import ImagePreprocessor, lift_transform
 
-class MnistDataModule(MNISTDataModule):
+
+class MNISTPreprocessor(ImagePreprocessor):
+    def __init__(self, normalize: bool = True, channels_last: bool = True):
+        super().__init__(mnist_transform(normalize, channels_last))
+
+
+class MNISTDataModule(pl.LightningDataModule):
     def __init__(
         self,
+        dataset_dir: str = os.path.join(".cache", "mnist"),
+        normalize: bool = True,
         channels_last: bool = True,
         random_crop: Optional[int] = None,
-        data_dir: Optional[str] = ".cache",
-        val_split: Union[int, float] = 10000,
+        batch_size: int = 64,
         num_workers: int = 3,
-        normalize: bool = True,
-        pin_memory: bool = False,
-        *args,
-        **kwargs
+        pin_memory: bool = True,
+        shuffle: bool = True,
     ):
-        super().__init__(
-            data_dir=data_dir,
-            val_split=val_split,
-            num_workers=num_workers,
-            normalize=normalize,
-            pin_memory=pin_memory,
-            *args,
-            **kwargs
-        )
+        super().__init__()
         self.save_hyperparameters()
-        self._image_shape = super().dims
+        self.channels_last = channels_last
 
-        if channels_last:
-            self._image_shape = self._image_shape[1], self._image_shape[2], self._image_shape[0]
+        self.tf_train = mnist_transform(normalize, channels_last, random_crop=random_crop)
+        self.tf_valid = mnist_transform(normalize, channels_last, random_crop=None)
+
+        self.ds_train = None
+        self.ds_valid = None
+
+    @property
+    def num_classes(self):
+        return 10
 
     @property
     def image_shape(self):
-        return self._image_shape
+        if self.hparams.channels_last:
+            return 28, 28, 1
+        else:
+            return 1, 28, 28
 
-    def default_transforms(self) -> Callable:
-        return mnist_transform(
-            normalize=self.hparams.normalize,
-            channels_last=self.hparams.channels_last,
-            random_crop=self.hparams.random_crop,
+    def load_dataset(self, split: Optional[str] = None):
+        return load_dataset("mnist", split=split, cache_dir=self.hparams.dataset_dir)
+
+    def prepare_data(self) -> None:
+        self.load_dataset()
+
+    def setup(self, stage: Optional[str] = None) -> None:
+        self.ds_train = self.load_dataset(split="train")
+        self.ds_train.set_transform(lift_transform(self.tf_train))
+
+        self.ds_valid = self.load_dataset(split="test")
+        self.ds_valid.set_transform(lift_transform(self.tf_valid))
+
+    def train_dataloader(self):
+        return DataLoader(
+            self.ds_train,
+            shuffle=self.hparams.shuffle,
+            batch_size=self.hparams.batch_size,
+            num_workers=self.hparams.num_workers,
+            pin_memory=self.hparams.pin_memory,
+        )
+
+    def val_dataloader(self):
+        return DataLoader(
+            self.ds_valid,
+            shuffle=False,
+            batch_size=self.hparams.batch_size,
+            num_workers=self.hparams.num_workers,
+            pin_memory=self.hparams.pin_memory,
         )
 
 
 def mnist_transform(normalize: bool = True, channels_last: bool = True, random_crop: Optional[int] = None):
     transform_list = []
 
-    if random_crop:
+    if random_crop is not None:
         transform_list.append(transforms.RandomCrop(random_crop))
 
     transform_list.append(transforms.ToTensor())

@@ -1,7 +1,5 @@
 from pytorch_lightning.utilities.cli import LightningArgumentParser
 
-# auto-register data module
-from perceiver.data.image import mnist  # noqa: F401
 from perceiver.model.image.classifier import LitImageClassifier
 from perceiver.scripts.cli import CLI
 
@@ -16,13 +14,16 @@ class ImageClassifierCLI(CLI):
                 "model.num_latents": 32,
                 "model.num_latent_channels": 128,
                 "model.encoder.num_frequency_bands": 32,
+                "model.encoder.num_cross_attention_layers": 1,
                 "model.encoder.num_cross_attention_heads": 1,
+                "model.encoder.num_self_attention_heads": 4,
                 "model.encoder.num_self_attention_layers_per_block": 3,
                 "model.encoder.num_self_attention_blocks": 3,
                 "model.encoder.first_self_attention_block_shared": False,
+                "model.encoder.dropout": 0.0,
                 "model.decoder.num_output_query_channels": 128,
                 "model.decoder.num_cross_attention_heads": 1,
-                "model.encoder.num_self_attention_heads": 4,
+                "model.decoder.dropout": 0.0,
             }
         )
 
