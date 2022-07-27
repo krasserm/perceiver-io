@@ -12,6 +12,7 @@ trainer:
       monitor: 'val_loss'
       filename: '{epoch:03d}-{val_loss:.3f}'
       mode: min
+      save_weights_only: true
   default_root_dir: logs
   gradient_clip_val: null
   gradient_clip_algorithm: null
