@@ -5,12 +5,8 @@ This repository is a PyTorch and [PyTorch Lightning](https://www.pytorchlightnin
 - [Perceiver IO: A General Architecture for Structured Inputs & Outputs](https://arxiv.org/abs/2107.14795) and
 - [Perceiver: General Perception with Iterative Attention](https://arxiv.org/abs/2103.03206)
 
-The codebase is designed for easy extension to new tasks and datasets. If you are a researcher or practitioner working
-on new Perceiver IO models and use cases, you might find this repository useful. The integration with PyTorch Lightning
-supports model training at any scale. Also, if you just want to get started with constructing and training Perceiver IO
-models using a simple and flexible codebase, you may find useful examples here too. On the other hand, if you are mainly
-interested in using and fine-tuning models from the Perceiver IO paper you may want to take a look at the
-🤗 [Perceiver IO](https://huggingface.co/docs/transformers/model_doc/perceiver) implementation.
+We tried to keep the codebase simple and easy to extend to new tasks and use cases. The integration with PyTorch
+Lightning supports model training at any scale.
 
 ## Overview
 
