@@ -62,12 +62,8 @@ class WordMaskingCollator(Collator):
         https://huggingface.co/course/chapter7/3#preprocessing-the-data.
 
         The implementation in the linked document replaces all words, randomly selected with `self.wwm_probability`,
-        with mask tokens (one or more per word). The implementation here, however, only replaces 80% of selected
-        words with mask tokens and replaces 10% with random words and leaves 10% unchanged.
-
-        A limitation of this implementation is that it (currently) ignores special tokens i.e. assumes that all
-        input tokens are non-special tokens. This assumption holds when a text dataset has been chunked with the
-        `chunk_dataset` function in `perceiver.scripts.text.dataset`.
+        with mask tokens (one or more per word). The implementation here, however, only replaces 80% of selected words
+        with mask tokens and replaces 10% with random words and leaves 10% unchanged.
         """
         for example in examples:
             word_ids = example.pop("word_ids")

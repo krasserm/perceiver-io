@@ -1,5 +1,6 @@
-import argparse
 import os
+
+import jsonargparse
 
 from perceiver.data.text import (
     BookCorpusDataModule,
@@ -24,16 +25,21 @@ def main(args):
     else:
         raise ValueError(f"Invalid dataset {args.dataset}")
 
-    dm_class(tokenizer=args.tokenizer, max_seq_len=args.max_seq_len).prepare_data()
+    dm_class(**args).prepare_data()
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    subparsers = parser.add_subparsers(dest="command", required=True)
-    subparser = subparsers.add_parser("preprocess", description="Preprocess dataset for training")
+    parser = jsonargparse.ArgumentParser()
+    subcommands = parser.add_subcommands(dest="command", required=True)
+
+    subparser = jsonargparse.ArgumentParser(description="Preprocess dataset for training")
     subparser.add_argument(
         "dataset", default="wikitext", choices=["bookcorpus", "wikipedia", "wikibook", "wikitext", "imdb"]
     )
     subparser.add_argument("--tokenizer", default=os.path.join("tokenizers", "sp-8k-wikitext"))
     subparser.add_argument("--max_seq_len", default=512, type=int)
-    main(parser.parse_args())
+    subparser.add_argument("--add_special_tokens", default=False, type=bool)
+    subparser.add_argument("--filter_empty", default=True, type=bool)  # wikitext only
+    subparser.add_argument("--filter_headers", default=False, type=bool)  # wikitext only
+    subcommands.add_subcommand("preprocess", subparser)
+    main(parser.parse_args().preprocess)

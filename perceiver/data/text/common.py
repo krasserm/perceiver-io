@@ -1,22 +1,24 @@
 import hashlib
+import multiprocessing as mp
 import os
 from itertools import chain
-from typing import Sequence
+from typing import Any, Sequence
 
 import pytorch_lightning as pl
 import torch
 from datasets import DatasetDict
 from torch.utils.data import DataLoader
-from transformers import AutoTokenizer, PreTrainedTokenizerFast
+from transformers import AutoTokenizer
 
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
 class TextPreprocessor:
-    def __init__(self, tokenizer: str, max_seq_len: int):
+    def __init__(self, tokenizer: str, max_seq_len: int, add_special_tokens: bool):
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer)
         self.max_seq_len = max_seq_len
+        self.add_special_tokens = add_special_tokens
 
     def preprocess(self, text):
         xs, pad_mask = self.preprocess_batch([text])
@@ -27,7 +29,7 @@ class TextPreprocessor:
             text_batch,
             padding=True,
             truncation=True,
-            add_special_tokens=False,
+            add_special_tokens=self.add_special_tokens,
             return_token_type_ids=False,
             return_attention_mask=True,
             max_length=self.max_seq_len,
@@ -40,22 +42,21 @@ class TextDataModule(pl.LightningDataModule):
     def __init__(
         self,
         tokenizer: str,
+        add_special_tokens: bool = False,
         max_seq_len: int = 512,
         batch_size: int = 64,
         num_workers: int = 3,
         pin_memory: bool = True,
+        **kwargs: Any,
     ):
         super().__init__()
-        self.save_hyperparameters()
+        self.save_hyperparameters(ignore=kwargs.keys())
 
         self.tokenizer = AutoTokenizer.from_pretrained(self.hparams.tokenizer)
         self.collator = None
 
         self.ds_train = None
         self.ds_valid = None
-
-    def text_preprocessor(self):
-        return TextPreprocessor(tokenizer=self.hparams.tokenizer, max_seq_len=self.hparams.max_seq_len)
 
     @property
     def vocab_size(self):
@@ -68,14 +69,17 @@ class TextDataModule(pl.LightningDataModule):
     @property
     def preproc_dir(self):
         h = hashlib.new("md5")
-        h.update(f"{self.hparams.tokenizer}-{self.max_seq_len}".encode())
+        h.update(self._preproc_dir_hash_input().encode())
         return os.path.join(self.hparams.dataset_dir, "preproc", h.hexdigest())
 
-    def load_dataset(self):
-        raise NotImplementedError()
+    def _preproc_dir_hash_input(self) -> str:
+        hash_input = f"{self.hparams.tokenizer}-{self.max_seq_len}"
+        if self.hparams.add_special_tokens:
+            hash_input = f"{hash_input}-st"
+        return hash_input
 
     def setup(self, stage=None):
-        dataset = self.load_dataset()
+        dataset = self._load_dataset()
         self.ds_train = dataset["train"]
         self.ds_valid = dataset["valid"]
 
@@ -99,59 +103,69 @@ class TextDataModule(pl.LightningDataModule):
             pin_memory=self.hparams.pin_memory,
         )
 
-
-def tokenize_dataset(dataset: DatasetDict, tokenizer: PreTrainedTokenizerFast, batch_size: int, num_proc: int):
-    def tokenize(examples):
-        encoding = tokenizer(
-            examples["text"],
-            padding=False,
-            truncation=False,
-            add_special_tokens=False,
-            return_token_type_ids=False,
-            return_attention_mask=False,
+    def text_preprocessor(self):
+        return TextPreprocessor(
+            tokenizer=self.hparams.tokenizer,
+            max_seq_len=self.hparams.max_seq_len,
+            add_special_tokens=self.hparams.add_special_tokens,
         )
-        encoding["word_ids"] = [encoding.word_ids(i) for i in range(len(encoding["input_ids"]))]
-        return encoding
 
-    result = DatasetDict()
-    for key in dataset.keys():
-        result[key] = dataset[key].map(
-            tokenize,
-            batched=True,
-            batch_size=batch_size,
-            num_proc=num_proc,
-            remove_columns=["text"],
-            load_from_cache_file=False,
-            desc="Running tokenizer on dataset",
-        )
-    return result
+    def _load_dataset(self):
+        raise NotImplementedError()
 
+    def tokenize_dataset(self, dataset: DatasetDict, batch_size: int, num_proc: int = mp.cpu_count()):
+        def tokenize(examples):
+            encoding = self.tokenizer(
+                examples["text"],
+                padding=False,
+                truncation=False,
+                add_special_tokens=self.hparams.add_special_tokens,
+                return_token_type_ids=False,
+                return_attention_mask=False,
+            )
+            encoding["word_ids"] = [encoding.word_ids(i) for i in range(len(encoding["input_ids"]))]
+            return encoding
 
-def chunk_dataset(
-    dataset: DatasetDict,
-    max_seq_len: int,
-    batch_size: int,
-    num_proc: int,
-    include_keys: Sequence[str] = ("input_ids", "word_ids"),
-    remove_keys: Sequence[str] = (),
-):
-    def chunk(*args):
-        chained = {k: list(chain(*args[i])) for i, k in enumerate(include_keys)}
-        chained_len = len(chained[include_keys[0]])
-        if chained_len >= max_seq_len:
-            chained_len = (chained_len // max_seq_len) * max_seq_len
-        return {k: [t[i : i + max_seq_len] for i in range(0, chained_len, max_seq_len)] for k, t in chained.items()}
+        result = DatasetDict()
+        for key in dataset.keys():
+            result[key] = dataset[key].map(
+                tokenize,
+                batched=True,
+                batch_size=batch_size,
+                num_proc=num_proc,
+                remove_columns=["text"],
+                load_from_cache_file=False,
+                desc="Running tokenizer on dataset",
+            )
+        return result
 
-    result = DatasetDict()
-    for key in dataset.keys():
-        result[key] = dataset[key].map(
-            chunk,
-            batched=True,
-            batch_size=batch_size,
-            input_columns=list(include_keys),
-            remove_columns=list(remove_keys),
-            num_proc=num_proc,
-            load_from_cache_file=False,
-            desc=f"Split dataset into chunks of size {max_seq_len}",
-        )
-    return result
+    def chunk_dataset(
+        self,
+        dataset: DatasetDict,
+        batch_size: int,
+        num_proc: int = mp.cpu_count(),
+        include_keys: Sequence[str] = ("input_ids", "word_ids"),
+        remove_keys: Sequence[str] = (),
+    ):
+        max_seq_len = self.hparams.max_seq_len
+
+        def chunk(*args):
+            chained = {k: list(chain(*args[i])) for i, k in enumerate(include_keys)}
+            chained_len = len(chained[include_keys[0]])
+            if chained_len >= max_seq_len:
+                chained_len = (chained_len // max_seq_len) * max_seq_len
+            return {k: [t[i : i + max_seq_len] for i in range(0, chained_len, max_seq_len)] for k, t in chained.items()}
+
+        result = DatasetDict()
+        for key in dataset.keys():
+            result[key] = dataset[key].map(
+                chunk,
+                batched=True,
+                batch_size=batch_size,
+                input_columns=list(include_keys),
+                remove_columns=list(remove_keys),
+                num_proc=num_proc,
+                load_from_cache_file=False,
+                desc=f"Split dataset into chunks of size {max_seq_len}",
+            )
+        return result

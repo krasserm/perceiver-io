@@ -1,13 +1,11 @@
-import multiprocessing as mp
 import os
 from enum import Enum
 from typing import Any
 
 from datasets import DatasetDict, load_dataset
-from transformers import PreTrainedTokenizerFast
 
 from perceiver.data.text.collator import DefaultCollator, WordMaskingCollator
-from perceiver.data.text.common import chunk_dataset, TextDataModule, tokenize_dataset
+from perceiver.data.text.common import TextDataModule
 
 
 class ImdbDataModule(TextDataModule):
@@ -38,38 +36,23 @@ class ImdbDataModule(TextDataModule):
 
     def prepare_data(self) -> None:
         if not os.path.exists(self.preproc_dir):
-            preproc_imdb(
-                tokenizer=self.tokenizer,
-                dataset_dir=self.hparams.dataset_dir,
-                output_dir=self.preproc_dir,
-                max_seq_len=self.hparams.max_seq_len,
-            )
+            dataset = load_dataset("imdb", "plain_text", cache_dir=self.hparams.dataset_dir)
+            self._preproc_dataset(dataset)
 
-    def load_dataset(self):
+    def _load_dataset(self):
         subdir = "tokenized" if self.hparams.target_task == ImdbDataModule.Task.clf else "chunked"
         return DatasetDict.load_from_disk(os.path.join(self.preproc_dir, subdir))
 
+    def _preproc_dataset(self, dataset: DatasetDict, batch_size: int = 1000):
+        dataset_tokenized = self.tokenize_dataset(dataset, batch_size=batch_size)
+        dataset_chunked = self.chunk_dataset(
+            DatasetDict(train=dataset_tokenized["unsupervised"], valid=dataset_tokenized["test"]),
+            remove_keys=["label"],
+            batch_size=batch_size,
+        )
 
-def preproc_imdb(
-    tokenizer: PreTrainedTokenizerFast,
-    dataset_dir: str,
-    output_dir: str,
-    max_seq_len: int,
-    batch_size: int = 1000,
-    num_proc: int = mp.cpu_count(),
-):
-    dataset = load_dataset("imdb", "plain_text", cache_dir=dataset_dir)
-    dataset_tokenized = tokenize_dataset(dataset, tokenizer=tokenizer, batch_size=batch_size, num_proc=num_proc)
-    dataset_chunked = chunk_dataset(
-        DatasetDict(train=dataset_tokenized["unsupervised"], valid=dataset_tokenized["test"]),
-        max_seq_len=max_seq_len,
-        remove_keys=["label"],
-        batch_size=batch_size,
-        num_proc=num_proc,
-    )
+        dataset_tokenized = DatasetDict(train=dataset_tokenized["train"], valid=dataset_tokenized["test"])
+        dataset_tokenized = dataset_tokenized.remove_columns(["word_ids"])
 
-    dataset_tokenized = DatasetDict(train=dataset_tokenized["train"], valid=dataset_tokenized["test"])
-    dataset_tokenized = dataset_tokenized.remove_columns(["word_ids"])
-
-    dataset_chunked.save_to_disk(os.path.join(output_dir, "chunked"))
-    dataset_tokenized.save_to_disk(os.path.join(os.path.join(output_dir, "tokenized")))
+        dataset_chunked.save_to_disk(os.path.join(self.preproc_dir, "chunked"))
+        dataset_tokenized.save_to_disk(os.path.join(os.path.join(self.preproc_dir, "tokenized")))
