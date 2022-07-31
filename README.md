@@ -44,6 +44,8 @@ pip install perceiver-io[image,text]
 
 ### From sources
 
+Install [Git LFS](https://git-lfs.github.com/), before cloning the repository from GitHub.
+
 #### Conda + Poetry
 
 ```shell
