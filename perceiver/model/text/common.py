@@ -31,8 +31,9 @@ class TextInputAdapter(InputAdapter):
 
     def forward(self, x):
         b, l = x.shape  # noqa: E741
+        # TODO: investigate compatibility with left-truncated sequences
         p_enc = rearrange(self.pos_encoding[:l], "... -> () ...")
-        return self.text_embedding(x) * self.scale + p_enc
+        return self.text_embedding(x) + p_enc
 
 
 class TextEncoder(PerceiverEncoder):
