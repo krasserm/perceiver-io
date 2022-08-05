@@ -1,15 +1,14 @@
-import html
 from dataclasses import dataclass
-from typing import Any, List, Optional
+from typing import Any, Optional
 
 import torch
 import torch.nn as nn
 from einops import rearrange
-from pytorch_lightning.loggers import TensorBoardLogger
 from torch import Tensor
 
 from perceiver.model.core import DecoderConfig, LitModel, OutputAdapter, PerceiverConfig, PerceiverDecoder, PerceiverIO
 from perceiver.model.text.common import TextEncoder, TextEncoderConfig
+from perceiver.model.text.utils import MaskedSamplePrediction
 
 
 @dataclass
@@ -85,15 +84,13 @@ class LanguageModel(PerceiverIO):
         return x_logits
 
 
-class LitLanguageModel(LitModel):
+class LitLanguageModel(MaskedSamplePrediction, LitModel):
     def __init__(
         self,
         encoder: TextEncoderConfig,
         decoder: TextDecoderConfig,
         *args: Any,
         ckpt: Optional[str] = None,
-        masked_samples: Optional[List[str]] = None,
-        num_predictions: int = 3,
         **kwargs: Any
     ):
         super().__init__(encoder, decoder, *args, **kwargs)
@@ -113,17 +110,13 @@ class LitLanguageModel(LitModel):
             self.model.load_state_dict(lit_model.model.state_dict())
 
         self.loss = nn.CrossEntropyLoss()
-        self.preprocessor = None
 
-    def setup(self, stage: Optional[str] = None):
-        self.preprocessor = self.trainer.datamodule.text_preprocessor()
-
-    def forward(self, batch):
-        x_labels, x, x_mask = batch
-        return self.model(x, x_mask), x_labels
+    def forward(self, x, pad_mask):
+        return self.model(x, pad_mask)
 
     def step(self, batch):
-        logits, labels = self(batch)
+        labels, x, pad_mask = batch
+        logits = self(x, pad_mask)
         logits = rearrange(logits, "b n c -> b c n")
         return self.loss(logits, labels)
 
@@ -139,45 +132,3 @@ class LitLanguageModel(LitModel):
     def test_step(self, batch, batch_idx):
         loss = self.step(batch)
         self.log("test_loss", loss)
-
-    def on_validation_epoch_end(self) -> None:
-        if self.hparams.masked_samples:
-            masked_samples = [
-                ms.replace("<mask>", self.preprocessor.tokenizer.mask_token) for ms in self.hparams.masked_samples
-            ]
-            predictions = self._fill_masks(masked_samples=masked_samples)
-
-            if isinstance(self.logger, TensorBoardLogger):
-                self.logger.experiment.add_text(
-                    "sample predictions", self._to_markdown(predictions), self.trainer.global_step
-                )
-            else:
-                # support other loggers here ...
-                ...
-
-    def _fill_masks(self, masked_samples):
-        n = len(masked_samples)
-
-        xs, ms = self.preprocessor.preprocess_batch(masked_samples)
-        xs = xs.to(self.device)
-        ms = ms.to(self.device)
-
-        with torch.no_grad():
-            x_logits = self.model(xs, ms)
-
-        pred_mask = xs == self.preprocessor.tokenizer.mask_token_id
-        _, pred = torch.topk(x_logits[pred_mask], k=self.hparams.num_predictions, dim=-1)
-
-        output = xs.clone()
-        output_dec = [[] for _ in range(n)]
-
-        for i in range(self.hparams.num_predictions):
-            output[pred_mask] = pred[:, i]
-            for j in range(n):
-                output_dec[j].append(self.preprocessor.tokenizer.decode(output[j], skip_special_tokens=True))
-
-        return output_dec
-
-    def _to_markdown(self, predictions):
-        headers = self.hparams.masked_samples
-        return "\n\n".join(["  \n".join([html.escape(s)] + ps) for s, ps in zip(headers, predictions)])
