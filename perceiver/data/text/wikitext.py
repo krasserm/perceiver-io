@@ -1,7 +1,7 @@
 import multiprocessing as mp
 import os
 import re
-from typing import Any
+from typing import Any, Optional
 
 from datasets import DatasetDict, load_dataset
 
@@ -14,6 +14,7 @@ class WikiTextDataModule(TextDataModule):
         self,
         *args: Any,
         dataset_dir: str = os.path.join(".cache", "wikitext"),
+        config_name: Optional[str] = None,
         mask_prob: float = 0.15,
         filter_empty: bool = False,
         filter_headers: bool = False,
@@ -24,7 +25,8 @@ class WikiTextDataModule(TextDataModule):
 
     def prepare_data(self) -> None:
         if not os.path.exists(self.preproc_dir):
-            dataset = load_dataset("wikitext", "wikitext-103-raw-v1", cache_dir=self.hparams.dataset_dir)
+            config_name = "wikitext-103-raw-v1" if self.hparams.config_name is None else self.hparams.config_name
+            dataset = load_dataset("wikitext", config_name, cache_dir=self.hparams.dataset_dir)
             self._preproc_dataset(dataset)
 
     def _load_dataset(self):
@@ -69,6 +71,8 @@ class WikiTextDataModule(TextDataModule):
 
     def _preproc_dir_hash_input(self) -> str:
         hash_input = super()._preproc_dir_hash_input()
+        if self.hparams.config_name is not None:
+            hash_input = f"{hash_input}-{self.hparams.config_name}"
         if self.hparams.filter_empty:
             hash_input = f"{hash_input}-fe"
         if self.hparams.filter_headers:

@@ -1,4 +1,4 @@
-import os
+from typing import Optional
 
 import jsonargparse
 
@@ -36,9 +36,10 @@ if __name__ == "__main__":
     subparser.add_argument(
         "dataset", default="wikitext", choices=["bookcorpus", "wikipedia", "wikibook", "wikitext", "imdb"]
     )
-    subparser.add_argument("--tokenizer", default=os.path.join("tokenizers", "sp-8k-wikitext"))
+    subparser.add_argument("--tokenizer")
     subparser.add_argument("--max_seq_len", default=512, type=int)
     subparser.add_argument("--add_special_tokens", default=False, type=bool)
+    subparser.add_argument("--config_name", type=Optional[str])  # wikitext only
     subparser.add_argument("--filter_empty", default=True, type=bool)  # wikitext only
     subparser.add_argument("--filter_headers", default=False, type=bool)  # wikitext only
     subcommands.add_subcommand("preprocess", subparser)
