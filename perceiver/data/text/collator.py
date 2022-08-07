@@ -51,7 +51,7 @@ class WordMaskingCollator(Collator):
     def __init__(self, tokenizer: PreTrainedTokenizerFast, mask_prob: float = 0.15):
         self.collator = DataCollatorWithPadding(tokenizer)
         self.mask_token_id = tokenizer.mask_token_id
-        self.vocab_size = tokenizer.backend_tokenizer.get_vocab_size()
+        self.vocab_size = tokenizer.vocab_size
         self.mask_prob = mask_prob
 
     def collate(self, examples):

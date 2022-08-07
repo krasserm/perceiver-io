@@ -10,6 +10,8 @@ from datasets import DatasetDict
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
+from perceiver.data.text.utils import PerceiverTokenizerUtil
+
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -51,16 +53,19 @@ class TextDataModule(pl.LightningDataModule):
     ):
         super().__init__()
         self.save_hyperparameters(ignore=kwargs.keys())
-
         self.tokenizer = AutoTokenizer.from_pretrained(self.hparams.tokenizer)
-        self.collator = None
+        # PerceiverTokenizer needs special handling as it is not a fast tokenizer
+        self.perceiver_tokenizer_configured = self.hparams.tokenizer == "deepmind/language-perceiver"
+        if self.perceiver_tokenizer_configured:
+            self.perceiver_tokenizer_util = PerceiverTokenizerUtil(self.tokenizer)
 
+        self.collator = None
         self.ds_train = None
         self.ds_valid = None
 
     @property
     def vocab_size(self):
-        return self.tokenizer.backend_tokenizer.get_vocab_size()
+        return self.tokenizer.vocab_size
 
     @property
     def max_seq_len(self):
@@ -123,7 +128,12 @@ class TextDataModule(pl.LightningDataModule):
                 return_token_type_ids=False,
                 return_attention_mask=False,
             )
-            encoding["word_ids"] = [encoding.word_ids(i) for i in range(len(encoding["input_ids"]))]
+            if self.perceiver_tokenizer_configured:
+                encoding["word_ids"] = [
+                    self.perceiver_tokenizer_util.word_ids(input_ids) for input_ids in encoding["input_ids"]
+                ]
+            else:
+                encoding["word_ids"] = [encoding.word_ids(i) for i in range(len(encoding["input_ids"]))]
             return encoding
 
         result = DatasetDict()
