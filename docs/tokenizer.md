@@ -12,7 +12,6 @@ was retrained on the [BookCorpus](https://huggingface.co/datasets/bookcorpus) da
 
 ```shell
 python -m perceiver.scripts.utils.tokenizer train bookcorpus \
-  --dataset_dir=.cache/bookcorpus \
   --tokenizer=bert-base-uncased \
   --output_dir=tokenizers/bert-base-uncased-10k-bookcorpus \
   --vocab_size=10000
@@ -21,21 +20,6 @@ python -m perceiver.scripts.utils.tokenizer train bookcorpus \
 The retrained tokenizer is a valid 🤗 tokenizer stored in directory `tokenizers/bert-base-uncased-10k-bookcorpus`. It can
 be referenced with `--data.tokenizer=tokenizers/bert-base-uncased-10k-imdb` on the command line when [training](../README.md#training-examples)
 a model.
-
-This repository also provides a [default tokenizer](../perceiver/data/text/tokenizer.py), a [SentencePiece](https://arxiv.org/abs/1808.06226)
-tokenizer built with the 🤗 [Tokenizers](https://huggingface.co/docs/tokenizers) library which can be trained with
-
-```shell
-python -m perceiver.scripts.utils.tokenizer train bookcorpus \
-  --dataset_dir=.cache/bookcorpus \
-  --output_dir=tokenizers/default-uncased-10k-bookcorpus \
-  --lowercase=true \
-  --vocab_size=10000
-```
-
-i.e. by omitting the `--tokenizer` command line option. See script [tokenizer.py](../perceiver/scripts/utils/tokenizer.py)
-for a complete list of supported training datasets and other command line options. The default tokenizer is currently
-not used in any of the examples.
 
 ## Tokenizer extension
 

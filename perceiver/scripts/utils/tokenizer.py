@@ -7,8 +7,6 @@ import jsonargparse
 from tokenizers.normalizers import Replace, Sequence
 from transformers import AutoTokenizer
 
-from perceiver.data.text.tokenizer import train_default_tokenizer
-
 
 def train_tokenizer(args):
     dataset = load_dataset(args)
@@ -21,19 +19,8 @@ def train_tokenizer(args):
             samples = dataset[start_idx : start_idx + args.batch_size]
             yield samples["text"]
 
-    if args.tokenizer is None:
-        # Train default tokenizer provided by this project
-        tokenizer = train_default_tokenizer(
-            text_generator(),
-            vocab_size=args.vocab_size,
-            lowercase=args.lowercase,
-            whitespace_split=args.whitespace_split,
-        )
-    else:
-        # Train any user-defined Huggingface (fast) tokenizer
-        tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
-        tokenizer = tokenizer.train_new_from_iterator(text_generator(), args.vocab_size)
-
+    tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
+    tokenizer = tokenizer.train_new_from_iterator(text_generator(), args.vocab_size)
     tokenizer.save_pretrained(args.output_dir)
 
 
@@ -57,15 +44,19 @@ def extend_tokenizer(args):
 
 def load_dataset(args):
     if args.dataset == "wikipedia":
-        return datasets.load_dataset("wikipedia", "20220301.en", split="train", cache_dir=args.dataset_dir)
+        return datasets.load_dataset("wikipedia", "20220301.en", split="train", cache_dir=dataset_dir(args))
     elif args.dataset == "wikitext":
-        return datasets.load_dataset("wikitext", "wikitext-103-raw-v1", split="train", cache_dir=args.dataset_dir)
+        return datasets.load_dataset("wikitext", "wikitext-103-raw-v1", split="train", cache_dir=dataset_dir(args))
     elif args.dataset == "bookcorpus":
-        return datasets.load_dataset("bookcorpus", "plain_text", split="train", cache_dir=args.dataset_dir)
+        return datasets.load_dataset("bookcorpus", "plain_text", split="train", cache_dir=dataset_dir(args))
     elif args.dataset == "imdb":
-        return datasets.load_dataset("imdb", "plain_text", split="unsupervised", cache_dir=args.dataset_dir)
+        return datasets.load_dataset("imdb", "plain_text", split="unsupervised", cache_dir=dataset_dir(args))
     else:
         raise ValueError(f"Invalid dataset: {args.dataset}")
+
+
+def dataset_dir(args):
+    return os.path.join(".cache", args.dataset) if args.dataset_dir is None else args.dataset_dir
 
 
 def main(args):
@@ -81,22 +72,20 @@ if __name__ == "__main__":
 
     subparser = jsonargparse.ArgumentParser(description="Train default or Huggingface tokenizer")
     subparser.add_argument("dataset", default="wikitext", choices=["wikipedia", "wikitext", "bookcorpus", "imdb"])
-    subparser.add_argument("--dataset_dir", default=os.path.join(".cache", "wikitext"))
-    subparser.add_argument("--output_dir", default=os.path.join("tokenizers", "default-8k-wikitext"))
-    subparser.add_argument("--tokenizer", default=None)
-    subparser.add_argument("--lowercase", default=False, type=bool)
-    subparser.add_argument("--whitespace_split", default=False, type=bool)
+    subparser.add_argument("--dataset_dir", default=None)
+    subparser.add_argument("--output_dir")
+    subparser.add_argument("--tokenizer")
     subparser.add_argument("--vocab_size", default=8000, type=int)
-    subparser.add_argument("--train_size", default=None, type=int)
     subparser.add_argument("--batch_size", default=1000, type=int)
+    subparser.add_argument("--train_size", default=None, type=int)
     subcommands.add_subcommand("train", subparser)
 
     subparser = jsonargparse.ArgumentParser(description="Extend tokenizer with replacement normalizers")
+    subparser.add_argument("--tokenizer")
+    subparser.add_argument("--output_dir")
     subparser.add_argument(
         "--replacement", default=("<br />", r"\n"), type=Union[Tuple[str, str], List[Tuple[str, str]]]
     )
-    subparser.add_argument("--tokenizer", default=os.path.join("tokenizers", "default-8k-wikitext"))
-    subparser.add_argument("--output_dir", default=os.path.join("tokenizers", "default-8k-wikitext-ext"))
     subcommands.add_subcommand("extend", subparser)
 
     main(parser.parse_args())
