@@ -1,3 +1,2 @@
 notebooks/** linguist-vendored
 tokenizers/** filter=lfs diff=lfs merge=lfs -text
-tests/tokenizer/* filter=lfs diff=lfs merge=lfs -text

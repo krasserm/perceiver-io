@@ -17,7 +17,7 @@ MASKED_SAMPLES = [
 
 @pytest.fixture(scope="module")
 def preprocessor():
-    yield TextPreprocessor(tokenizer="tests/tokenizer", max_seq_len=64, add_special_tokens=False)
+    yield TextPreprocessor(tokenizer="bert-base-uncased", max_seq_len=64, add_special_tokens=False)
 
 
 def test_fill_masks(preprocessor):
