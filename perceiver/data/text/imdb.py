@@ -8,11 +8,12 @@ from perceiver.data.text.collator import DefaultCollator, WordMaskingCollator
 from perceiver.data.text.common import TextDataModule
 
 
-class ImdbDataModule(TextDataModule):
-    class Task(Enum):
-        mlm = 0
-        clf = 1
+class Task(Enum):
+    mlm = 0
+    clf = 1
 
+
+class ImdbDataModule(TextDataModule):
     def __init__(
         self,
         *args: Any,
@@ -23,9 +24,9 @@ class ImdbDataModule(TextDataModule):
     ):
         super().__init__(*args, **kwargs)
 
-        if target_task == ImdbDataModule.Task.mlm:
+        if target_task == Task.mlm:
             self.collator = WordMaskingCollator(tokenizer=self.tokenizer, mask_prob=mask_prob)
-        elif target_task == ImdbDataModule.Task.clf:
+        elif target_task == Task.clf:
             self.collator = DefaultCollator(tokenizer=self.tokenizer, max_seq_len=self.hparams.max_seq_len)
         else:
             raise ValueError(f"Invalid target task {target_task}")
@@ -40,7 +41,7 @@ class ImdbDataModule(TextDataModule):
             self._preproc_dataset(dataset)
 
     def _load_dataset(self):
-        subdir = "tokenized" if self.hparams.target_task == ImdbDataModule.Task.clf else "chunked"
+        subdir = "tokenized" if self.hparams.target_task == Task.clf else "chunked"
         return DatasetDict.load_from_disk(os.path.join(self.preproc_dir, subdir))
 
     def _preproc_dataset(self, dataset: DatasetDict, batch_size: int = 1000):
