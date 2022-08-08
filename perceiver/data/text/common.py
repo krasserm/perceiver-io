@@ -18,7 +18,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 class TextPreprocessor:
     def __init__(self, tokenizer: str, max_seq_len: int, add_special_tokens: bool):
-        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer)
+        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer, verbose=False)
         self.max_seq_len = max_seq_len
         self.add_special_tokens = add_special_tokens
 
@@ -53,7 +53,7 @@ class TextDataModule(pl.LightningDataModule):
     ):
         super().__init__()
         self.save_hyperparameters(ignore=kwargs.keys())
-        self.tokenizer = AutoTokenizer.from_pretrained(self.hparams.tokenizer)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.hparams.tokenizer, verbose=False)
         # PerceiverTokenizer needs special handling as it is not a fast tokenizer
         self.perceiver_tokenizer_configured = self.hparams.tokenizer == "deepmind/language-perceiver"
         if self.perceiver_tokenizer_configured:
@@ -118,22 +118,33 @@ class TextDataModule(pl.LightningDataModule):
     def _load_dataset(self):
         raise NotImplementedError()
 
-    def tokenize_dataset(self, dataset: DatasetDict, batch_size: int, num_proc: int = mp.cpu_count()):
+    def tokenize_dataset(
+        self,
+        dataset: DatasetDict,
+        batch_size: int,
+        padding=False,
+        truncation=False,
+        max_length=None,
+        return_word_ids=True,
+        num_proc: int = mp.cpu_count(),
+    ):
         def tokenize(examples):
             encoding = self.tokenizer(
                 examples["text"],
-                padding=False,
-                truncation=False,
+                padding=padding,
+                truncation=truncation,
+                max_length=max_length,
                 add_special_tokens=self.hparams.add_special_tokens,
                 return_token_type_ids=False,
                 return_attention_mask=False,
             )
-            if self.perceiver_tokenizer_configured:
-                encoding["word_ids"] = [
-                    self.perceiver_tokenizer_util.word_ids(input_ids) for input_ids in encoding["input_ids"]
-                ]
-            else:
-                encoding["word_ids"] = [encoding.word_ids(i) for i in range(len(encoding["input_ids"]))]
+            if return_word_ids:
+                if self.perceiver_tokenizer_configured:
+                    encoding["word_ids"] = [
+                        self.perceiver_tokenizer_util.word_ids(input_ids) for input_ids in encoding["input_ids"]
+                    ]
+                else:
+                    encoding["word_ids"] = [encoding.word_ids(i) for i in range(len(encoding["input_ids"]))]
             return encoding
 
         result = DatasetDict()

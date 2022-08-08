@@ -20,24 +20,26 @@ class MaskedLanguageModelingCLI(CLI):
         parser.link_arguments("data.max_seq_len", "model.decoder.max_seq_len", apply_on="instantiate")
         parser.set_defaults(
             {
-                "model.num_latents": 128,
-                "model.num_latent_channels": 128,
-                "model.encoder.num_input_channels": 128,
-                "model.encoder.num_cross_attention_layers": 3,
-                "model.encoder.num_cross_attention_heads": 4,
-                "model.encoder.num_self_attention_heads": 4,
-                "model.encoder.num_self_attention_layers_per_block": 6,
-                "model.encoder.num_self_attention_blocks": 3,
-                "model.encoder.first_cross_attention_layer_shared": False,
-                "model.encoder.first_self_attention_block_shared": False,
-                "model.encoder.dropout": 0.0,
-                "model.decoder.num_cross_attention_heads": 4,
-                "model.decoder.dropout": 0.0,
+                "model.num_latents": 256,
+                "model.num_latent_channels": 1280,
+                "model.encoder.num_input_channels": 768,
+                "model.encoder.num_cross_attention_layers": 1,
+                "model.encoder.num_cross_attention_qk_channels": 256,
+                "model.encoder.num_cross_attention_v_channels": 1280,
+                "model.encoder.num_cross_attention_heads": 8,
+                "model.encoder.num_self_attention_qk_channels": 256,
+                "model.encoder.num_self_attention_v_channels": 1280,
+                "model.encoder.num_self_attention_heads": 8,
+                "model.encoder.num_self_attention_layers_per_block": 26,
+                "model.encoder.num_self_attention_blocks": 1,
+                "model.encoder.dropout": 0.1,
+                "model.decoder.num_cross_attention_qk_channels": 256,
+                "model.decoder.num_cross_attention_v_channels": 768,
+                "model.decoder.num_cross_attention_heads": 8,
+                "model.decoder.cross_attention_residual": False,
+                "model.decoder.dropout": 0.1,
                 "model.num_predictions": 5,
-                "model.masked_samples": [
-                    "I have watched this <mask> and it was awesome",
-                    "I have <mask> this movie and <mask> was really terrible",
-                ],
+                "model.masked_samples": None,
             }
         )
 

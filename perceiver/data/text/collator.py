@@ -34,6 +34,12 @@ class DefaultCollator(Collator):
         return self.collator([self._prepare(example, max_length=max_length) for example in examples])
 
     def _prepare(self, example, max_length):
+        # FIXME: ensure proper handling of special tokens in example
+        # Sequences longer than max_length are truncated including any
+        # special tokens at the end of the sequence. These special tokens
+        # must be preserved though. Setting add_special_tokens=true doesn't
+        # work either because this would duplicate (some) special tokens
+        # already contained in the input sequence.
         prepared = self.tokenizer.prepare_for_model(
             example["input_ids"],
             add_special_tokens=False,

@@ -1,10 +1,10 @@
-from typing import Any
+from typing import Any, Optional
 
 import pytorch_lightning as pl
 import torch.nn as nn
 import torchmetrics as tm
 
-from perceiver.model.core.config import DecoderConfig, EncoderConfig
+from perceiver.model.core.config import DecoderConfig, EncoderConfig, PerceiverConfig
 
 
 class LitModel(pl.LightningModule):
@@ -16,9 +16,24 @@ class LitModel(pl.LightningModule):
         num_latent_channels: int,
         activation_checkpointing: bool = False,
         activation_offloading: bool = False,
+        params: Optional[str] = None,
     ):
         super().__init__()
         self.save_hyperparameters()
+
+    @classmethod
+    def create(cls, config: PerceiverConfig, *args: Any, **kwargs: Any):
+        return cls(
+            config.encoder,
+            config.decoder,
+            *args,
+            num_latents=config.num_latents,
+            num_latent_channels=config.num_latent_channels,
+            activation_checkpointing=config.activation_checkpointing,
+            activation_offloading=config.activation_offloading,
+            params=config.params,
+            **kwargs,
+        )
 
 
 class LitClassifier(LitModel):

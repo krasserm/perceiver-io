@@ -24,7 +24,7 @@ def test_fill_masks(preprocessor):
     msp = MaskedSamplePredictionCallable(
         targets=[["sentence", "is", "bit"], ["phrase", "was", "bunch"]], preprocessor=preprocessor
     )
-    masked_samples, filled_samples = msp.fill_masks()
+    masked_samples, filled_samples = msp.fill_masks(MASKED_SAMPLES, num_predictions=len(msp.targets))
 
     assert masked_samples == [
         "This is [MASK] one.",
@@ -41,7 +41,7 @@ def test_fill_masks(preprocessor):
 
 class MaskedSamplePredictionCallable(MaskedSamplePrediction):
     def __init__(self, targets: List[List[str]], preprocessor: TextPreprocessor):
-        super().__init__(num_predictions=len(targets), masked_samples=MASKED_SAMPLES)
+        super().__init__()
         self.save_hyperparameters()
         self.preprocessor = preprocessor
         self.tokenizer = self.preprocessor.tokenizer

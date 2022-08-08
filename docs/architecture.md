@@ -1,16 +1,16 @@
 # Architecture
 
-This page shows how Perceiver IO and Perceiver concepts map to [core modules](../perceiver/model/core/modules.py)
-in this repository.
+The following figure maps Perceiver IO and Perceiver concepts to the [core modules](../perceiver/model/core/modules.py)
+of this library. Core modules are the building blocks of concrete Perceiver IO models implemented by this library (see
+[Interfaces](interfaces.md)).
+
+![architecture](../docs/images/architecture.png)
 
 ## Perceiver IO
 
-![architecture-perceiver-io](images/architecture-perceiver-io.png)
-
 Perceiver IO models are constructed from generic `PerceiverEncoder` and `PerceiverDecoder` classes and task-specific
 `InputAdapter` and `OutputAdapter` subclasses. Array dimensions (`M`, `C`), (`N`, `D`), (`O`, `F`)  and (`O`, `E`)
-have the following names in code and/or on the command line (see also code comments [here](models/image-classifier/construction.md#pytorch-model-api)
-and [here](models/language-model/construction.md#pytorch-model-api)):
+have the following names in code and/or on the command line (see also code comments [here](interfaces.md#pytorch-model-api)):
 
 | Array dimension | Configuration parameter name                                                    |
 |-----------------|---------------------------------------------------------------------------------|
@@ -23,11 +23,9 @@ and [here](models/language-model/construction.md#pytorch-model-api)):
 | `F`             | `num_output_query_channels` (property of `OutputAdapter`)                       |
 
 The number of layers in a `SelfAttentionBlock` can be specified with `num_self_attention_layers_per_block` and the
-number of blocks with `num_self_attention_blocks` (`L` in the conceptual architecture).
+number of blocks with `num_self_attention_blocks` (`L`).
 
 ## Perceiver
-
-![architecture-perceiver](images/architecture-perceiver.png)
 
 [Perceiver IO](#perceiver-io) does **not** use repeated encoder cross-attention as described the [paper](https://arxiv.org/abs/2107.14795):
 

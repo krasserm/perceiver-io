@@ -45,6 +45,7 @@ class ImdbDataModule(TextDataModule):
         return DatasetDict.load_from_disk(os.path.join(self.preproc_dir, subdir))
 
     def _preproc_dataset(self, dataset: DatasetDict, batch_size: int = 1000):
+        # Tokenize and chunk dataset for masked language modeling
         dataset_tokenized = self.tokenize_dataset(dataset, batch_size=batch_size)
         dataset_chunked = self.chunk_dataset(
             DatasetDict(train=dataset_tokenized["unsupervised"], valid=dataset_tokenized["test"]),
@@ -52,8 +53,15 @@ class ImdbDataModule(TextDataModule):
             batch_size=batch_size,
         )
 
+        # Tokenize dataset for sequence classification
+        dataset_tokenized = self.tokenize_dataset(
+            dataset,
+            batch_size=batch_size,
+            truncation=True,
+            max_length=self.hparams.max_seq_len,
+            return_word_ids=False,
+        )
         dataset_tokenized = DatasetDict(train=dataset_tokenized["train"], valid=dataset_tokenized["test"])
-        dataset_tokenized = dataset_tokenized.remove_columns(["word_ids"])
 
-        dataset_chunked.save_to_disk(os.path.join(self.preproc_dir, "chunked"))
         dataset_tokenized.save_to_disk(os.path.join(os.path.join(self.preproc_dir, "tokenized")))
+        dataset_chunked.save_to_disk(os.path.join(self.preproc_dir, "chunked"))

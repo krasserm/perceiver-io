@@ -18,3 +18,7 @@ def lift_transform(transform):
         return examples
 
     return apply
+
+
+def channels_to_last(img: torch.Tensor):
+    return img.permute(1, 2, 0).contiguous()

@@ -175,8 +175,8 @@ class CrossAttentionLayer(Sequential):
             dropout=dropout,
         )
         super().__init__(
-            Residual(cross_attn, dropout) if attention_residual else cross_attn,
-            Residual(MLP(num_q_input_channels, widening_factor), dropout),
+            Residual(cross_attn) if attention_residual else cross_attn,
+            Residual(MLP(num_q_input_channels, widening_factor)),
         )
 
 
@@ -198,8 +198,8 @@ class SelfAttentionLayer(Sequential):
             dropout=dropout,
         )
         super().__init__(
-            Residual(self_attn, dropout),
-            Residual(MLP(num_channels, widening_factor), dropout),
+            Residual(self_attn),
+            Residual(MLP(num_channels, widening_factor)),
         )
 
 
@@ -245,15 +245,12 @@ class MLP(Sequential):
 
 
 class Residual(nn.Module):
-    def __init__(self, module: nn.Module, dropout: float):
+    def __init__(self, module: nn.Module):
         super().__init__()
         self.module = module
-        self.dropout = nn.Dropout(p=dropout)
-        self.dropout_p = dropout
 
     def forward(self, *args, **kwargs):
-        x = self.module(*args, **kwargs)
-        return self.dropout(x) + args[0]
+        return self.module(*args, **kwargs) + args[0]
 
 
 class InputAdapter(nn.Module):
@@ -295,9 +292,6 @@ class OutputAdapter(nn.Module):
 
     def output_query(self, x):
         return repeat(self._output_query, "... -> b ...", b=x.shape[0])
-
-    def forward(self, x):
-        raise NotImplementedError()
 
 
 class ClassificationOutputAdapter(OutputAdapter):
@@ -421,18 +415,14 @@ class PerceiverEncoder(nn.Module):
                 activation_offloading=activation_offloading,
             )
 
-        self.cross_attn_n = cross_attn()
-        self.self_attn_n = self_attn()
+        self.cross_attn_1 = cross_attn()
+        self.self_attn_1 = self_attn()
 
-        if self.first_cross_attention_layer_shared or num_cross_attention_layers == 1:
-            self.cross_attn_1 = self.cross_attn_n
-        else:
-            self.cross_attn_1 = cross_attn()
+        if self.extra_cross_attention_layer:
+            self.cross_attn_n = cross_attn()
 
-        if self.first_self_attention_block_shared or num_self_attention_blocks == 1:
-            self.self_attn_1 = self.self_attn_n
-        else:
-            self.self_attn_1 = self_attn()
+        if self.extra_self_attention_block:
+            self.self_attn_n = self_attn()
 
         # learnable initial latent vectors
         self.latent = nn.Parameter(torch.empty(num_latents, num_latent_channels))
@@ -442,6 +432,14 @@ class PerceiverEncoder(nn.Module):
         with torch.no_grad():
             self.latent.normal_(0.0, init_scale)
             _init_parameters(self, init_scale)
+
+    @property
+    def extra_cross_attention_layer(self):
+        return self.num_cross_attention_layers > 1 and not self.first_cross_attention_layer_shared
+
+    @property
+    def extra_self_attention_block(self):
+        return self.num_self_attention_blocks > 1 and not self.first_self_attention_block_shared
 
     def forward(self, x, pad_mask=None):
         b, *_ = x.shape
@@ -455,10 +453,13 @@ class PerceiverEncoder(nn.Module):
         x_latent = self.cross_attn_1(x_latent, x, pad_mask)
         x_latent = self.self_attn_1(x_latent)
 
+        cross_attn_n = self.cross_attn_n if self.extra_cross_attention_layer else self.cross_attn_1
+        self_attn_n = self.self_attn_n if self.extra_self_attention_block else self.self_attn_1
+
         for i in range(1, self.num_self_attention_blocks):
             if i < self.num_cross_attention_layers:
-                x_latent = self.cross_attn_n(x_latent, x, pad_mask)
-            x_latent = self.self_attn_n(x_latent)
+                x_latent = cross_attn_n(x_latent, x, pad_mask)
+            x_latent = self_attn_n(x_latent)
 
         return x_latent
 
@@ -519,10 +520,10 @@ class PerceiverDecoder(nn.Module):
         with torch.no_grad():
             _init_parameters(self, init_scale)
 
-    def forward(self, x):
+    def forward(self, x, **kwargs):
         output_query = self.output_adapter.output_query(x)
         output = self.cross_attn(output_query, x)
-        return self.output_adapter(output)
+        return self.output_adapter(output, **kwargs)
 
 
 class PerceiverIO(Sequential):

@@ -12,20 +12,22 @@ class TextClassificationCLI(CLI):
         parser.link_arguments("data.num_classes", "model.decoder.num_classes", apply_on="instantiate")
         parser.set_defaults(
             {
-                "model.num_latents": 128,
-                "model.num_latent_channels": 128,
-                "model.encoder.num_input_channels": 128,
-                "model.encoder.num_cross_attention_layers": 3,
-                "model.encoder.num_cross_attention_heads": 4,
-                "model.encoder.num_self_attention_heads": 4,
-                "model.encoder.num_self_attention_layers_per_block": 6,
-                "model.encoder.num_self_attention_blocks": 3,
-                "model.encoder.first_cross_attention_layer_shared": False,
-                "model.encoder.first_self_attention_block_shared": False,
-                "model.encoder.dropout": 0.0,
-                "model.decoder.num_output_query_channels": 128,
-                "model.decoder.num_cross_attention_heads": 4,
-                "model.decoder.dropout": 0.0,
+                "model.num_latents": 256,
+                "model.num_latent_channels": 1280,
+                "model.encoder.num_input_channels": 768,
+                "model.encoder.num_cross_attention_layers": 1,
+                "model.encoder.num_cross_attention_qk_channels": 256,
+                "model.encoder.num_cross_attention_v_channels": 1280,
+                "model.encoder.num_cross_attention_heads": 8,
+                "model.encoder.num_self_attention_qk_channels": 256,
+                "model.encoder.num_self_attention_v_channels": 1280,
+                "model.encoder.num_self_attention_heads": 8,
+                "model.encoder.num_self_attention_layers_per_block": 26,
+                "model.encoder.num_self_attention_blocks": 1,
+                "model.encoder.dropout": 0.1,
+                "model.decoder.num_output_query_channels": 768,
+                "model.decoder.num_cross_attention_heads": 8,
+                "model.decoder.dropout": 0.1,
             }
         )
 

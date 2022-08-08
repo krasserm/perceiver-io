@@ -1,3 +1,5 @@
+import os
+
 import torch.nn as nn
 
 
@@ -14,3 +16,7 @@ class Sequential(nn.Sequential):
 def freeze(module: nn.Module):
     for param in module.parameters():
         param.requires_grad = False
+
+
+def is_checkpoint(path: str):
+    return os.path.splitext(path)[1] == ".ckpt"

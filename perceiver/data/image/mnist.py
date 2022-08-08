@@ -2,12 +2,11 @@ import os
 from typing import Optional
 
 import pytorch_lightning as pl
-import torch
 from datasets import load_dataset
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
-from perceiver.data.image.common import ImagePreprocessor, lift_transform
+from perceiver.data.image.common import channels_to_last, ImagePreprocessor, lift_transform
 
 
 class MNISTPreprocessor(ImagePreprocessor):
@@ -95,7 +94,3 @@ def mnist_transform(normalize: bool = True, channels_last: bool = True, random_c
         transform_list.append(channels_to_last)
 
     return transforms.Compose(transform_list)
-
-
-def channels_to_last(img: torch.Tensor):
-    return img.permute(1, 2, 0).contiguous()

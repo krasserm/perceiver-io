@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 from perceiver.model.core import (
     ClassificationDecoderConfig,
@@ -8,7 +8,8 @@ from perceiver.model.core import (
     PerceiverDecoder,
     PerceiverIO,
 )
-from perceiver.model.core.utils import freeze
+
+from perceiver.model.core.utils import is_checkpoint
 from perceiver.model.text.common import TextEncoder, TextEncoderConfig
 from perceiver.model.text.language import LitLanguageModel
 
@@ -39,17 +40,8 @@ class TextClassifier(PerceiverIO):
 
 
 class LitTextClassifier(LitClassifier):
-    def __init__(
-        self,
-        encoder: TextEncoderConfig,
-        decoder: ClassificationDecoderConfig,
-        *args: Any,
-        mlm_ckpt: Optional[str] = None,
-        clf_ckpt: Optional[str] = None,
-        **kwargs: Any
-    ):
+    def __init__(self, encoder: TextEncoderConfig, decoder: ClassificationDecoderConfig, *args: Any, **kwargs: Any):
         super().__init__(encoder, decoder, *args, **kwargs)
-
         self.model = TextClassifier(
             PerceiverConfig(
                 encoder=encoder,
@@ -58,17 +50,19 @@ class LitTextClassifier(LitClassifier):
                 num_latent_channels=self.hparams.num_latent_channels,
                 activation_checkpointing=self.hparams.activation_checkpointing,
                 activation_offloading=self.hparams.activation_offloading,
+                params=self.hparams.params,
             )
         )
-        if mlm_ckpt is not None:
-            lit_model = LitLanguageModel.load_from_checkpoint(mlm_ckpt)
-            self.model.encoder.load_state_dict(lit_model.model.encoder.state_dict())
-        elif clf_ckpt is not None:
-            lit_model = LitTextClassifier.load_from_checkpoint(clf_ckpt)
-            self.model.load_state_dict(lit_model.model.state_dict())
 
-        if self.hparams.encoder.freeze:
-            freeze(self.model.encoder)
+        model_params = self.hparams.params
+        encoder_params = self.hparams.encoder.params
+
+        if model_params is not None and is_checkpoint(model_params):
+            lit_model = LitTextClassifier.load_from_checkpoint(model_params, params=None)
+            self.model.load_state_dict(lit_model.model.state_dict())
+        if encoder_params is not None and is_checkpoint(encoder_params):
+            lit_model = LitLanguageModel.load_from_checkpoint(encoder_params, params=None)
+            self.model.encoder.load_state_dict(lit_model.model.encoder.state_dict())
 
     def forward(self, batch):
         y, x, x_mask = batch
