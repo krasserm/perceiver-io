@@ -472,6 +472,7 @@ class PerceiverDecoder(nn.Module):
         num_cross_attention_qk_channels: Optional[int] = None,
         num_cross_attention_v_channels: Optional[int] = None,
         cross_attention_widening_factor: int = 1,
+        cross_attention_residual: bool = True,
         dropout: float = 0.0,
         init_scale: float = 0.02,
         activation_checkpointing: bool = False,
@@ -503,6 +504,7 @@ class PerceiverDecoder(nn.Module):
             num_qk_channels=num_cross_attention_qk_channels,
             num_v_channels=num_cross_attention_v_channels,
             widening_factor=cross_attention_widening_factor,
+            attention_residual=cross_attention_residual,
             dropout=dropout,
         )
 
