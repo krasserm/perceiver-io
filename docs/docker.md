@@ -1,12 +1,7 @@
 # Docker
 
-A `perceiver-io` Docker image can be built, within the project's root directory, with:
-
-```shell
-sudo docker build -t perceiver-io .
-```
-
-Training runs can be started with:
+A [Docker image for the latest release](https://github.com/krasserm/perceiver-io/pkgs/container/perceiver-io) is
+available on GitHub Container registry. Training runs can be started with:
 
 ```shell
 sudo docker run \
@@ -16,7 +11,7 @@ sudo docker run \
   --ipc=host \
   --name=perceiver-io \
   --runtime=nvidia \
-  perceiver-io:latest \
+  ghcr.io/krasserm/perceiver-io:latest \
   python -m SCRIPT fit [OPTIONS]
 ```
 
@@ -31,7 +26,7 @@ sudo docker run \
   --ipc=host \
   --name=perceiver-io \
   --runtime=nvidia \
-  perceiver-io:latest \
+  ghcr.io/krasserm/perceiver-io:latest \
   python -m perceiver.scripts.text.lm fit \
     --model.params=deepmind/language-perceiver \
     ...
