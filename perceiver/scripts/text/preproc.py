@@ -1,3 +1,4 @@
+import multiprocessing as mp
 from typing import Optional
 
 import jsonargparse
@@ -33,4 +34,5 @@ if __name__ == "__main__":
     parser.add_argument("--config_name", type=Optional[str])  # wikitext only
     parser.add_argument("--filter_empty", default=True, type=bool)  # wikitext only
     parser.add_argument("--filter_headers", default=False, type=bool)  # wikitext only
+    parser.add_argument("--num_workers", default=mp.cpu_count(), type=int)
     main(parser.parse_args())

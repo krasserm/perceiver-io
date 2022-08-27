@@ -124,8 +124,8 @@ tune these examples, so you'll likely get better results with a bit of experimen
 
 ### Dataset preprocessing
 
-Although data modules automatically download and preprocess datasets if needed, it is recommended to preprocess at
-least IMDb and WikiText prior to training:
+Although data modules automatically download and preprocess datasets if needed, it is usually faster if you preprocess
+datasets prior to training:
 
 ```shell
 python -m perceiver.scripts.text.preproc imdb \

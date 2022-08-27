@@ -1,4 +1,3 @@
-import multiprocessing as mp
 import os
 import re
 from typing import Any, Optional
@@ -41,7 +40,7 @@ class WikiTextDataModule(TextDataModule):
         )
         dataset.save_to_disk(os.path.join(self.preproc_dir, "chunked"))
 
-    def _filter_dataset(self, dataset: DatasetDict, num_proc: int = mp.cpu_count()):
+    def _filter_dataset(self, dataset: DatasetDict):
         header_pattern = re.compile(r"( =)+.+( =)+")
 
         def is_empty(text):
@@ -63,7 +62,7 @@ class WikiTextDataModule(TextDataModule):
             result[key] = dataset[key].filter(
                 predicate,
                 batched=False,
-                num_proc=num_proc,
+                num_proc=self.hparams.num_workers,
                 load_from_cache_file=False,
                 desc="Running filter on dataset",
             )

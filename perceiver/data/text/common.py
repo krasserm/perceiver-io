@@ -1,5 +1,4 @@
 import hashlib
-import multiprocessing as mp
 import os
 from itertools import chain
 from typing import Any, Sequence
@@ -126,7 +125,6 @@ class TextDataModule(pl.LightningDataModule):
         truncation=False,
         max_length=None,
         return_word_ids=True,
-        num_proc: int = mp.cpu_count(),
     ):
         def tokenize(examples):
             encoding = self.tokenizer(
@@ -153,7 +151,7 @@ class TextDataModule(pl.LightningDataModule):
                 tokenize,
                 batched=True,
                 batch_size=batch_size,
-                num_proc=num_proc,
+                num_proc=self.hparams.num_workers,
                 remove_columns=["text"],
                 load_from_cache_file=False,
                 desc="Running tokenizer on dataset",
@@ -164,7 +162,6 @@ class TextDataModule(pl.LightningDataModule):
         self,
         dataset: DatasetDict,
         batch_size: int,
-        num_proc: int = mp.cpu_count(),
         include_keys: Sequence[str] = ("input_ids", "word_ids"),
         remove_keys: Sequence[str] = (),
     ):
@@ -185,7 +182,7 @@ class TextDataModule(pl.LightningDataModule):
                 batch_size=batch_size,
                 input_columns=list(include_keys),
                 remove_columns=list(remove_keys),
-                num_proc=num_proc,
+                num_proc=self.hparams.num_workers,
                 load_from_cache_file=False,
                 desc=f"Split dataset into chunks of size {max_seq_len}",
             )
