@@ -1,7 +1,7 @@
 # Docker
 
-A [Docker image for the latest release](https://github.com/krasserm/perceiver-io/pkgs/container/perceiver-io) is
-available on GitHub Container registry. Training runs can be started with:
+A [Docker image](https://github.com/krasserm/perceiver-io/pkgs/container/perceiver-io) with the `perceiver-io` library
+installed is available on the GitHub Container registry. Training runs can be started with:
 
 ```shell
 sudo docker run \

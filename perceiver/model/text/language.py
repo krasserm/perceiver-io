@@ -1,6 +1,6 @@
 import os
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 import torch
 import torch.nn as nn
@@ -101,8 +101,21 @@ class LanguageModel(PerceiverIO):
 
 
 class LitLanguageModel(MaskedSamplePrediction, LitModel):
-    def __init__(self, encoder: TextEncoderConfig, decoder: TextDecoderConfig, *args: Any, **kwargs: Any):
-        super().__init__(encoder, decoder, *args, **kwargs)
+    def __init__(
+        self,
+        encoder: TextEncoderConfig,
+        decoder: TextDecoderConfig,
+        *args: Any,
+        # TODO: investigate why the following two params must
+        #       be redundantly added here after upgrading to
+        #       jsonargparse 4.12.0 (from 4.7.*).
+        num_predictions: int = 3,
+        masked_samples: Optional[List[str]] = None,
+        **kwargs: Any
+    ):
+        super().__init__(
+            encoder, decoder, *args, num_predictions=num_predictions, masked_samples=masked_samples, **kwargs
+        )
         self.model = LanguageModel(
             PerceiverConfig(
                 encoder=encoder,

@@ -8,7 +8,7 @@ This library provides three model interfaces:
 - *PyTorch Lightning model API*: defines wrappers for PyTorch models to support training with the
   [PyTorch Lightning Trainer](https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html).
 - *PyTorch Lightning model CLI*: binds the PyTorch Lightning model API to the command line via the
-  [Lightning CLI](https://pytorch-lightning.readthedocs.io/en/1.6.5/common/lightning_cli.html).
+  [Lightning CLI](https://pytorch-lightning.readthedocs.io/en/stable/cli/lightning_cli.html).
 
 The following subsections demonstrate the construction of the Perceiver IO language model (UTF-8 bytes tokenization,
 vocabulary size of 262, 201M parameters) specified in Section 4 (Table 1) and Appendix F (Table 11) of the
@@ -101,7 +101,7 @@ model = lit_model.model
 
 ## PyTorch Lightning model CLI
 
-`LitLanguageModel` and `PerceiverConfig` are designed for command-line binding with the [Lightning CLI](https://pytorch-lightning.readthedocs.io/en/1.6.5/common/lightning_cli.html).
+`LitLanguageModel` and `PerceiverConfig` are designed for command-line binding with the [Lightning CLI](https://pytorch-lightning.readthedocs.io/en/stable/cli/lightning_cli.html).
 A training script for `LitLanguageModel` can be implemented as follows (see [lm.py](../perceiver/scripts/text/lm.py) for
 further details):
 
@@ -113,14 +113,12 @@ from pytorch_lightning.utilities.cli import (
     LightningArgumentParser,
     LightningCLI
 )
+
+# Data modules must be imported in order
+# to be configurable on the command line.  
 from perceiver.data.text import WikipediaDataModule
 from perceiver.model.text.language import LitLanguageModel
 
-# Register Wikipedia data module so that
-# it can be referenced on the command line
-DATAMODULE_REGISTRY(WikipediaDataModule)
-# Register further data modules if needed
-# ...
 
 class CLI(LightningCLI):
     def add_arguments_to_parser(self, parser: LightningArgumentParser) -> None:

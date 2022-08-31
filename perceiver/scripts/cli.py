@@ -1,14 +1,12 @@
 from importlib.resources import path
 from typing import Any
 
-import torch
-import torch_optimizer
+# Import to register additional optimizers at CLI
+import torch_optimizer  # noqa: F401
+
 from pytorch_lightning import Trainer
+from pytorch_lightning.cli import LightningCLI
 from pytorch_lightning.strategies import DDPStrategy
-from pytorch_lightning.utilities.cli import LightningCLI, OPTIMIZER_REGISTRY
-
-
-OPTIMIZER_REGISTRY.register_classes(torch_optimizer, torch.optim.Optimizer)
 
 
 class CLI(LightningCLI):
@@ -19,7 +17,6 @@ class CLI(LightningCLI):
         super().__init__(
             model_class,
             run=run,
-            auto_registry=False,
             save_config_overwrite=True,
             parser_kwargs={"fit": trainer_defaults, "test": trainer_defaults, "validate": trainer_defaults},
             **kwargs

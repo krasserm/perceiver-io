@@ -1,7 +1,7 @@
 from typing import Optional
 
 from pytorch_lightning import LightningModule
-from pytorch_lightning.utilities.cli import LightningArgumentParser, LRSchedulerTypeUnion
+from pytorch_lightning.cli import LightningArgumentParser, LRSchedulerTypeUnion
 from torch.optim import Optimizer
 
 from perceiver.model.text.language import LitLanguageModel

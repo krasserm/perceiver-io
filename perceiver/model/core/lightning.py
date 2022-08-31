@@ -58,9 +58,9 @@ class LitClassifier(LitModel):
     def validation_step(self, batch, batch_idx):
         loss, acc = self.step(batch)
         self.log("val_loss", loss, prog_bar=True, sync_dist=True)
-        self.log("val_acc", acc, prog_bar=True)
+        self.log("val_acc", acc, prog_bar=True, sync_dist=True)
 
     def test_step(self, batch, batch_idx):
         loss, acc = self.step(batch)
         self.log("test_loss", loss, sync_dist=True)
-        self.log("test_acc", acc)
+        self.log("test_acc", acc, sync_dist=True)

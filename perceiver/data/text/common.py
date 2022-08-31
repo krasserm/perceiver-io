@@ -151,7 +151,7 @@ class TextDataModule(pl.LightningDataModule):
                 tokenize,
                 batched=True,
                 batch_size=batch_size,
-                num_proc=self.hparams.num_workers,
+                num_proc=max(self.hparams.num_workers, 1),
                 remove_columns=["text"],
                 load_from_cache_file=False,
                 desc="Running tokenizer on dataset",
@@ -182,7 +182,7 @@ class TextDataModule(pl.LightningDataModule):
                 batch_size=batch_size,
                 input_columns=list(include_keys),
                 remove_columns=list(remove_keys),
-                num_proc=self.hparams.num_workers,
+                num_proc=max(self.hparams.num_workers, 1),
                 load_from_cache_file=False,
                 desc=f"Split dataset into chunks of size {max_seq_len}",
             )

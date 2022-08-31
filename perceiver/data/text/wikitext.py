@@ -62,7 +62,7 @@ class WikiTextDataModule(TextDataModule):
             result[key] = dataset[key].filter(
                 predicate,
                 batched=False,
-                num_proc=self.hparams.num_workers,
+                num_proc=max(self.hparams.num_workers, 1),
                 load_from_cache_file=False,
                 desc="Running filter on dataset",
             )

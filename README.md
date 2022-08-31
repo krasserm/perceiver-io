@@ -7,8 +7,8 @@ This library is a PyTorch and PyTorch Lightning implementation of
 
 An introduction to the model interfaces provided by the library is given in [Interfaces](docs/interfaces.md). Further
 implementation details are described in [Architecture](docs/architecture.md). The codebase was designed for easy
-extension to new tasks and datasets. The integration with [PyTorch Lightning](https://www.pytorchlightning.ai/)
-supports model training at any scale. The command line interface is implemented with the [Lightning CLI](https://pytorch-lightning.readthedocs.io/en/1.6.5/common/lightning_cli.html).
+extension to new tasks and datasets. The integration with [PyTorch Lightning](https://pytorch-lightning.readthedocs.io/en/stable/)
+supports model training at any scale. The command line interface is implemented with the [Lightning CLI](https://pytorch-lightning.readthedocs.io/en/stable/cli/lightning_cli.html).
 
 Datasets used for model training are 🤗 [Datasets](https://huggingface.co/docs/datasets) wrapped into PyTorch Lightning
 data modules (see [data](perceiver/data) package). Datasets are automatically downloaded, preprocessed and cached
@@ -114,7 +114,7 @@ python -m perceiver.scripts.image.classifier fit \
 
 Here are some command line examples how to train Perceiver IO models with this library. If a model must be initialized
 with parameters from a previous run, it references a checkpoint from that run with the `--model.params` option. You can
-download these checkpoints [here](https://martin-krasser.com/perceiver/logs-update-6.zip) (2.3 GB) or create your own
+download these checkpoints [here](https://martin-krasser.com/perceiver/logs-update-7.zip) (2.3 GB) or create your own
 checkpoints by running the examples yourself. Training results are used in [Inference examples](notebooks/inference_examples.ipynb)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/krasserm/perceiver-io/blob/main/notebooks/inference_examples.ipynb)
 
@@ -169,8 +169,8 @@ python -m perceiver.scripts.text.lm fit \
   --trainer.devices=2 \
   --trainer.strategy=ddp_sharded \
   --trainer.log_every_n_steps=20 \
-  --trainer.logger.save_dir=logs \
   --trainer.logger=TensorBoardLogger \
+  --trainer.logger.save_dir=logs \
   --trainer.logger.name=mlm
 ```
 
@@ -240,6 +240,7 @@ The validation accuracy of these two runs can be obtained with
 python -m perceiver.scripts.text.classifier validate \
   --config=logs/txt_clf_dec/version_1/config.yaml \
   --model.encoder.params=null \
+  --trainer.devices=1 \
   --ckpt_path="logs/txt_clf_dec/version_1/checkpoints/epoch=010-val_loss=0.212.ckpt"
 ```
 
@@ -248,7 +249,7 @@ python -m perceiver.scripts.text.classifier validate \
      Validate metric           DataLoader 0
 ──────────────────────────────────────────────────
          val_acc            0.9162399768829346
-        val_loss            0.21216852962970734
+        val_loss            0.2121591567993164
 ──────────────────────────────────────────────────
 ```
 
@@ -258,6 +259,7 @@ and
 python -m perceiver.scripts.text.classifier validate \
   --config=logs/txt_clf_all/version_0/config.yaml \
   --model.params=null \
+  --trainer.devices=1 \
   --ckpt_path="logs/txt_clf_all/version_0/checkpoints/epoch=002-val_loss=0.156.ckpt"
 ```
 
@@ -265,8 +267,8 @@ python -m perceiver.scripts.text.classifier validate \
 ──────────────────────────────────────────────────
      Validate metric           DataLoader 0
 ──────────────────────────────────────────────────
-         val_acc            0.9444400072097778
-        val_loss            0.15595446527004242
+         val_acc            0.9444000124931335
+        val_loss            0.15592406690120697
 ──────────────────────────────────────────────────
 ```
 
@@ -314,8 +316,8 @@ python -m perceiver.scripts.text.lm fit \
   --trainer.accumulate_grad_batches=2 \
   --trainer.val_check_interval=0.5 \
   --trainer.log_every_n_steps=20 \
-  --trainer.logger.save_dir=logs \
   --trainer.logger=TensorBoardLogger \
+  --trainer.logger.save_dir=logs \
   --trainer.logger.name=mlm_pre
 ```
 
@@ -356,6 +358,7 @@ The validation accuracy is 98.1%:
 ```shell
 python -m perceiver.scripts.image.classifier validate \
   --config=logs/img_clf/version_0/config.yaml \
+  --trainer.devices=1 \
   --ckpt_path="logs/img_clf/version_0/checkpoints/epoch=015-val_loss=0.068.ckpt"
 ```
 
@@ -363,7 +366,7 @@ python -m perceiver.scripts.image.classifier validate \
 ──────────────────────────────────────────────────
      Validate metric           DataLoader 0
 ──────────────────────────────────────────────────
-         val_acc            0.9807000160217285
-        val_loss            0.06775263696908951
+         val_acc            0.9805999994277954
+        val_loss            0.06774937361478806
 ──────────────────────────────────────────────────
 ```
