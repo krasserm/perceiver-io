@@ -1,7 +1,7 @@
 import os
 from typing import Any, Union
 
-from datasets import DatasetDict, load_dataset
+from datasets import Dataset, DatasetDict, load_dataset
 
 from perceiver.data.text.collator import WordMaskingCollator
 from perceiver.data.text.common import TextDataModule
@@ -28,7 +28,7 @@ class WikipediaDataModule(TextDataModule):
 
     def _preproc_dataset(
         self,
-        dataset: DatasetDict,
+        dataset: Dataset,
         batch_size: int = 1000,
         train_size: Union[float, int, None] = None,
         valid_size: Union[float, int, None] = 0.05,

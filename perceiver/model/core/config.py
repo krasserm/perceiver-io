@@ -22,7 +22,7 @@ class EncoderConfig:
     freeze: bool = False
 
     def base_kwargs(self, exclude=("freeze",)):
-        return _base_kwargs(self, EncoderConfig, exclude)
+        return base_kwargs(self, EncoderConfig, exclude)
 
 
 @dataclass
@@ -37,7 +37,7 @@ class DecoderConfig:
     freeze: bool = False
 
     def base_kwargs(self, exclude=("freeze",)):
-        return _base_kwargs(self, DecoderConfig, exclude)
+        return base_kwargs(self, DecoderConfig, exclude)
 
 
 E = TypeVar("E", bound=EncoderConfig)
@@ -55,13 +55,17 @@ class PerceiverConfig(Generic[E, D]):
     params: Optional[str] = None
 
 
+def base_kwargs(config, base_class, exclude):
+    base_field_names = [field.name for field in fields(base_class) if field.name not in exclude]
+    return {k: v for k, v in asdict(config).items() if k in base_field_names}
+
+
+# TODO: move to perceiver.model.core.classifier
+# (still kept here for backward compatibility)
+
+
 @dataclass
 class ClassificationDecoderConfig(DecoderConfig):
     num_output_queries: int = 1
     num_output_query_channels: int = 256
     num_classes: int = 100
-
-
-def _base_kwargs(config, base_class, exclude):
-    base_field_names = [field.name for field in fields(base_class) if field.name not in exclude]
-    return {k: v for k, v in asdict(config).items() if k in base_field_names}

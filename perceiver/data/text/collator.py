@@ -23,6 +23,8 @@ class Collator:
 
 
 class DefaultCollator(Collator):
+    label_keys = ["label", "label_ids"]
+
     def __init__(self, tokenizer: PreTrainedTokenizerFast, max_seq_len: Optional[int] = None):
         self.collator = DefaultDataCollator()
         self.tokenizer = tokenizer
@@ -49,7 +51,9 @@ class DefaultCollator(Collator):
             truncation=True,
         )
 
-        prepared["label"] = example["label"]
+        for label_key in self.label_keys:
+            if label_key in example:
+                prepared[label_key] = example[label_key]
         return prepared
 
 

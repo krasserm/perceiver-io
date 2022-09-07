@@ -1,17 +1,10 @@
 from typing import Any
 
-from perceiver.model.core import (
-    ClassificationDecoderConfig,
-    ClassificationOutputAdapter,
-    LitClassifier,
-    PerceiverConfig,
-    PerceiverDecoder,
-    PerceiverIO,
-)
-
+from perceiver.model.core import LitClassifier, PerceiverConfig, PerceiverDecoder, PerceiverIO
+from perceiver.model.core.classifier import ClassificationDecoderConfig, ClassificationOutputAdapter
 from perceiver.model.core.utils import is_checkpoint
 from perceiver.model.text.common import TextEncoder, TextEncoderConfig
-from perceiver.model.text.language import LitLanguageModel
+from perceiver.model.text.mlm import LitMaskedLanguageModel
 
 
 class TextClassifier(PerceiverIO):
@@ -61,7 +54,7 @@ class LitTextClassifier(LitClassifier):
             lit_model = LitTextClassifier.load_from_checkpoint(model_params, params=None)
             self.model.load_state_dict(lit_model.model.state_dict())
         if encoder_params is not None and is_checkpoint(encoder_params):
-            lit_model = LitLanguageModel.load_from_checkpoint(encoder_params, params=None)
+            lit_model = LitMaskedLanguageModel.load_from_checkpoint(encoder_params, params=None)
             self.model.encoder.load_state_dict(lit_model.model.encoder.state_dict())
 
     def forward(self, batch):

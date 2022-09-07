@@ -1,11 +1,11 @@
 import hashlib
 import os
 from itertools import chain
-from typing import Any, Sequence
+from typing import Any, Optional, Sequence
 
 import pytorch_lightning as pl
 import torch
-from datasets import DatasetDict
+from datasets import Dataset, DatasetDict
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
@@ -164,8 +164,10 @@ class TextDataModule(pl.LightningDataModule):
         batch_size: int,
         include_keys: Sequence[str] = ("input_ids", "word_ids"),
         remove_keys: Sequence[str] = (),
+        max_seq_len: Optional[int] = None,
     ):
-        max_seq_len = self.hparams.max_seq_len
+        if max_seq_len is None:
+            max_seq_len = self.hparams.max_seq_len
 
         def chunk(*args):
             chained = {k: list(chain(*args[i])) for i, k in enumerate(include_keys)}
@@ -187,3 +189,26 @@ class TextDataModule(pl.LightningDataModule):
                 desc=f"Split dataset into chunks of size {max_seq_len}",
             )
         return result
+
+
+class ClmDatasetWrapper(torch.utils.data.Dataset):
+    def __init__(self, dataset: Dataset, max_seq_len: int, random_shift: bool = False):
+        self.dataset = dataset
+        self.max_seq_len = max_seq_len
+        self.random_shift = random_shift
+
+    def __getitem__(self, idx):
+        if self.random_shift:
+            shift = torch.randint(self.max_seq_len + 1, (1,)).item()
+            record_1 = self.dataset[idx]["input_ids"]
+            record_2 = self.dataset[idx + 1]["input_ids"]
+            record = record_1[shift:] + record_2[:shift]
+        else:
+            record = self.dataset[idx]["input_ids"]
+        return {"input_ids": record[:-1], "label_ids": record[1:]}
+
+    def __len__(self):
+        if self.random_shift:
+            return len(self.dataset) - 1
+        else:
+            return len(self.dataset)

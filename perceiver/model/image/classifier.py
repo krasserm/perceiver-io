@@ -10,8 +10,6 @@ from torch import Tensor
 from transformers import PerceiverConfig as HuggingfacePerceiverConfig, PerceiverForImageClassificationFourier
 
 from perceiver.model.core import (
-    ClassificationDecoderConfig,
-    ClassificationOutputAdapter,
     EncoderConfig,
     InputAdapter,
     LitClassifier,
@@ -20,6 +18,7 @@ from perceiver.model.core import (
     PerceiverEncoder,
     PerceiverIO,
 )
+from perceiver.model.core.classifier import ClassificationDecoderConfig, ClassificationOutputAdapter
 from perceiver.model.core.convert import (
     copy_cross_attention_layer_params,
     copy_param,

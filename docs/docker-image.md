@@ -27,7 +27,7 @@ sudo docker run \
   --name=perceiver-io \
   --runtime=nvidia \
   ghcr.io/krasserm/perceiver-io:latest \
-  python -m perceiver.scripts.text.lm fit \
+  python -m perceiver.scripts.text.mlm fit \
     --model.params=deepmind/language-perceiver \
     ...
 ```

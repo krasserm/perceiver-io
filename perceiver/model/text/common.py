@@ -37,10 +37,17 @@ class TextInputAdapter(InputAdapter):
         with torch.no_grad():
             self.pos_encoding.normal_(0.0, init_scale)
 
+    @property
+    def vocab_size(self):
+        return self.txt_embedding.num_embeddings
+
+    @property
+    def max_seq_len(self):
+        return self.pos_encoding.shape[0]
+
     def forward(self, x):
-        b, l = x.shape  # noqa: E741
-        # FIXME: make compatible with left-truncated sequences
-        p_enc = rearrange(self.pos_encoding[:l], "... -> () ...")
+        _, n = x.shape
+        p_enc = rearrange(self.pos_encoding[:n], "... -> () ...")
         return self.txt_embedding(x) + p_enc
 
 

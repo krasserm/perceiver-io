@@ -10,20 +10,24 @@ This library provides three kinds of interfaces for model construction:
 - *PyTorch Lightning model CLI*: binds the PyTorch Lightning model API to the command line via the
   [Lightning CLI](https://pytorch-lightning.readthedocs.io/en/stable/cli/lightning_cli.html).
 
+This is demonstrated for Perceiver IO and Perceiver AR models.
+
+## Perceiver IO
+
 The following subsections demonstrate the construction of the Perceiver IO language model specified in Section 4
 (Table 1) and Appendix F (Table 11) of the [Perceiver IO paper](https://arxiv.org/abs/2107.14795) (UTF-8 bytes
 tokenization, vocabulary size of 262, 201M parameters). Construction of other Perceiver IO models follow the
 same pattern.
 
-## PyTorch model API
+### PyTorch model API
 
 This language model can be configured with classes `PerceiverConfig`, `TextEncoderConfig` and `TextDecoderConfig` and
-constructed with the `LanguageModel` class. `TextEncoderConfig` covers the configuration of the generic encoder and its
-task-specific input adapter. `TextDecoderConfig` covers the configuration of the generic decoder and its task-specific
-output adapter (see also [language.py](../perceiver/model/text/language.py)).
+constructed with the `MaskedLanguageModel` class. `TextEncoderConfig` covers the configuration of the generic encoder
+and its task-specific input adapter. `TextDecoderConfig` covers the configuration of the generic decoder and its
+task-specific output adapter (see also [mlm.py](../perceiver/model/text/mlm.py)).
 
 ```python
-from perceiver.model.text.language import LanguageModel, PerceiverConfig, TextEncoderConfig, TextDecoderConfig
+from perceiver.model.text.mlm import MaskedLanguageModel, PerceiverConfig, TextEncoderConfig, TextDecoderConfig
 
 vocab_size = 262  # E
 max_seq_len = 2048  # M, O
@@ -65,7 +69,7 @@ config = PerceiverConfig(
 )
 
 # PyTorch model
-model = LanguageModel(config)
+model = MaskedLanguageModel(config)
 ```
 
 It is also possible to directly import this configuration and pretrained model parameters from the Huggingface Hub by
@@ -73,43 +77,42 @@ referencing `deepmind/language-perceiver`:
 
 ```python
 from transformers import AutoConfig
-from perceiver.model.text.language import convert_config, LanguageModel
+from perceiver.model.text.mlm import convert_config, MaskedLanguageModel
 
 # Import and convert language model configuration from Huggingface Hub  
 config = convert_config(AutoConfig.from_pretrained("deepmind/language-perceiver"))
 
 # Construct PyTorch model and load pretrained parameters
-model = LanguageModel(config)
+model = MaskedLanguageModel(config)
 ```
 
-## PyTorch Lightning model API
+### PyTorch Lightning model API
 
-The same language model wrapped into a PyTorch Lightning module can be created with the `LitLanguageModel` class and
-the `config` object defined previously.
+The same language model wrapped into a PyTorch Lightning module can be created with the `LitMaskedLanguageModel` class
+and the `config` object defined previously.
 
 ```python
-from perceiver.model.text.language import LitLanguageModel
+from perceiver.model.text.mlm import LitMaskedLanguageModel
 
 config = ...
 
 # PyTorch Lightning model
-lit_model = LitLanguageModel.create(config)
+lit_model = LitMaskedLanguageModel.create(config)
 
 # Wrapped PyTorch model
 model = lit_model.model
 ```
 
-## PyTorch Lightning model CLI
+### PyTorch Lightning model CLI
 
-`LitLanguageModel` and `PerceiverConfig` are designed for command-line binding with the [Lightning CLI](https://pytorch-lightning.readthedocs.io/en/stable/cli/lightning_cli.html).
-A training script for `LitLanguageModel` can be implemented as follows (see [lm.py](../perceiver/scripts/text/lm.py) for
+`LitMaskedLanguageModel` and `PerceiverConfig` are designed for command-line binding with the [Lightning CLI](https://pytorch-lightning.readthedocs.io/en/stable/cli/lightning_cli.html).
+A training script for `LitMaskedLanguageModel` can be implemented as follows (see [mlm.py](../perceiver/scripts/text/mlm.py) for
 further details):
 
 ```python
-# File lm.py
+# File mlm.py
 
-from pytorch_lightning.utilities.cli import (
-    DATAMODULE_REGISTRY,
+from pytorch_lightning.cli import (
     LightningArgumentParser,
     LightningCLI
 )
@@ -117,7 +120,7 @@ from pytorch_lightning.utilities.cli import (
 # Data modules must be imported in order
 # to be configurable on the command line.  
 from perceiver.data.text import WikipediaDataModule
-from perceiver.model.text.language import LitLanguageModel
+from perceiver.model.text.mlm import LitMaskedLanguageModel
 
 
 class CLI(LightningCLI):
@@ -142,14 +145,13 @@ class CLI(LightningCLI):
         )
 
 if __name__ == "__main__":
-    CLI(model_class=LitLanguageModel)
+    CLI(model_class=LitMaskedLanguageModel)
 ```
 
-Training a `LitLanguageModel` on masked language modeling from scratch with the Wikipedia dataset can then be started
-with e.g.:
+Training a `LitMaskedLanguageModel` from scratch with the Wikipedia dataset can then be started with e.g.:
 
 ```shell
-python lm.py fit \
+python mlm.py fit \
   --model.encoder.dropout=0.0 \
   --model.decoder.dropout=0.0 \
   --data=WikipediaDataModule \
@@ -170,5 +172,107 @@ modeling starts from the official pretrained model instead of a randomly initial
 use another dataset because the official model has already been pretrained on Wikipedia (and other datasets).  
 
 The structure of the `--model.*` command line options is determined by the structure of the configuration classes
-`PerceiverConfig`, `TextEncoderConfig` and `TextDecoderConfig`. Defaults defined in `lm.py` can be overridden on the
-command line.
+`PerceiverConfig`, `TextEncoderConfig` and `TextDecoderConfig`. Defaults defined in [mlm.py](../perceiver/scripts/text/mlm.py)
+can be overridden on the command line.
+
+## Perceiver AR
+
+The following subsections demonstrate the construction of a small Perceiver AR language model (UTF-8 bytes
+tokenization, vocabulary size of 262, 30.7M parameters).
+
+### PyTorch model API
+
+`CausalLanguageModel` inherits from `PerceiverAR` and is configured with `CausalLanguageModelConfig`. See [clm.py](../perceiver/model/text/clm.py)
+for further details.
+
+```python
+from perceiver.model.text.clm import CausalLanguageModel, CausalLanguageModelConfig
+
+config = CausalLanguageModelConfig(
+    vocab_size=262,
+    max_seq_len=4096,
+    num_latents=512,
+    num_channels=512,
+    num_self_attention_layers=8,
+    cross_attention_dropout=0.5,
+)
+
+# PyTorch model
+model = CausalLanguageModel(config)
+```
+
+### PyTorch Lightning model API
+
+The same language model wrapped into a PyTorch Lightning module can be created with the `LitCausalLanguageModel` class
+and the `config` object defined previously.
+
+```python
+from perceiver.model.text.clm import LitCausalLanguageModel
+
+config = ...
+
+# PyTorch Lightning model
+lit_model = LitCausalLanguageModel.create(config)
+
+# Wrapped PyTorch model
+model = lit_model.model
+```
+
+### PyTorch Lightning model CLI
+
+`LitCausalLanguageModel` is designed for command-line binding with the [Lightning CLI](https://pytorch-lightning.readthedocs.io/en/stable/cli/lightning_cli.html).
+A training script for `LitCausalLanguageModel` can be implemented as follows (see [clm.py](../perceiver/scripts/text/clm.py)
+for further details):
+
+```python
+# File clm.py
+
+from pytorch_lightning.cli import (
+    LightningArgumentParser,
+    LightningCLI
+)
+
+# Data modules must be imported in order
+# to be configurable on the command line.  
+from perceiver.data.text import WikiTextDataModule
+from perceiver.model.text.clm import LitCausalLanguageModel
+
+
+class CLI(LightningCLI):
+    def add_arguments_to_parser(self, parser: LightningArgumentParser) -> None:
+        super().add_arguments_to_parser(parser)
+        parser.link_arguments("data.max_seq_len", "model.max_seq_len", apply_on="instantiate")
+        parser.link_arguments("data.vocab_size", "model.vocab_size", apply_on="instantiate")
+        parser.set_defaults(
+            {
+                "model.num_latents": 512,
+                "model.num_channels": 512,
+                "model.num_self_attention_layers": 8,
+                "model.cross_attention_dropout": 0.5,
+                "model.post_attention_dropout": 0.0,
+            }
+        )
+
+
+if __name__ == "__main__":
+    CLI(LitCausalLanguageModel)
+```
+
+Training a `LitCausalLanguageModel` from scratch with the WikTtext-103-raw dataset can then be started with e.g.:
+
+```shell
+python clm.py fit \
+  --model.cross_attention_dropout=0.6 \
+  --data=WikiTextDataModule \
+  --data.task=clm \
+  --data.tokenizer=deepmind/language-perceiver \
+  --data.max_seq_len=4096 \
+  --data.batch_size=24 \
+  --optimizer=Adam \
+  --optimizer.lr=2e-4 \
+  --trainer.accelerator=gpu \
+  --trainer.devices=-1 \
+  --trainer.logger=TensorBoardLogger \
+  --trainer.logger.save_dir=logs \
+  --trainer.logger.name=clm
+```

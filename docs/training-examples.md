@@ -1,19 +1,19 @@
 # Training examples
 
-Here are some command line examples how to train Perceiver IO models with this library. If a model must be initialized
-with parameters from a previous run, it references a checkpoint from that run with the `--model.params` option. You can
-download these checkpoints [here](https://martin-krasser.com/perceiver/logs-update-7.zip) if you don't want to run all
-examples yourself. Training results are used in [Inference examples](../notebooks/inference_examples.ipynb)
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/krasserm/perceiver-io/blob/main/notebooks/inference_examples.ipynb)
+This section contains command line examples for training [Perceiver IO](#perceiver-io) and [Perceiver AR](#perceiver-ar)
+models. If a model must be initialized with parameters from a previous run, it references a checkpoint from that run
+with the `--model.params` option. Checkpoints for all command line examples can be downloaded [here](https://martin-krasser.com/perceiver/logs-update-8.zip).
+They are also used in [Inference examples](../notebooks/inference_examples.ipynb).
 
-These examples were tested on a machine with 4x RTX 3080ti GPUs (12 GB memory each). You'll need to adjust some
+The examples were tested on a machine with 4x RTX 3080ti GPUs (12 GB memory each). You'll need to adjust some
 settings (batch size, ...) for running them on a different hardware configuration. Furthermore, I didn't really
 tune these examples, so you'll likely get better results with a bit of experimentation.
 
 ## Dataset preprocessing
 
 Although data modules automatically download and preprocess datasets if needed, it is usually faster if you preprocess
-datasets prior to training (see [Dataset preprocessing](dataset-preproc.md) for details):
+datasets prior to training (see [Dataset preprocessing](dataset-preproc.md) for details). Running the following commands
+is optional:
 
 ```shell
 python -m perceiver.scripts.text.preproc imdb \
@@ -24,25 +24,34 @@ python -m perceiver.scripts.text.preproc imdb \
 python -m perceiver.scripts.text.preproc wikitext \
   --tokenizer=bert-base-uncased \
   --max_seq_len=128 \
-  --add_special_tokens=true \
   --filter_empty=true \
-  --filter_headers=true
+  --filter_headers=true \
+  --task=mlm
+
+python -m perceiver.scripts.text.preproc wikitext \
+  --tokenizer=deepmind/language-perceiver \
+  --max_seq_len=4096 \
+  --filter_empty=false \
+  --filter_headers=false \
+  --task=clm
 ```
 
-## Language model fine-tuning
+## Perceiver IO
 
-Fine-tune a pretrained `deepmind/language-perceiver` model with masked language modeling and whole word masking on
-the IMDb dataset (*unsupervised* split). It prepares the language model for a better performance on IMDb [sentiment
+### Language model fine-tuning (MLM)
+
+Fine-tune a pretrained `deepmind/language-perceiver` model with masked language modeling (MLM) and whole word masking
+on the IMDb dataset (*unsupervised* split). It prepares the language model for a better performance on IMDb [sentiment
 classification](#sentiment-classification). The tokenizer is a UTF-8 bytes tokenizer and the model attends to the
 raw bytes of the input. Word masking is done dynamically at data loading time i.e. each epoch has a different set
 of words masked.
 
 ```shell
-python -m perceiver.scripts.text.lm fit \
+python -m perceiver.scripts.text.mlm fit \
   --model.params=deepmind/language-perceiver \
   --model.activation_checkpointing=true \
   --data=ImdbDataModule \
-  --data.target_task=mlm \
+  --data.task=mlm \
   --data.tokenizer=deepmind/language-perceiver \
   --data.add_special_tokens=true \
   --data.max_seq_len=2048 \
@@ -62,12 +71,13 @@ python -m perceiver.scripts.text.lm fit \
   --trainer.logger.name=mlm
 ```
 
-## Sentiment classification
+### Sentiment classification
 
 Train a text classification model on the IMDb dataset (*train* split). The encoder of the classifier is the fine-tuned
-language model encoder from the [previous run](#language-model-fine-tuning) (`--model.encoder.params=...`), the decoder
-is a randomly initialized classification decoder (see `TextClassifier` and `LitTextClassifier` in [classifier.py](../perceiver/model/text/classifier.py)).
-First, only the decoder is trained, the encoder is frozen (`--model.encoder.freeze=true`)
+language model encoder from the [previous run](#language-model-fine-tuning-mlm) (`--model.encoder.params=...`), the
+decoder is a randomly initialized classification decoder (see `TextClassifier` and `LitTextClassifier` in
+[classifier.py](../perceiver/model/text/classifier.py)). First, only the decoder is trained, the encoder is frozen
+(`--model.encoder.freeze=true`)
 
 ```shell
 python -m perceiver.scripts.text.classifier fit \
@@ -76,7 +86,7 @@ python -m perceiver.scripts.text.classifier fit \
   --model.encoder.dropout=0.0 \
   --model.decoder.dropout=0.1 \
   --data=ImdbDataModule \
-  --data.target_task=clf \
+  --data.task=clf \
   --data.tokenizer=deepmind/language-perceiver \
   --data.add_special_tokens=true \
   --data.max_seq_len=2048 \
@@ -104,7 +114,7 @@ python -m perceiver.scripts.text.classifier fit \
   --model.encoder.dropout=0.1 \
   --model.decoder.dropout=0.1 \
   --data=ImdbDataModule \
-  --data.target_task=clf \
+  --data.task=clf \
   --data.tokenizer=deepmind/language-perceiver \
   --data.add_special_tokens=true \
   --data.max_seq_len=2048 \
@@ -163,31 +173,27 @@ python -m perceiver.scripts.text.classifier validate \
 When training only the classification decoder, the validation accuracy is 91.6%. Fine-tuning encoder and decoder on the
 classification task further increases validation accuracy to 94.4%.
 
-## Language model pretraining
+### Language model pretraining (MLM)
 
 Pretrain a smaller language model (45.2M parameters) with masked language modeling and whole word masking on the
-Wikitext-103 dataset. This is a toy example for demonstrating how to use a custom model configuration/architecture
-and another 🤗 tokenizer (`bert-base-uncased`, a SentencePiece tokenizer with a vocabulary of size of 30,522). To
-speed up training, `--data.max_seq_len=128` and `--model.num_latents=64` is used (a quarter of the default values).
+Wikitext-103 dataset. The example uses a custom model configuration/architecture and another 🤗 tokenizer
+(`bert-base-uncased`, a SentencePiece tokenizer with a vocabulary of size of 30,522). To speed up training,
+`--data.max_seq_len=128` and `--model.num_latents=64` is used (a quarter of the default values).
 
 ```shell
-python -m perceiver.scripts.text.lm fit \
+python -m perceiver.scripts.text.mlm fit \
   --model.activation_checkpointing=true \
   --model.num_latents=64 \
   --model.num_latent_channels=768 \
   --model.encoder.num_input_channels=512 \
-  --model.encoder.num_cross_attention_v_channels=768 \
-  --model.encoder.num_self_attention_v_channels=768 \
   --model.encoder.num_self_attention_layers_per_block=6 \
-  --model.encoder.cross_attention_widening_factor=2 \
-  --model.encoder.self_attention_widening_factor=2 \
-  --model.encoder.dropout=0.0 \
-  --model.decoder.num_cross_attention_v_channels=512 \
-  --model.decoder.cross_attention_widening_factor=2 \
-  --model.decoder.dropout=0.0 \
+  --model.encoder.cross_attention_widening_factor=4 \
+  --model.encoder.self_attention_widening_factor=4 \
+  --model.encoder.dropout=0.1 \
+  --model.decoder.cross_attention_widening_factor=4 \
+  --model.decoder.dropout=0.1 \
   --data=WikiTextDataModule \
   --data.tokenizer=bert-base-uncased \
-  --data.add_special_tokens=true \
   --data.filter_empty=true \
   --data.filter_headers=true \
   --data.max_seq_len=128 \
@@ -200,8 +206,6 @@ python -m perceiver.scripts.text.lm fit \
   --trainer.accelerator=gpu \
   --trainer.precision=16 \
   --trainer.devices=4 \
-  --trainer.strategy=ddp_sharded \
-  --trainer.accumulate_grad_batches=2 \
   --trainer.val_check_interval=0.5 \
   --trainer.log_every_n_steps=20 \
   --trainer.logger=TensorBoardLogger \
@@ -209,7 +213,7 @@ python -m perceiver.scripts.text.lm fit \
   --trainer.logger.name=mlm_pre
 ```
 
-## Image classification
+### Image classification
 
 Train a tiny image classifier (805K parameters) on the MNIST dataset. The model attends to individual pixels of the
 input image and uses Fourier position encodings. This is another toy example that demonstrates how to use a custom
@@ -258,3 +262,42 @@ python -m perceiver.scripts.image.classifier validate \
         val_loss            0.06774937361478806
 ──────────────────────────────────────────────────
 ```
+
+## Perceiver AR
+
+### Language model pretraining (CLM)
+
+Pretrain a smaller language model (30.7M parameters) with causal language modeling on the WikiText-103-raw dataset. The
+tokenizer is a UTF-8 bytes tokenizer and the model attends to the raw bytes of the input.
+
+```shell
+python -m perceiver.scripts.text.clm fit \
+  --model.num_latents=512 \
+  --model.cross_attention_dropout=0.5 \
+  --model.post_attention_dropout=0.0 \
+  --data=WikiTextDataModule \
+  --data.tokenizer=deepmind/language-perceiver \
+  --data.max_seq_len=4096 \
+  --data.batch_size=24 \
+  --data.num_workers=3 \
+  --data.task=clm \
+  --optimizer=Adam \
+  --optimizer.lr=2e-4 \
+  --trainer.max_steps=8000 \
+  --trainer.accelerator=gpu \
+  --trainer.devices=2 \
+  --trainer.val_check_interval=0.5 \
+  --trainer.gradient_clip_val=0.5 \
+  --trainer.accumulate_grad_batches=2 \
+  --trainer.logger=TensorBoardLogger \
+  --trainer.logger.save_dir=logs \
+  --trainer.logger.name=clm_pre
+```
+
+For better generalization to shorter sequences I found random sequence truncation helpful which can be enabled with
+`--model.random_sequence_trucation=true`. Random sequence truncation randomly truncates sequences in a batch to a
+length `randint(16, n+1)` where `n` is the original sequence length.
+
+With option `--model.validation_sample_record=-1` a sequence is randomly picked from the validation set and used as
+prompt for sequence generation during validation. The prompt and the generated sequence is logged to Tensorboard. You
+can also use option `--model.validation_sample_prompt="My own sample prompt"` to provide your own prompt.

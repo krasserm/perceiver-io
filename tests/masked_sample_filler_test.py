@@ -3,9 +3,10 @@ from typing import List
 import pytest
 
 import torch
+import torch.nn as nn
 
 from perceiver.data.text import TextPreprocessor
-from perceiver.model.text.utils import MaskedSamplePrediction
+from perceiver.model.text.mlm import MaskedSampleFiller
 
 
 MASKED_SAMPLES = [
@@ -20,11 +21,14 @@ def preprocessor():
     yield TextPreprocessor(tokenizer="bert-base-uncased", max_seq_len=64, add_special_tokens=False)
 
 
-def test_fill_masks(preprocessor):
-    msp = MaskedSamplePredictionCallable(
-        targets=[["sentence", "is", "bit"], ["phrase", "was", "bunch"]], preprocessor=preprocessor
+def test_fill(preprocessor):
+    model = MockMaskedLanguageModel(
+        tokenizer=preprocessor.tokenizer, targets=[["sentence", "is", "bit"], ["phrase", "was", "bunch"]]
     )
-    masked_samples, filled_samples = msp.fill_masks(MASKED_SAMPLES, num_predictions=len(msp.targets))
+
+    filler = MaskedSampleFiller(preprocessor, model)
+
+    masked_samples, filled_samples = filler.fill(MASKED_SAMPLES, num_predictions=len(model.targets))
 
     assert masked_samples == [
         "This is [MASK] one.",
@@ -39,12 +43,10 @@ def test_fill_masks(preprocessor):
     ]
 
 
-class MaskedSamplePredictionCallable(MaskedSamplePrediction):
-    def __init__(self, targets: List[List[str]], preprocessor: TextPreprocessor):
+class MockMaskedLanguageModel(nn.Module):
+    def __init__(self, tokenizer, targets: List[List[str]]):
         super().__init__()
-        self.save_hyperparameters()
-        self.preprocessor = preprocessor
-        self.tokenizer = self.preprocessor.tokenizer
+        self.tokenizer = tokenizer
         self.targets = targets
 
     def forward(self, x_masked, pad_mask):

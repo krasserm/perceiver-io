@@ -9,7 +9,7 @@ of this library. Core modules are the building blocks for [model construction](m
 
 Perceiver IO models are constructed from generic `PerceiverEncoder` and `PerceiverDecoder` classes and task-specific
 `InputAdapter` and `OutputAdapter` subclasses. Array dimensions (`M`, `C`), (`N`, `D`), (`O`, `F`)  and (`O`, `E`)
-have the following names in code and/or on the command line (see also code comments [here](model-construction.md#pytorch-model-api)):
+have the following names in code and/or on the command line (see also code comments [here](model-construction.md#perceiver-io)):
 
 | Array dimension | Configuration parameter name                                                    |
 |-----------------|---------------------------------------------------------------------------------|
@@ -46,3 +46,12 @@ always share their weights. Sharing the weights with the first cross-attention l
 `first_cross_attention_layer_shared`, sharing the weights with the first self-attention block can be configured with
 `first_self_attention_block_shared`. The default values of these configuration parameters are consistent with the
 Perceiver IO architecture (1 cross-attention layer, `L` self-attention blocks with weight sharing).
+
+## Perceiver AR
+
+![architecture](images/perceiver-ar.png)
+
+The implementation of [Perceiver AR](https://arxiv.org/abs/2202.07765) is very similar to a Perceiver IO encoder.
+Perceiver AR additionally uses [rotary position embeddings](https://arxiv.org/abs/2104.09864) and uses a causal
+cross- and self- attention mask. The current implementation is still experimental and a final implementation may
+be entirely based on Perceiver IO.

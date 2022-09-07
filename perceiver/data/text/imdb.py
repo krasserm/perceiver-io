@@ -9,8 +9,8 @@ from perceiver.data.text.common import TextDataModule
 
 
 class Task(Enum):
-    mlm = 0
-    clf = 1
+    mlm = 0  # masked language modeling
+    clf = 1  # sequence classification
 
 
 class ImdbDataModule(TextDataModule):
@@ -18,18 +18,18 @@ class ImdbDataModule(TextDataModule):
         self,
         *args: Any,
         dataset_dir: str = os.path.join(".cache", "imdb"),
-        target_task: Task = Task.mlm,
+        task: Task = Task.mlm,
         mask_prob: float = 0.15,
         **kwargs: Any,
     ):
         super().__init__(*args, **kwargs)
 
-        if target_task == Task.mlm:
+        if task == Task.mlm:
             self.collator = WordMaskingCollator(tokenizer=self.tokenizer, mask_prob=mask_prob)
-        elif target_task == Task.clf:
+        elif task == Task.clf:
             self.collator = DefaultCollator(tokenizer=self.tokenizer, max_seq_len=self.hparams.max_seq_len)
         else:
-            raise ValueError(f"Invalid target task {target_task}")
+            raise ValueError(f"Invalid task {task}")
 
     @property
     def num_classes(self):
@@ -41,7 +41,7 @@ class ImdbDataModule(TextDataModule):
             self._preproc_dataset(dataset)
 
     def _load_dataset(self):
-        subdir = "tokenized" if self.hparams.target_task == Task.clf else "chunked"
+        subdir = "tokenized" if self.hparams.task == Task.clf else "chunked"
         return DatasetDict.load_from_disk(os.path.join(self.preproc_dir, subdir))
 
     def _preproc_dataset(self, dataset: DatasetDict, batch_size: int = 1000):

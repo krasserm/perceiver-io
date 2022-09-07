@@ -38,24 +38,33 @@ whatever you need for model training.
       --add_special_tokens=true
     ```
 
-- [wikitext](https://huggingface.co/datasets/wikitext) (`wikitext-103-raw-v1`), used for small-scale [training examples](../README.md#training-examples):
+- [wikitext](https://huggingface.co/datasets/wikitext) (`wikitext-103-raw-v1`), used for [training examples](training-examples.md):
 
     ```shell
     python -m perceiver.scripts.text.preproc wikitext \
       --tokenizer=bert-base-uncased \
       --max_seq_len=512 \
-      --add_special_tokens=true \
+      --add_special_tokens=false \
       --filter_empty=true \
       --filter_headers=true
     ```
 
-- [imdb](https://huggingface.co/datasets/imdb) (`plain_text`), used for small-scale [training examples](../README.md#training-examples):
+- [imdb](https://huggingface.co/datasets/imdb) (`plain_text`), used for [training examples](training-examples.md):
 
     ```shell
     python -m perceiver.scripts.text.preproc imdb \
       --tokenizer=deepmind/language-perceiver \
       --max_seq_len=2048 \
       --add_special_tokens=true
+    ```
+
+- [enwik8](https://huggingface.co/datasets/enwik8) (`enwik8`), used for [training examples](training-examples.md):
+
+    ```shell
+    python -m perceiver.scripts.text.preproc enwik8 \
+      --tokenizer=deepmind/language-perceiver \
+      --max_seq_len=4096 \
+      --add_special_tokens=false
     ```
 
 ## Image datasets

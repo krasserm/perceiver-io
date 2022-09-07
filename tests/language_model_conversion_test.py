@@ -4,8 +4,8 @@ import pytest
 import pytorch_lightning as pl
 import torch
 
-from perceiver.model.text.language import convert_config, LanguageModel, LitLanguageModel
-from perceiver.scripts.text.lm import MaskedLanguageModelingCLI
+from perceiver.model.text.mlm import convert_config, LitMaskedLanguageModel, MaskedLanguageModel
+from perceiver.scripts.text.mlm import MaskedLanguageModelingCLI
 from transformers import AutoConfig, PerceiverForMaskedLM, PerceiverTokenizer
 
 
@@ -36,13 +36,13 @@ def tokenizer():
 
 def test_conversion(source_config, source_model, tokenizer):
     target_config = convert_config(source_config)
-    target_model = LanguageModel(target_config).eval()
+    target_model = MaskedLanguageModel(target_config).eval()
     assert_equal_prediction(source_model, target_model, tokenizer)
 
 
 def test_conversion_lit(source_config, source_model, tokenizer):
     target_config = convert_config(source_config)
-    target_model = LitLanguageModel.create(target_config).eval()
+    target_model = LitMaskedLanguageModel.create(target_config).eval()
     assert_equal_prediction(source_model, target_model, tokenizer)
 
 
@@ -57,7 +57,7 @@ def test_conversion_cli(source_model, tokenizer):
             "--trainer.devices=1",
         ],
     ):
-        cli = MaskedLanguageModelingCLI(model_class=LitLanguageModel, datamodule_class=MockDataModule, run=False)
+        cli = MaskedLanguageModelingCLI(model_class=LitMaskedLanguageModel, datamodule_class=MockDataModule, run=False)
 
     target_model = cli.model.eval()
     assert_equal_prediction(source_model, target_model, tokenizer)

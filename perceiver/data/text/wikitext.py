@@ -1,11 +1,17 @@
 import os
 import re
+from enum import Enum
 from typing import Any, Optional
 
 from datasets import DatasetDict, load_dataset
 
-from perceiver.data.text.collator import WordMaskingCollator
-from perceiver.data.text.common import TextDataModule
+from perceiver.data.text.collator import DefaultCollator, WordMaskingCollator
+from perceiver.data.text.common import ClmDatasetWrapper, TextDataModule
+
+
+class Task(Enum):
+    mlm = 0  # masked language modeling
+    clm = 1  # causal language modeling
 
 
 class WikiTextDataModule(TextDataModule):
@@ -14,13 +20,19 @@ class WikiTextDataModule(TextDataModule):
         *args: Any,
         dataset_dir: str = os.path.join(".cache", "wikitext"),
         config_name: Optional[str] = None,
+        task: Task = Task.mlm,
         mask_prob: float = 0.15,
         filter_empty: bool = False,
         filter_headers: bool = False,
         **kwargs: Any,
     ):
         super().__init__(*args, **kwargs)
-        self.collator = WordMaskingCollator(tokenizer=self.tokenizer, mask_prob=mask_prob)
+        if task == Task.mlm:
+            self.collator = WordMaskingCollator(tokenizer=self.tokenizer, mask_prob=mask_prob)
+        elif task == Task.clm:
+            self.collator = DefaultCollator(tokenizer=self.tokenizer, max_seq_len=self.hparams.max_seq_len)
+        else:
+            raise ValueError(f"Invalid task {task}")
 
     def prepare_data(self) -> None:
         if not os.path.exists(self.preproc_dir):
@@ -28,16 +40,27 @@ class WikiTextDataModule(TextDataModule):
             dataset = load_dataset("wikitext", config_name, cache_dir=self.hparams.dataset_dir)
             self._preproc_dataset(dataset)
 
+    def setup(self, stage=None):
+        super().setup(stage)
+        if self.hparams.task == Task.clm:
+            self.ds_train = ClmDatasetWrapper(self.ds_train, max_seq_len=self.hparams.max_seq_len, random_shift=True)
+            self.ds_valid = ClmDatasetWrapper(self.ds_valid, max_seq_len=self.hparams.max_seq_len, random_shift=False)
+
     def _load_dataset(self):
         return DatasetDict.load_from_disk(os.path.join(self.preproc_dir, "chunked"))
 
     def _preproc_dataset(self, dataset: DatasetDict, batch_size: int = 1000):
         dataset = self._filter_dataset(dataset)
         dataset = self.tokenize_dataset(dataset, batch_size=batch_size)
-        dataset = self.chunk_dataset(
-            DatasetDict(train=dataset["train"], valid=dataset["validation"]),
-            batch_size=batch_size,
-        )
+        dataset = DatasetDict(train=dataset["train"], valid=dataset["validation"])
+
+        if self.hparams.task == Task.mlm:
+            dataset = self.chunk_dataset(dataset, batch_size=batch_size)
+        elif self.hparams.task == Task.clm:
+            dataset = self.chunk_dataset(
+                dataset, batch_size=batch_size, include_keys=["input_ids"], max_seq_len=self.hparams.max_seq_len + 1
+            )
+
         dataset.save_to_disk(os.path.join(self.preproc_dir, "chunked"))
 
     def _filter_dataset(self, dataset: DatasetDict):
@@ -76,4 +99,6 @@ class WikiTextDataModule(TextDataModule):
             hash_input = f"{hash_input}-fe"
         if self.hparams.filter_headers:
             hash_input = f"{hash_input}-fh"
+        if self.hparams.task == Task.clm:
+            hash_input = f"{hash_input}-clm"
         return hash_input

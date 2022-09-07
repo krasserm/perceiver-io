@@ -4,7 +4,7 @@ from pytorch_lightning import LightningModule
 from pytorch_lightning.cli import LightningArgumentParser, LRSchedulerTypeUnion
 from torch.optim import Optimizer
 
-from perceiver.model.text.language import LitLanguageModel
+from perceiver.model.text.mlm import LitMaskedLanguageModel
 from perceiver.scripts.cli import CLI
 from perceiver.scripts.utils.scheduler import CosineWithWarmupLR
 
@@ -55,4 +55,4 @@ class MaskedLanguageModelingCLI(CLI):
 
 
 if __name__ == "__main__":
-    MaskedLanguageModelingCLI(LitLanguageModel, description="Masked language model", run=True)
+    MaskedLanguageModelingCLI(LitMaskedLanguageModel, description="Masked language model", run=True)
