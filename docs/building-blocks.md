@@ -1,16 +1,15 @@
-# Architecture
+# Building blocks
 
-The following figure maps Perceiver IO and Perceiver concepts to the [core modules](../perceiver/model/core/modules.py)
-of this library. Core modules are the building blocks of concrete Perceiver IO models implemented by this library (see
-[Interfaces](interfaces.md)).
-
-![architecture](../docs/images/architecture.png)
+The following subsections map Perceiver IO and Perceiver concepts to the [core modules](../perceiver/model/core/modules.py)
+of this library. Core modules are the building blocks for [model construction](model-construction.md).
 
 ## Perceiver IO
 
+![architecture](images/perceiver-io.png)
+
 Perceiver IO models are constructed from generic `PerceiverEncoder` and `PerceiverDecoder` classes and task-specific
 `InputAdapter` and `OutputAdapter` subclasses. Array dimensions (`M`, `C`), (`N`, `D`), (`O`, `F`)  and (`O`, `E`)
-have the following names in code and/or on the command line (see also code comments [here](interfaces.md#pytorch-model-api)):
+have the following names in code and/or on the command line (see also code comments [here](model-construction.md#pytorch-model-api)):
 
 | Array dimension | Configuration parameter name                                                    |
 |-----------------|---------------------------------------------------------------------------------|
@@ -23,18 +22,23 @@ have the following names in code and/or on the command line (see also code comme
 | `F`             | `num_output_query_channels` (property of `OutputAdapter`)                       |
 
 The number of layers in a `SelfAttentionBlock` can be specified with `num_self_attention_layers_per_block` and the
-number of blocks with `num_self_attention_blocks` (`L`).
-
-## Perceiver
-
-[Perceiver IO](#perceiver-io) does **not** use repeated encoder cross-attention as described the [paper](https://arxiv.org/abs/2107.14795):
+number of blocks with `num_self_attention_blocks` (`L`). By specification, [Perceiver IO](https://arxiv.org/abs/2107.14795)
+does not use repeated encoder cross-attention:
 
 > We omit the repeated encoder cross-attends used in [Perceiver](https://arxiv.org/abs/2103.03206) as we found these to
 > lead to relatively small performance improvements but to significantly slow down training ...
 
 This may be the case for the very large datasets as used in the Perceiver IO paper, but I found that repeated encoder
 cross-attention actually gives better training results for smaller datasets. Therefore, the implementation also
-supports repeated encoder cross-attention as described in the [Perceiver](https://arxiv.org/abs/2103.03206) paper.
+supports repeated encoder cross-attention as described in the [next section](#perceiver).
+
+
+## Perceiver
+
+![architecture](images/perceiver.png)
+
+Perceiver models are constructed from `PerceiverEncoder` classes and a task-specific `InputAdapter` subclass. The output
+is averaged over dimension `N` and projected to the number of target classes (not part of the library).  
 
 The number of repeated cross-attentions can be specified with `num_cross_attention_layers` (`P`) which must be less
 than or equal `num_self_attention_blocks` (`L`). Cross-attention layers 2 - `P` and self-attention blocks 2 - `L`

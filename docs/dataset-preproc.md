@@ -11,11 +11,6 @@ Text dataset preprocessing requires a 🤗 fast tokenizer, or the `deepmind/lang
 set with the `--tokenizer` command line option. The following preprocessing commands are examples. Adjust them to
 whatever you need for model training.
 
-The following data preprocessing examples are aligned with the
-training examples use a pretrained `xlnet-base-cased` tokenizer from the 🤗 Hub and a custom
-`tokenizers/bert-base-uncased-10k-bookcorpus-ext` tokenizer from this repository (see [Tokenizers](tokenizers.md) for
-further details).
-
 - [bookcorpus](https://huggingface.co/datasets/bookcorpus) (`plain_text`):
 
     ```shell

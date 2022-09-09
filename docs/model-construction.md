@@ -1,18 +1,18 @@
-# Interfaces
+# Model construction
 
-This library provides three model interfaces:
+This library provides three kinds of interfaces for model construction:
 
 - *PyTorch model API*: defines concrete Perceiver IO model and configuration classes. Internally, models are
   constructed from generic `PerceiverEncoder` and `PerceiverDecoder` classes and task-specific `InputAdapter`
-  and `OutputAdapter` subclasses (see [Architecture](architecture.md)).  
+  and `OutputAdapter` subclasses (see [Building blocks](building-blocks.md)).  
 - *PyTorch Lightning model API*: defines wrappers for PyTorch models to support training with the
   [PyTorch Lightning Trainer](https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html).
 - *PyTorch Lightning model CLI*: binds the PyTorch Lightning model API to the command line via the
   [Lightning CLI](https://pytorch-lightning.readthedocs.io/en/stable/cli/lightning_cli.html).
 
-The following subsections demonstrate the construction of the Perceiver IO language model (UTF-8 bytes tokenization,
-vocabulary size of 262, 201M parameters) specified in Section 4 (Table 1) and Appendix F (Table 11) of the
-[Perceiver IO paper](https://arxiv.org/abs/2107.14795). Construction of other Perceiver IO models follows the
+The following subsections demonstrate the construction of the Perceiver IO language model specified in Section 4
+(Table 1) and Appendix F (Table 11) of the [Perceiver IO paper](https://arxiv.org/abs/2107.14795) (UTF-8 bytes
+tokenization, vocabulary size of 262, 201M parameters). Construction of other Perceiver IO models follow the
 same pattern.
 
 ## PyTorch model API
