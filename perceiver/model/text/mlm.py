@@ -5,14 +5,24 @@ from typing import Any, List, Optional
 
 import torch
 import torch.nn as nn
+import transformers
 from einops import rearrange
 from pytorch_lightning.loggers import TensorBoardLogger
-from transformers import PerceiverConfig as HuggingfacePerceiverConfig, PerceiverForMaskedLM
+from pytorch_lightning.utilities import rank_zero_only
 
-from perceiver.model.core import DecoderConfig, LitModel, OutputAdapter, PerceiverConfig, PerceiverDecoder, PerceiverIO
-from perceiver.model.core.convert import copy_cross_attention_layer_params
+from perceiver.model.core import (
+    DecoderConfig,
+    LitPerceiverIO,
+    OutputAdapter,
+    PerceiverDecoder,
+    PerceiverIO,
+    PerceiverIOConfig,
+    TrainableQueryProvider,
+)
+
+from perceiver.model.core.convert import copy_cross_attention_layer_params, copy_param
 from perceiver.model.core.utils import is_checkpoint
-from perceiver.model.text.common import copy_encoder_params, TextEncoder, TextEncoderConfig
+from perceiver.model.text.common import TextEncoder, TextEncoderConfig
 
 
 @dataclass
@@ -23,14 +33,8 @@ class TextDecoderConfig(DecoderConfig):
 
 
 class TextOutputAdapter(OutputAdapter):
-    def __init__(
-        self,
-        vocab_size: int,
-        max_seq_len: int,
-        num_output_query_channels: int,
-        init_scale: float = 0.02,
-    ):
-        super().__init__(output_query=torch.empty(max_seq_len, num_output_query_channels), init_scale=init_scale)
+    def __init__(self, vocab_size: int, num_output_query_channels: int):
+        super().__init__()
         self.linear = nn.Linear(num_output_query_channels, vocab_size)
 
     def forward(self, x):
@@ -38,8 +42,8 @@ class TextOutputAdapter(OutputAdapter):
 
 
 class TiedTextOutputAdapter(OutputAdapter):
-    def __init__(self, max_seq_len: int, vocab_size: int, num_input_channels: int, init_scale: float = 0.02):
-        super().__init__(output_query=torch.empty(max_seq_len, num_input_channels), init_scale=init_scale)
+    def __init__(self, vocab_size: int):
+        super().__init__()
         self.bias = nn.Parameter(torch.zeros(vocab_size))
 
     def forward(self, x, txt_embedding: nn.Embedding):
@@ -47,7 +51,7 @@ class TiedTextOutputAdapter(OutputAdapter):
 
 
 class MaskedLanguageModel(PerceiverIO):
-    def __init__(self, config: PerceiverConfig[TextEncoderConfig, TextDecoderConfig]):
+    def __init__(self, config: PerceiverIOConfig[TextEncoderConfig, TextDecoderConfig]):
         encoder = TextEncoder(
             config.encoder,
             num_latents=config.num_latents,
@@ -56,21 +60,27 @@ class MaskedLanguageModel(PerceiverIO):
             activation_offloading=config.activation_offloading,
         )
         if config.decoder.num_output_query_channels is None:
-            output_adapter = TiedTextOutputAdapter(
-                max_seq_len=config.decoder.max_seq_len,
-                vocab_size=config.decoder.vocab_size,
-                num_input_channels=config.encoder.num_input_channels,
+            output_query_provider = TrainableQueryProvider(
+                num_queries=config.decoder.max_seq_len,
+                num_query_channels=config.encoder.num_input_channels,
                 init_scale=config.decoder.init_scale,
+            )
+            output_adapter = TiedTextOutputAdapter(
+                vocab_size=config.decoder.vocab_size,
             )
         else:
-            output_adapter = TextOutputAdapter(
-                vocab_size=config.decoder.vocab_size,
-                max_seq_len=config.decoder.max_seq_len,
-                num_output_query_channels=config.decoder.num_output_query_channels,
+            output_query_provider = TrainableQueryProvider(
+                num_queries=config.decoder.max_seq_len,
+                num_query_channels=config.decoder.num_output_query_channels,
                 init_scale=config.decoder.init_scale,
             )
-        decoder = PerceiverDecoder(
+            output_adapter = TextOutputAdapter(
+                vocab_size=config.decoder.vocab_size,
+                num_output_query_channels=config.decoder.num_output_query_channels,
+            )
+        decoder = TextDecoder(
             output_adapter=output_adapter,
+            output_query_provider=output_query_provider,
             num_latent_channels=config.num_latent_channels,
             activation_checkpointing=config.activation_checkpointing,
             activation_offloading=config.activation_offloading,
@@ -84,9 +94,9 @@ class MaskedLanguageModel(PerceiverIO):
             self.load_state_dict(torch.load(config.params))
         else:
             # import model params from Hugging Face Perceiver
-            model = PerceiverForMaskedLM.from_pretrained(config.params)
-            copy_encoder_params(model, self.encoder)
-            copy_decoder_params(model, self.decoder)
+            src = transformers.PerceiverForMaskedLM.from_pretrained(config.params)
+            self.encoder.copy_params(src.perceiver)
+            self.decoder.copy_params(src)
 
     def forward(self, x_masked, pad_mask=None):
         _, n = x_masked.shape
@@ -100,7 +110,20 @@ class MaskedLanguageModel(PerceiverIO):
         return x_logits[:, :n, :]
 
 
-class LitMaskedLanguageModel(LitModel):
+class TextDecoder(PerceiverDecoder):
+    def copy_params(self, src: transformers.PerceiverForMaskedLM):
+        copy_cross_attention_layer_params(
+            src.perceiver.decoder.decoding_cross_attention, self.cross_attn, query_residual=False
+        )
+        # Copy output query provider parameters
+        copy_param(
+            src.perceiver.decoder.output_position_encodings.position_embeddings, self.output_query_provider._query
+        )
+        # Copy output adapter parameters
+        copy_param(src.embedding_decoder.bias, self.output_adapter.bias)
+
+
+class LitMaskedLanguageModel(LitPerceiverIO):
     def __init__(
         self,
         encoder: TextEncoderConfig,
@@ -112,7 +135,7 @@ class LitMaskedLanguageModel(LitModel):
     ):
         super().__init__(encoder, decoder, *args, **kwargs)
         self.model = MaskedLanguageModel(
-            PerceiverConfig(
+            PerceiverIOConfig(
                 encoder=encoder,
                 decoder=decoder,
                 num_latents=self.hparams.num_latents,
@@ -153,6 +176,7 @@ class LitMaskedLanguageModel(LitModel):
         loss = self.step(batch)
         self.log("test_loss", loss, sync_dist=True)
 
+    @rank_zero_only
     def on_validation_epoch_end(self) -> None:
         if self.hparams.masked_samples:
             masked_samples, filled_samples = self.filler.fill(
@@ -196,28 +220,7 @@ class MaskedSampleFiller:
         return masked_samples, list(map(list, zip(*results)))  # transpose results (a list of lists)
 
 
-def copy_output_adapter_params(src: PerceiverForMaskedLM, tgt: TiedTextOutputAdapter):
-    bias_src = src.embedding_decoder.bias
-    bias_tgt = tgt.bias
-
-    with torch.no_grad():
-        bias_tgt.copy_(bias_src)
-
-    query_src = src.perceiver.decoder.output_position_encodings.position_embeddings
-    query_tgt = tgt._output_query
-
-    with torch.no_grad():
-        query_tgt.copy_(query_src)
-
-
-def copy_decoder_params(src: PerceiverForMaskedLM, tgt: PerceiverDecoder):
-    copy_cross_attention_layer_params(
-        src.perceiver.decoder.decoding_cross_attention, tgt.cross_attn, query_residual=False
-    )
-    copy_output_adapter_params(src, tgt.output_adapter)
-
-
-def convert_config(config: HuggingfacePerceiverConfig) -> PerceiverConfig[TextEncoderConfig, TextDecoderConfig]:
+def convert_config(config: transformers.PerceiverConfig) -> PerceiverIOConfig[TextEncoderConfig, TextDecoderConfig]:
     assert config.hidden_act == "gelu"
     assert config.tie_word_embeddings
 
@@ -249,7 +252,7 @@ def convert_config(config: HuggingfacePerceiverConfig) -> PerceiverConfig[TextEn
         dropout=config.attention_probs_dropout_prob,
         init_scale=config.initializer_range,
     )
-    return PerceiverConfig(
+    return PerceiverIOConfig(
         encoder_config,
         decoder_config,
         num_latents=config.num_latents,

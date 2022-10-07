@@ -15,6 +15,13 @@ def precommit_install(c):
 
 
 @task
+def clean_preproc(c):
+    c.run("find .cache/ -name 'preproc' -exec rm -r {} +")
+    c.run("find .cache/ -name 'cache*' -delete")
+    c.run("find .cache/ -name 'tmp*' -delete")
+
+
+@task
 def clean_cache(c):
     c.run("find . -name '*.pyc' -exec rm -f {} +")
     c.run("find . -name '*.pyo' -exec rm -f {} +")

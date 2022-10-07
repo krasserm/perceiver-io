@@ -1,12 +1,14 @@
 from pytorch_lightning.cli import LightningArgumentParser
 
-from perceiver.model.image.classifier import LitImageClassifier
+from perceiver.model.vision.image_classifier import LitImageClassifier
 from perceiver.scripts.cli import CLI
+from perceiver.scripts.lrs import ConstantWithWarmupLR
 
 
 class ImageClassifierCLI(CLI):
     def add_arguments_to_parser(self, parser: LightningArgumentParser) -> None:
         super().add_arguments_to_parser(parser)
+        parser.add_lr_scheduler_args(ConstantWithWarmupLR)
         parser.link_arguments("data.image_shape", "model.encoder.image_shape", apply_on="instantiate")
         parser.link_arguments("data.num_classes", "model.decoder.num_classes", apply_on="instantiate")
         parser.set_defaults(

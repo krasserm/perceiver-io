@@ -1,0 +1,1 @@
+from perceiver.model.vision.image_classifier import ImageEncoderConfig, ImageInputAdapter

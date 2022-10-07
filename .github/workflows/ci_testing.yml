@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04, windows-2019, macOS-11]
+        os: [ubuntu-20.04, windows-2019]
         python-version: [3.9]
 
     # Timeout: https://stackoverflow.com/a/59076067/4521646
@@ -50,7 +50,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        poetry install -E text -E image
+        poetry install -E text -E vision
         poetry run pip install setuptools==59.5.0
         poetry run python --version
         poetry run pip --version

@@ -7,9 +7,9 @@ BookCorpus or ImageNet, for example, it is recommended to do this prior to train
 
 ## Text datasets
 
-Text dataset preprocessing requires a 🤗 fast tokenizer, or the `deepmind/language-perceiver` tokenizer, that can be
-set with the `--tokenizer` command line option. The following preprocessing commands are examples. Adjust them to
-whatever you need for model training.
+Text dataset preprocessing requires a 🤗 fast tokenizer or the `deepmind/language-perceiver` tokenizer. Tokenizers can
+be specified with the `--tokenizer` command line option. The following preprocessing commands are examples. Adjust them
+to whatever you need for model training.
 
 - [bookcorpus](https://huggingface.co/datasets/bookcorpus) (`plain_text`):
 
@@ -17,48 +17,41 @@ whatever you need for model training.
     python -m perceiver.scripts.text.preproc bookcorpus \
       --tokenizer=bert-base-uncased \
       --max_seq_len=512 \
-      --add_special_tokens=true
+      --task=mlm \
+      --add_special_tokens=false
     ```
 
 - [wikipedia](https://huggingface.co/datasets/wikipedia) (`20220301.en`):
 
     ```shell
     python -m perceiver.scripts.text.preproc wikipedia \
-      --tokenizer=xlnet-base-cased \
-      --max_seq_len=512 \
-      --add_special_tokens=true
-    ```
-
-- [wikibook](../perceiver/data/text/wikibook.py) (a [bookcorpus](https://huggingface.co/datasets/bookcorpus) and [wikipedia](https://huggingface.co/datasets/wikipedia) composite)
-
-    ```shell
-    python -m perceiver.scripts.text.preproc wikibook \
       --tokenizer=bert-base-uncased \
       --max_seq_len=512 \
-      --add_special_tokens=true
+      --task=mlm \
+      --add_special_tokens=false
     ```
 
-- [wikitext](https://huggingface.co/datasets/wikitext) (`wikitext-103-raw-v1`), used for [training examples](training-examples.md):
+- [wikitext](https://huggingface.co/datasets/wikitext) (`wikitext-103-raw-v1`), used in [training examples](training-examples.md):
 
     ```shell
     python -m perceiver.scripts.text.preproc wikitext \
-      --tokenizer=bert-base-uncased \
-      --max_seq_len=512 \
-      --add_special_tokens=false \
-      --filter_empty=true \
-      --filter_headers=true
+      --tokenizer=deepmind/language-perceiver \
+      --max_seq_len=4096 \
+      --task=clm \
+      --add_special_tokens=false
     ```
 
-- [imdb](https://huggingface.co/datasets/imdb) (`plain_text`), used for [training examples](training-examples.md):
+- [imdb](https://huggingface.co/datasets/imdb) (`plain_text`), used in [training examples](training-examples.md):
 
     ```shell
     python -m perceiver.scripts.text.preproc imdb \
       --tokenizer=deepmind/language-perceiver \
       --max_seq_len=2048 \
+      --task=clf \
       --add_special_tokens=true
     ```
 
-- [enwik8](https://huggingface.co/datasets/enwik8) (`enwik8`), used for [training examples](training-examples.md):
+- [enwik8](https://huggingface.co/datasets/enwik8) (`enwik8`):
 
     ```shell
     python -m perceiver.scripts.text.preproc enwik8 \

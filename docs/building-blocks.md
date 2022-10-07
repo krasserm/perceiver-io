@@ -1,7 +1,7 @@
 # Building blocks
 
-The following subsections map Perceiver IO and Perceiver concepts to the [core modules](../perceiver/model/core/modules.py)
-of this library. Core modules are the building blocks for [model construction](model-construction.md).
+The following subsections map Perceiver, Perceiver IO and Perceiver AR concepts to the [core modules](../perceiver/model/core/modules.py)
+of this library. Core modules are the building blocks of concrete PyTorch models (see also [model construction](model-construction.md)).
 
 ## Perceiver IO
 
@@ -51,7 +51,7 @@ Perceiver IO architecture (1 cross-attention layer, `L` self-attention blocks wi
 
 ![architecture](images/perceiver-ar.png)
 
-The implementation of [Perceiver AR](https://arxiv.org/abs/2202.07765) is very similar to a Perceiver IO encoder.
-Perceiver AR additionally uses [rotary position embeddings](https://arxiv.org/abs/2104.09864) and uses a causal
-cross- and self- attention mask. The current implementation is still experimental and a final implementation may
-be entirely based on Perceiver IO.
+[Perceiver AR](https://arxiv.org/abs/2202.07765) models are constructed from a generic `PerceiverAR` class and
+task-specific `InputAdapter` and `OutputAdapter` subclasses. The implementation of Perceiver AR is similar to
+that of a Perceiver IO encoder. Perceiver AR additionally uses [rotary position embeddings](https://arxiv.org/abs/2104.09864)
+and causal cross- and self- attention masks. The current Perceiver AR implementation is still experimental.

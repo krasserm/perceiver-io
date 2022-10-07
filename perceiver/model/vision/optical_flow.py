@@ -4,27 +4,27 @@ from typing import Tuple
 
 import torch
 import torch.nn as nn
+import transformers
 from einops import rearrange
-from transformers import PerceiverConfig as HuggingfacePerceiverConfig, PerceiverForOpticalFlow
-from transformers.models.perceiver.modeling_perceiver import PerceiverImagePreprocessor
 
 from perceiver.model.core import (
     EncoderConfig,
+    FourierPositionEncoding,
     InputAdapter,
     OutputAdapter,
-    PerceiverConfig,
     PerceiverDecoder,
     PerceiverEncoder,
     PerceiverIO,
+    PerceiverIOConfig,
+    QueryProvider,
 )
 from perceiver.model.core.config import DecoderConfig
 from perceiver.model.core.convert import (
     copy_cross_attention_layer_params,
-    copy_param,
+    copy_latent_provider_params,
     copy_params,
     copy_self_attention_block_params,
 )
-from perceiver.model.image.common import FourierPositionEncoding
 
 
 @dataclass
@@ -37,7 +37,7 @@ class OpticalFlowEncoderConfig(EncoderConfig):
 
 @dataclass
 class OpticalFlowDecoderConfig(DecoderConfig):
-    output_image_shape: Tuple[int, int] = (368, 496)
+    image_shape: Tuple[int, int] = (368, 496)
     rescale_factor: float = 100.0
 
 
@@ -49,8 +49,7 @@ class OpticalFlowInputAdapter(InputAdapter):
         num_patch_hidden_channels: int,
         num_frequency_bands: int,
     ):
-        position_encoding = FourierPositionEncoding(spatial_shape=image_shape, num_frequency_bands=num_frequency_bands)
-
+        position_encoding = FourierPositionEncoding(input_shape=image_shape, num_frequency_bands=num_frequency_bands)
         super().__init__(num_patch_hidden_channels + position_encoding.num_position_encoding_channels())
 
         self.linear = nn.Linear((num_patch_input_channels * 2), num_patch_hidden_channels)
@@ -69,27 +68,37 @@ class OpticalFlowInputAdapter(InputAdapter):
 class OpticalFlowOutputAdapter(OutputAdapter):
     def __init__(
         self,
-        output_image_shape: Tuple[int, int],
-        rescale_factor: float,
+        image_shape: Tuple[int, int],
         num_output_query_channels: int,
         num_output_image_channels: int = 2,
+        rescale_factor: float = 100.0,
     ):
-        super().__init__(torch.empty(0, num_output_query_channels), init_scale=0.0)
-        self.output_image_shape = output_image_shape
-        self.num_output_image_channels = num_output_image_channels
+        super().__init__()
+        self.image_shape = image_shape
         self.rescale_factor = rescale_factor
         self.linear = nn.Linear(num_output_query_channels, num_output_image_channels)
 
-    def output_query(self, x, x_adapted: torch.Tensor):
-        return x_adapted
+    def forward(self, x):
+        x = self.linear(x) / self.rescale_factor
+        return rearrange(x, "b (h w) c -> b h w c", h=self.image_shape[0])
 
-    def forward(self, x, x_adapted: torch.Tensor):
-        pred = self.linear(x) / self.rescale_factor
-        return rearrange(pred, "b (h w) c -> b h w c", h=self.output_image_shape[0])
+
+class OpticalFlowQueryProvider(nn.Module, QueryProvider):
+    def __init__(self, num_query_channels: int):
+        super().__init__()
+        self._num_query_channels = num_query_channels
+
+    @property
+    def num_query_channels(self):
+        return self._num_query_channels
+
+    def forward(self, x):
+        assert x.shape[-1] == self.num_query_channels
+        return x
 
 
 class OpticalFlow(PerceiverIO):
-    def __init__(self, config: PerceiverConfig[OpticalFlowEncoderConfig, OpticalFlowDecoderConfig]):
+    def __init__(self, config: PerceiverIOConfig[OpticalFlowEncoderConfig, OpticalFlowDecoderConfig]):
         input_adapter = OpticalFlowInputAdapter(
             image_shape=config.encoder.image_shape,
             num_patch_input_channels=config.encoder.num_patch_input_channels,
@@ -104,7 +113,7 @@ class OpticalFlow(PerceiverIO):
         if encoder_kwargs["num_cross_attention_v_channels"] is None:
             encoder_kwargs["num_cross_attention_v_channels"] = input_adapter.num_input_channels
 
-        encoder = PerceiverEncoder(
+        encoder = OpticalFlowEncoder(
             input_adapter=input_adapter,
             num_latents=config.num_latents,
             num_latent_channels=config.num_latent_channels,
@@ -113,12 +122,14 @@ class OpticalFlow(PerceiverIO):
             **encoder_kwargs,
         )
         output_adapter = OpticalFlowOutputAdapter(
+            image_shape=config.decoder.image_shape,
             num_output_query_channels=input_adapter.num_input_channels,
-            output_image_shape=config.decoder.output_image_shape,
             rescale_factor=config.decoder.rescale_factor,
         )
-        decoder = PerceiverDecoder(
+        output_query_provider = OpticalFlowQueryProvider(num_query_channels=input_adapter.num_input_channels)
+        decoder = OpticalFlowDecoder(
             output_adapter=output_adapter,
+            output_query_provider=output_query_provider,
             num_latent_channels=config.num_latent_channels,
             activation_checkpointing=config.activation_checkpointing,
             activation_offloading=config.activation_offloading,
@@ -132,40 +143,36 @@ class OpticalFlow(PerceiverIO):
             self.load_state_dict(torch.load(config.params))
         else:
             # import model params from Huggingface Perceiver
-            model = PerceiverForOpticalFlow.from_pretrained(config.params)
-            copy_encoder_params(model, self.encoder)
-            copy_decoder_params(model, self.decoder)
+            src = transformers.PerceiverForOpticalFlow.from_pretrained(config.params)
+            self.encoder.copy_params(src.perceiver)
+            self.decoder.copy_params(src.perceiver)
 
     def forward(self, x: torch.Tensor):
-        x_latent, x_adapted = self.encoder(x, return_adapted_inputs=True)
+        x_latent, x_adapted = self.encoder(x, return_adapted_input=True)
         return self.decoder(x_latent, x_adapted=x_adapted)
 
 
-def copy_encoder_params(src: PerceiverForOpticalFlow, tgt: PerceiverEncoder):
-    copy_param(src.perceiver.embeddings.latents, tgt.latent)
-    copy_cross_attention_layer_params(src.perceiver.encoder.cross_attention, tgt.cross_attn_1, query_residual=True)
-    copy_self_attention_block_params(src.perceiver.encoder.self_attends, tgt.self_attn_1)
-    copy_input_adapter_params(src.perceiver.input_preprocessor, tgt.input_adapter)  # type: ignore
+class OpticalFlowEncoder(PerceiverEncoder):
+    def copy_params(self, src: transformers.PerceiverModel):
+        copy_cross_attention_layer_params(src.encoder.cross_attention, self.cross_attn_1, query_residual=True)
+        copy_self_attention_block_params(src.encoder.self_attends, self.self_attn_1)
+        copy_latent_provider_params(src, self)
+        # Copy input adapter parameters
+        copy_params(src.input_preprocessor.conv_after_patches, self.input_adapter.linear)
 
 
-def copy_input_adapter_params(src: PerceiverImagePreprocessor, tgt: OpticalFlowInputAdapter):
-    copy_params(src.conv_after_patches, tgt.linear)
-
-
-def copy_decoder_params(src: PerceiverForOpticalFlow, tgt: PerceiverDecoder):
-    copy_cross_attention_layer_params(
-        src.perceiver.decoder.decoder.decoding_cross_attention, tgt.cross_attn, query_residual=False
-    )
-    copy_output_adapter_params(src, tgt.output_adapter)  # type: ignore
-
-
-def copy_output_adapter_params(src: PerceiverForOpticalFlow, tgt: OpticalFlowOutputAdapter):
-    copy_params(src.perceiver.decoder.decoder.final_layer, tgt.linear)
+class OpticalFlowDecoder(PerceiverDecoder):
+    def copy_params(self, src: transformers.PerceiverModel):
+        copy_cross_attention_layer_params(
+            src.decoder.decoder.decoding_cross_attention, self.cross_attn, query_residual=False
+        )
+        # Copy output adapter parameters
+        copy_params(src.decoder.decoder.final_layer, self.output_adapter.linear)
 
 
 def convert_config(
-    config: HuggingfacePerceiverConfig,
-) -> PerceiverConfig[OpticalFlowEncoderConfig, OpticalFlowDecoderConfig]:
+    config: transformers.PerceiverConfig,
+) -> PerceiverIOConfig[OpticalFlowEncoderConfig, OpticalFlowDecoderConfig]:
     assert config.hidden_act == "gelu"
 
     image_shape = tuple(config.train_size)
@@ -187,17 +194,17 @@ def convert_config(
         init_scale=config.initializer_range,
     )
     decoder_config = OpticalFlowDecoderConfig(
-        output_image_shape=image_shape,
-        rescale_factor=100.0,
+        image_shape=image_shape,
         num_cross_attention_qk_channels=512,
         num_cross_attention_v_channels=512,
-        cross_attention_residual=False,
         num_cross_attention_heads=config.num_cross_attention_heads,
         cross_attention_widening_factor=config.cross_attention_widening_factor,
+        cross_attention_residual=False,
         dropout=config.attention_probs_dropout_prob,
         init_scale=config.initializer_range,
+        rescale_factor=100.0,
     )
-    return PerceiverConfig(
+    return PerceiverIOConfig(
         encoder_config,
         decoder_config,
         num_latents=config.num_latents,

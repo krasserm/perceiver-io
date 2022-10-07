@@ -2,9 +2,15 @@ from typing import Sequence
 
 import torch
 import torch.nn as nn
-from transformers import PerceiverLayer
+import transformers
 
-from perceiver.model.core import CrossAttentionLayer, MLP, MultiHeadAttention, SelfAttentionLayer
+from perceiver.model.core.modules import (
+    CrossAttentionLayer,
+    MLP,
+    MultiHeadAttention,
+    PerceiverEncoder,
+    SelfAttentionLayer,
+)
 
 
 def copy_param(src: nn.Parameter, tgt: nn.Parameter):
@@ -16,20 +22,20 @@ def copy_params(src: nn.Module, tgt: nn.Module):
     tgt.load_state_dict(src.state_dict())
 
 
-def copy_attention_params(src: PerceiverLayer, tgt: MultiHeadAttention):
+def copy_attention_params(src: transformers.PerceiverLayer, tgt: MultiHeadAttention):
     copy_params(src.attention.self.query, tgt.q_proj)
     copy_params(src.attention.self.key, tgt.k_proj)
     copy_params(src.attention.self.value, tgt.v_proj)
     copy_params(src.attention.output.dense, tgt.o_proj)
 
 
-def copy_mlp_params(src: PerceiverLayer, tgt: MLP):
+def copy_mlp_params(src: transformers.PerceiverLayer, tgt: MLP):
     copy_params(src.layernorm, tgt[0])
     copy_params(src.mlp.dense1, tgt[1])
     copy_params(src.mlp.dense2, tgt[3])
 
 
-def copy_cross_attention_layer_params(src: PerceiverLayer, tgt: CrossAttentionLayer, query_residual: bool):
+def copy_cross_attention_layer_params(src: transformers.PerceiverLayer, tgt: CrossAttentionLayer, query_residual: bool):
     att_tgt = tgt[0].module if query_residual else tgt[0]
     mlp_tgt = tgt[1].module
 
@@ -40,7 +46,7 @@ def copy_cross_attention_layer_params(src: PerceiverLayer, tgt: CrossAttentionLa
     copy_mlp_params(src, mlp_tgt)
 
 
-def copy_self_attention_layer_params(src: PerceiverLayer, tgt: SelfAttentionLayer):
+def copy_self_attention_layer_params(src: transformers.PerceiverLayer, tgt: SelfAttentionLayer):
     att_tgt = tgt[0].module
     mlp_tgt = tgt[1].module
 
@@ -50,8 +56,12 @@ def copy_self_attention_layer_params(src: PerceiverLayer, tgt: SelfAttentionLaye
     copy_mlp_params(src, mlp_tgt)
 
 
-def copy_self_attention_block_params(src: Sequence[PerceiverLayer], tgt: Sequence[SelfAttentionLayer]):
+def copy_self_attention_block_params(src: Sequence[transformers.PerceiverLayer], tgt: Sequence[SelfAttentionLayer]):
     assert len(src) == len(tgt)
 
     for src_layer, tgt_layer in zip(src, tgt):
         copy_self_attention_layer_params(src_layer, tgt_layer)
+
+
+def copy_latent_provider_params(src: transformers.PerceiverModel, tgt: PerceiverEncoder):
+    copy_param(src.embeddings.latents, tgt.latent_provider._query)

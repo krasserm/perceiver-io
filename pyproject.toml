@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "perceiver-io"
-version = "0.6.0"
+version = "0.7b1"
 description = "Perceiver IO"
 readme = "README.md"
 authors = [
@@ -12,7 +12,7 @@ authors = [
     "Christoph Stumpf <stumpf.christoph@gmail.com>",
 ]
 license = "Apache-2.0"
-keywords= ["perceiver-io", "deep-learning"]
+keywords= ["perceiver-io", "perceiver-ar", "deep-learning"]
 classifiers = [
     "Environment :: Console",
     "Natural Language :: English",
@@ -32,28 +32,29 @@ include = ["docs"]
 
 [tool.poetry.dependencies]
 python = "^3.7"
-pytorch-lightning = "1.7.*"
-torch = "1.12.*"
-fairscale = "0.4.*"
-torchmetrics = "0.9.*"
-torch-optimizer = "0.3.*"
-einops = "0.4.*"
-datasets = {version = "2.4.*", optional = true}
-tokenizers = {version = "0.12.*", optional = true}
-transformers = {version = "4.21.*", optional = true}
-torchvision = {version = "0.13.*", optional = true}
-jsonargparse = {extras = ["signatures"], version = "4.12.*"}
-fsspec = {extras = ["s3"], version = "2022.5.0"}
+pytorch-lightning = "^1.7"
+torch = "^1.12"
+fairscale = "^0.4"
+torchmetrics = "^0.9"
+torch-optimizer = "^0.3"
+einops = "^0.4"
+datasets = {version = "^2.4", optional = true}
+tokenizers = {version = "^0.12", optional = true}
+transformers = {version = "^4.21", optional = true}
+torchvision = {version = "^0.13", optional = true}
+jsonargparse = {extras = ["signatures"], version = "^4.12"}
+fsspec = {extras = ["s3"], version = "*"}
 
 [tool.poetry.dev-dependencies]
 invoke = "^1.6.0"
 pre-commit = "^2.17.0"
 pytest = "^7.0.1"
 pytest-cov = "^3.0.0"
+flaky = "^3.7.0"
 
 [tool.poetry.extras]
 text = ["datasets", "tokenizers", "transformers"]
-image = ["datasets", "torchvision"]
+vision = ["datasets", "torchvision"]
 
 [tool.black]
 line-length = 120
