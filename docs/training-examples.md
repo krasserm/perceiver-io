@@ -177,7 +177,7 @@ classification task further increases validation accuracy to 94.4%.
 
 Pretrain a smaller language model (45.2M parameters) with masked language modeling and whole word masking on the
 Wikitext-103 dataset. The example uses a custom model configuration/architecture and another 🤗 tokenizer
-(`bert-base-uncased`, a SentencePiece tokenizer with a vocabulary of size of 30,522). To speed up training,
+(`bert-base-uncased`, a WordPiece tokenizer with a vocabulary of size of 30,522). To speed up training,
 `--data.max_seq_len=128` and `--model.num_latents=64` is used (a quarter of the default values).
 
 ```shell
