@@ -13,7 +13,7 @@ modeling, as specified in Section 4 (Table 1) and Appendix F (Table 11) of the [
 from transformers import AutoConfig
 from perceiver.model.text.mlm import convert_config, LitMaskedLanguageModel, MaskedLanguageModel
 
-# Import and convert language model configuration from Huggingface Hub  
+# Import and convert language model configuration from Hugging Face Hub  
 config = convert_config(AutoConfig.from_pretrained("deepmind/language-perceiver"))
 
 # Construct a PyTorch model and load pretrained parameters
@@ -41,7 +41,7 @@ Perceiver IO ImageNet classifier (config A, 2D Fourier features, 48.8M parameter
 from transformers import AutoConfig
 from perceiver.model.image.classifier import convert_config, ImageClassifier, LitImageClassifier
 
-# Import and convert language model configuration from Huggingface Hub  
+# Import and convert language model configuration from Hugging Face Hub  
 config = convert_config(AutoConfig.from_pretrained("deepmind/vision-perceiver-fourier"))
 
 # Construct a PyTorch model and load pretrained parameters

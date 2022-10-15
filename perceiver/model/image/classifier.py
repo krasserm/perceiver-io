@@ -146,7 +146,7 @@ class ImageClassifier(PerceiverIO):
         elif os.path.isfile(config.params):
             self.load_state_dict(torch.load(config.params))
         else:
-            # import model params from Huggingface Perceiver
+            # import model params from Hugging Face Perceiver
             model = PerceiverForImageClassificationFourier.from_pretrained(config.params)
             copy_encoder_params(model, self.encoder)
             copy_decoder_params(model, self.decoder)

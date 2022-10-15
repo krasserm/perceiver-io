@@ -82,7 +82,7 @@ class TextEncoder(PerceiverEncoder):
         else:
             from transformers import PerceiverForMaskedLM
 
-            # import encoder params from Huggingface Perceiver
+            # import encoder params from Hugging Face Perceiver
             model = PerceiverForMaskedLM.from_pretrained(config.params)
             copy_encoder_params(model, self)
 

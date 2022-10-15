@@ -64,7 +64,7 @@ def assert_equal_prediction(source_model, target_model):
     target_inputs = rearrange(source_inputs, "b c ... -> b ... c")
 
     with torch.no_grad():
-        source_output = source_model(source_inputs).logits  # Huggingface Perceiver
+        source_output = source_model(source_inputs).logits  # Hugging Face Perceiver
         target_output = target_model(target_inputs)
 
     assert torch.allclose(source_output, target_output, atol=1e-4, rtol=1e-4)

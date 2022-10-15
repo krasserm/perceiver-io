@@ -1,6 +1,6 @@
 # Model construction
 
-This library provides three kinds of interfaces for model construction:
+This library provides three levels of interfaces for model construction:
 
 - *PyTorch model API*: defines concrete Perceiver IO model and configuration classes. Internally, models are
   constructed from generic `PerceiverEncoder` and `PerceiverDecoder` classes and task-specific `InputAdapter`
@@ -72,14 +72,14 @@ config = PerceiverConfig(
 model = MaskedLanguageModel(config)
 ```
 
-It is also possible to directly import this configuration and pretrained model parameters from the Huggingface Hub by
+It is also possible to directly import this configuration and pretrained model parameters from the Hugging Face Hub by
 referencing `deepmind/language-perceiver`:
 
 ```python
 from transformers import AutoConfig
 from perceiver.model.text.mlm import convert_config, MaskedLanguageModel
 
-# Import and convert language model configuration from Huggingface Hub  
+# Import and convert language model configuration from Hugging Face Hub  
 config = convert_config(AutoConfig.from_pretrained("deepmind/language-perceiver"))
 
 # Construct PyTorch model and load pretrained parameters

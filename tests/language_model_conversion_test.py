@@ -73,7 +73,7 @@ def assert_equal_prediction(source_model, target_model, tokenizer):
     _, seq_len = x.shape
 
     with torch.no_grad():
-        t_a = source_model(**enc).logits[:, :seq_len, :]  # Huggingface Perceiver
+        t_a = source_model(**enc).logits[:, :seq_len, :]  # Hugging Face Perceiver
         t_b = target_model(x, x_mask)
 
     assert torch.allclose(t_a, t_b, atol=1e-4, rtol=1e-4)
