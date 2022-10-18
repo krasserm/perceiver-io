@@ -13,7 +13,7 @@ modeling, as specified in Section 4 (Table 1) and Appendix F (Table 11) of the [
 from transformers import AutoConfig
 from perceiver.model.text.mlm import convert_config, LitMaskedLanguageModel, MaskedLanguageModel
 
-# Import and convert language model configuration from Hugging Face Hub  
+# Import and convert language model configuration from Hugging Face Hub
 config = convert_config(AutoConfig.from_pretrained("deepmind/language-perceiver"))
 
 # Construct a PyTorch model and load pretrained parameters
@@ -41,7 +41,7 @@ Perceiver IO ImageNet classifier (config A, 2D Fourier features, 48.8M parameter
 from transformers import AutoConfig
 from perceiver.model.image.classifier import convert_config, ImageClassifier, LitImageClassifier
 
-# Import and convert language model configuration from Hugging Face Hub  
+# Import and convert image classification model configuration from Hugging Face Hub
 config = convert_config(AutoConfig.from_pretrained("deepmind/vision-perceiver-fourier"))
 
 # Construct a PyTorch model and load pretrained parameters
@@ -58,4 +58,20 @@ option.
 python -m perceiver.scripts.image.classifier fit \
   --model.params=deepmind/vision-perceiver-fourier \
   ...
+```
+
+## Optical Flow
+
+Perceiver IO optical flow (3x3 patch size, frame concatenation, no downsample, 41M parameters),
+as specified in Appendix H (Table 16) of the [Perceiver IO paper](https://arxiv.org/abs/2107.14795):
+
+```python
+from transformers import AutoConfig
+from perceiver.model.image.optical_flow import convert_config, OpticalFlow
+
+# Import and convert optical flow model configuration from Hugging Face Hub
+config = convert_config(AutoConfig.from_pretrained("deepmind/optical-flow-perceiver"))
+
+# Construct a PyTorch model and load pretrained parameters
+model = OpticalFlow(config)
 ```

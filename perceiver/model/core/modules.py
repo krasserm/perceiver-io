@@ -366,7 +366,7 @@ class OutputAdapter(nn.Module):
     def num_output_query_channels(self):
         return self._output_query.shape[-1]
 
-    def output_query(self, x):
+    def output_query(self, x, **kwargs):
         return repeat(self._output_query, "... -> b ...", b=x.shape[0])
 
 
@@ -498,7 +498,7 @@ class PerceiverEncoder(nn.Module):
     def extra_self_attention_block(self):
         return self.num_self_attention_blocks > 1 and not self.first_self_attention_block_shared
 
-    def forward(self, x, pad_mask=None):
+    def forward(self, x, pad_mask=None, return_adapted_inputs: bool = False):
         b, *_ = x.shape
 
         # encode task-specific input
@@ -518,6 +518,8 @@ class PerceiverEncoder(nn.Module):
                 x_latent = cross_attn_n(x_latent, x, pad_mask=pad_mask)
             x_latent = self_attn_n(x_latent)
 
+        if return_adapted_inputs:
+            return x_latent, x
         return x_latent
 
 
@@ -578,7 +580,7 @@ class PerceiverDecoder(nn.Module):
             init_parameters(self, init_scale)
 
     def forward(self, x, **kwargs):
-        output_query = self.output_adapter.output_query(x)
+        output_query = self.output_adapter.output_query(x, **kwargs)
         output = self.cross_attn(output_query, x)
         return self.output_adapter(output, **kwargs)
 
