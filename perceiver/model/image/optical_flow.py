@@ -2,11 +2,11 @@ import os
 from dataclasses import dataclass
 from typing import Tuple
 
-import numpy as np
+import einops
 import torch
 import torch.nn as nn
 from transformers import PerceiverConfig as HuggingfacePerceiverConfig, PerceiverForOpticalFlow
-from transformers.models.perceiver.modeling_perceiver import PerceiverImagePreprocessor, space_to_depth
+from transformers.models.perceiver.modeling_perceiver import PerceiverImagePreprocessor
 
 from perceiver.model.core import (
     EncoderConfig,
@@ -30,19 +30,14 @@ from perceiver.model.image.common import FourierPositionEncoding
 @dataclass
 class OpticalFlowEncoderConfig(EncoderConfig):
     image_shape: Tuple[int, int] = (368, 496)
-    num_temporal_channels: int = 2
-    num_image_input_channels: int = 27
-    num_image_output_channels: int = 64
+    num_patch_input_channels: int = 27
+    num_patch_hidden_channels: int = 64
     num_frequency_bands: int = 64
-    spatial_downsample: int = 1
-    temporal_downsample: int = 2
 
 
 @dataclass
 class OpticalFlowDecoderConfig(DecoderConfig):
     output_image_shape: Tuple[int, int] = (368, 496)
-    num_output_image_channels: int = 2
-    num_output_query_channels: int = 322
     rescale_factor: float = 100.0
 
 
@@ -50,38 +45,27 @@ class OpticalFlowInputAdapter(InputAdapter):
     def __init__(
         self,
         image_shape: Tuple[int, int],
-        num_image_input_channels: int,
-        num_image_output_channels: int,
-        num_temporal_channels: int,
+        num_patch_input_channels: int,
+        num_patch_hidden_channels: int,
         num_frequency_bands: int,
-        spatial_downsample: int = 1,
-        temporal_downsample: int = 2,
+        num_temporal_channels: int = 2,
     ):
         position_encoding = FourierPositionEncoding(spatial_shape=image_shape, num_frequency_bands=num_frequency_bands)
 
-        super().__init__(num_image_output_channels + position_encoding.num_position_encoding_channels())
+        super().__init__(num_patch_hidden_channels + position_encoding.num_position_encoding_channels())
 
-        self.temporal_downsample = temporal_downsample
-        self.spatial_downsample = spatial_downsample
-
-        self.linear = nn.Linear((num_image_input_channels * num_temporal_channels), num_image_output_channels)
+        self.linear = nn.Linear((num_patch_input_channels * num_temporal_channels), num_patch_hidden_channels)
         self.position_encoding = position_encoding
 
     def _add_position_encodings(self, x: torch.Tensor):
-        b, *dims, c = x.shape
-        indices = np.prod(dims)
+        b, *_ = x.shape
 
-        x = torch.reshape(x, [b, indices, -1])
         pos_enc = self.position_encoding(b)
+        x = einops.rearrange(x, "b ... c -> b (...) c")
         return torch.cat([x, pos_enc], dim=-1)
 
     def forward(self, x):
-        # concatenate temporal inputs in the channel dimension (B, T, C, H, W) -> (B, 1, H, W, C)
-        x = space_to_depth(x, temporal_block_size=self.temporal_downsample, spatial_block_size=self.spatial_downsample)
-        # remove temporal dimension
-        if x.ndim == 5 and x.shape[1] == 1:
-            x = x.squeeze(dim=1)
-
+        x = einops.rearrange(x, "b t c h w -> b h w (t c)")  # concatenate temporal inputs in the channel dimension
         x = self.linear(x)
         return self._add_position_encodings(x)
 
@@ -90,9 +74,9 @@ class OpticalFlowOutputAdapter(OutputAdapter):
     def __init__(
         self,
         output_image_shape: Tuple[int, int],
-        num_output_image_channels: int,
-        num_output_query_channels: int,
         rescale_factor: float,
+        num_output_query_channels: int,
+        num_output_image_channels: int = 2,
     ):
         super().__init__(torch.empty(0, num_output_query_channels), init_scale=0.0)
         self.output_image_shape = output_image_shape
@@ -104,27 +88,28 @@ class OpticalFlowOutputAdapter(OutputAdapter):
         return x_adapted
 
     def forward(self, x, x_adapted: torch.Tensor):
-        b, *d = x.shape
-        output_shape = (b,) + self.output_image_shape + (self.num_output_image_channels,)
-
-        pred = self.linear(x)
-        pred = pred / self.rescale_factor
-        return pred.reshape(output_shape)
+        pred = self.linear(x) / self.rescale_factor
+        return einops.rearrange(
+            pred, "b (h w) c -> b h w c", h=self.output_image_shape[0], w=self.output_image_shape[1]
+        )
 
 
 class OpticalFlow(PerceiverIO):
     def __init__(self, config: PerceiverConfig[OpticalFlowEncoderConfig, OpticalFlowDecoderConfig]):
         input_adapter = OpticalFlowInputAdapter(
             image_shape=config.encoder.image_shape,
-            num_temporal_channels=config.encoder.num_temporal_channels,
-            num_image_input_channels=config.encoder.num_image_input_channels,
-            num_image_output_channels=config.encoder.num_image_output_channels,
+            num_patch_input_channels=config.encoder.num_patch_input_channels,
+            num_patch_hidden_channels=config.encoder.num_patch_hidden_channels,
             num_frequency_bands=config.encoder.num_frequency_bands,
-            spatial_downsample=config.encoder.spatial_downsample,
-            temporal_downsample=config.encoder.temporal_downsample,
         )
 
         encoder_kwargs = config.encoder.base_kwargs()
+        if encoder_kwargs["num_cross_attention_qk_channels"] is None:
+            encoder_kwargs["num_cross_attention_qk_channels"] = input_adapter.num_input_channels
+
+        if encoder_kwargs["num_cross_attention_v_channels"] is None:
+            encoder_kwargs["num_cross_attention_v_channels"] = input_adapter.num_input_channels
+
         encoder = PerceiverEncoder(
             input_adapter=input_adapter,
             num_latents=config.num_latents,
@@ -134,9 +119,8 @@ class OpticalFlow(PerceiverIO):
             **encoder_kwargs,
         )
         output_adapter = OpticalFlowOutputAdapter(
+            num_output_query_channels=input_adapter.num_input_channels,
             output_image_shape=config.decoder.output_image_shape,
-            num_output_image_channels=config.decoder.num_output_image_channels,
-            num_output_query_channels=config.decoder.num_output_query_channels,
             rescale_factor=config.decoder.rescale_factor,
         )
         decoder = PerceiverDecoder(
@@ -190,26 +174,28 @@ def convert_config(
 ) -> PerceiverConfig[OpticalFlowEncoderConfig, OpticalFlowDecoderConfig]:
     assert config.hidden_act == "gelu"
 
-    train_size = tuple(config.train_size)
+    image_shape = tuple(config.train_size)
 
     encoder_config = OpticalFlowEncoderConfig(
-        image_shape=train_size,
+        image_shape=image_shape,
+        num_patch_input_channels=27,
+        num_patch_hidden_channels=64,
         num_frequency_bands=64,
-        num_cross_attention_qk_channels=322,
-        num_cross_attention_v_channels=322,
+        num_cross_attention_layers=1,
         num_cross_attention_heads=config.num_cross_attention_heads,
+        first_cross_attention_layer_shared=False,
         num_self_attention_heads=config.num_self_attention_heads,
         num_self_attention_layers_per_block=config.num_self_attends_per_block,
         num_self_attention_blocks=config.num_blocks,
+        first_self_attention_block_shared=True,
         cross_attention_widening_factor=config.cross_attention_widening_factor,
         self_attention_widening_factor=config.self_attention_widening_factor,
         dropout=config.attention_probs_dropout_prob,
         init_scale=config.initializer_range,
     )
     decoder_config = OpticalFlowDecoderConfig(
-        output_image_shape=train_size,
-        num_output_image_channels=2,
-        num_output_query_channels=322,
+        output_image_shape=image_shape,
+        rescale_factor=100.0,
         num_cross_attention_qk_channels=512,
         num_cross_attention_v_channels=512,
         cross_attention_residual=False,
