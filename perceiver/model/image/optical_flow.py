@@ -2,9 +2,9 @@ import os
 from dataclasses import dataclass
 from typing import Tuple
 
-import einops
 import torch
 import torch.nn as nn
+from einops import rearrange
 from transformers import PerceiverConfig as HuggingfacePerceiverConfig, PerceiverForOpticalFlow
 from transformers.models.perceiver.modeling_perceiver import PerceiverImagePreprocessor
 
@@ -48,26 +48,22 @@ class OpticalFlowInputAdapter(InputAdapter):
         num_patch_input_channels: int,
         num_patch_hidden_channels: int,
         num_frequency_bands: int,
-        num_temporal_channels: int = 2,
     ):
         position_encoding = FourierPositionEncoding(spatial_shape=image_shape, num_frequency_bands=num_frequency_bands)
 
         super().__init__(num_patch_hidden_channels + position_encoding.num_position_encoding_channels())
 
-        self.linear = nn.Linear((num_patch_input_channels * num_temporal_channels), num_patch_hidden_channels)
+        self.linear = nn.Linear((num_patch_input_channels * 2), num_patch_hidden_channels)
         self.position_encoding = position_encoding
 
-    def _add_position_encodings(self, x: torch.Tensor):
+    def forward(self, x):
         b, *_ = x.shape
 
-        pos_enc = self.position_encoding(b)
-        x = einops.rearrange(x, "b ... c -> b (...) c")
-        return torch.cat([x, pos_enc], dim=-1)
-
-    def forward(self, x):
-        x = einops.rearrange(x, "b t c h w -> b h w (t c)")  # concatenate temporal inputs in the channel dimension
+        x = rearrange(x, "b t c h w -> b h w (t c)")  # concatenate temporal inputs in the channel dimension
         x = self.linear(x)
-        return self._add_position_encodings(x)
+        x = rearrange(x, "b ... c -> b (...) c")
+        pos_enc = self.position_encoding(b)
+        return torch.cat([x, pos_enc], dim=-1)
 
 
 class OpticalFlowOutputAdapter(OutputAdapter):
@@ -89,9 +85,7 @@ class OpticalFlowOutputAdapter(OutputAdapter):
 
     def forward(self, x, x_adapted: torch.Tensor):
         pred = self.linear(x) / self.rescale_factor
-        return einops.rearrange(
-            pred, "b (h w) c -> b h w c", h=self.output_image_shape[0], w=self.output_image_shape[1]
-        )
+        return rearrange(pred, "b (h w) c -> b h w c", h=self.output_image_shape[0])
 
 
 class OpticalFlow(PerceiverIO):
@@ -183,7 +177,6 @@ def convert_config(
         num_frequency_bands=64,
         num_cross_attention_layers=1,
         num_cross_attention_heads=config.num_cross_attention_heads,
-        first_cross_attention_layer_shared=False,
         num_self_attention_heads=config.num_self_attention_heads,
         num_self_attention_layers_per_block=config.num_self_attends_per_block,
         num_self_attention_blocks=config.num_blocks,
