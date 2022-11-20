@@ -3,13 +3,16 @@ from unittest import mock
 import pytest
 import pytorch_lightning as pl
 import torch
+from flaky import flaky
 
 from perceiver.model.text.mlm import convert_config, LitMaskedLanguageModel, MaskedLanguageModel
-from perceiver.scripts.text.mlm import MaskedLanguageModelingCLI
+from perceiver.scripts.text.mlm import MaskedLanguageModelCLI
+
+from tests.utils import assert_equal_size
 from transformers import AutoConfig, PerceiverForMaskedLM, PerceiverTokenizer
 
-
 MODEL_NAME = "deepmind/language-perceiver"
+MODEL_SIZE = 201108230
 
 
 class MockDataModule(pl.LightningDataModule):
@@ -31,21 +34,26 @@ def source_model():
 
 @pytest.fixture(scope="module")
 def tokenizer():
-    yield PerceiverTokenizer.from_pretrained(MODEL_NAME)
+    yield PerceiverTokenizer.from_pretrained(MODEL_NAME, verbose=False)
 
 
+@flaky(max_runs=2)
 def test_conversion(source_config, source_model, tokenizer):
     target_config = convert_config(source_config)
     target_model = MaskedLanguageModel(target_config).eval()
     assert_equal_prediction(source_model, target_model, tokenizer)
+    assert_equal_size(source_model, target_model, expected_size=MODEL_SIZE)
 
 
+@flaky(max_runs=2)
 def test_conversion_lit(source_config, source_model, tokenizer):
     target_config = convert_config(source_config)
     target_model = LitMaskedLanguageModel.create(target_config).eval()
     assert_equal_prediction(source_model, target_model, tokenizer)
+    assert_equal_size(source_model, target_model, expected_size=MODEL_SIZE)
 
 
+@flaky(max_runs=2)
 def test_conversion_cli(source_model, tokenizer):
     with mock.patch(
         "sys.argv",
@@ -55,17 +63,19 @@ def test_conversion_cli(source_model, tokenizer):
             "--trainer.max_steps=1000",
             "--trainer.accelerator=cpu",
             "--trainer.devices=1",
+            "--lr_scheduler.warmup_steps=10",
         ],
     ):
-        cli = MaskedLanguageModelingCLI(model_class=LitMaskedLanguageModel, datamodule_class=MockDataModule, run=False)
+        cli = MaskedLanguageModelCLI(model_class=LitMaskedLanguageModel, datamodule_class=MockDataModule, run=False)
 
     target_model = cli.model.eval()
     assert_equal_prediction(source_model, target_model, tokenizer)
+    assert_equal_size(source_model, target_model, expected_size=MODEL_SIZE)
 
 
 def assert_equal_prediction(source_model, target_model, tokenizer):
     txt = "This is[MASK][MASK][MASK][MASK][MASK][MASK] interesting."
-    enc = tokenizer(txt, padding="max_length", max_length=37, add_special_tokens=True, return_tensors="pt")
+    enc = tokenizer([txt, txt], padding="max_length", max_length=37, add_special_tokens=True, return_tensors="pt")
 
     x = enc["input_ids"]
     x_mask = ~enc["attention_mask"].type(torch.bool)

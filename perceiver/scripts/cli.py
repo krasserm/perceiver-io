@@ -1,12 +1,13 @@
 from importlib.resources import path
-from typing import Any
+from typing import Any, Optional
 
 # Import to register additional optimizers at CLI
 import torch_optimizer  # noqa: F401
 
-from pytorch_lightning import Trainer
-from pytorch_lightning.cli import LightningCLI
+from pytorch_lightning import LightningModule, Trainer
+from pytorch_lightning.cli import LightningCLI, LRSchedulerTypeUnion
 from pytorch_lightning.strategies import DDPStrategy
+from torch.optim import Optimizer
 
 
 class CLI(LightningCLI):
@@ -17,7 +18,7 @@ class CLI(LightningCLI):
         super().__init__(
             model_class,
             run=run,
-            save_config_overwrite=True,
+            save_config_kwargs={"overwrite": True},
             parser_kwargs={"fit": trainer_defaults, "test": trainer_defaults, "validate": trainer_defaults},
             **kwargs
         )
@@ -32,3 +33,16 @@ class CLI(LightningCLI):
             cfg["trainer"]["strategy"] = DDPStrategy(static_graph=True, find_unused_parameters=False)
 
         return super().instantiate_trainer(**kwargs)
+
+    @staticmethod
+    def configure_optimizers(
+        lightning_module: LightningModule, optimizer: Optimizer, lr_scheduler: Optional[LRSchedulerTypeUnion] = None
+    ):
+
+        if lr_scheduler is None:
+            return optimizer
+        else:
+            return {
+                "optimizer": optimizer,
+                "lr_scheduler": {"scheduler": lr_scheduler, "interval": "step", "frequency": 1},
+            }

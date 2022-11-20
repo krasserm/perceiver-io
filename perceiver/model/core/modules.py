@@ -4,9 +4,15 @@ import torch
 import torch.nn as nn
 from einops import rearrange, repeat
 from fairscale.nn import checkpoint_wrapper
-from torch import Tensor
 
-from perceiver.model.core.position import FrequencyPositionEncoding, RotaryPositionEmbedding
+from perceiver.model.core.adapter import (
+    InputAdapter,
+    OutputAdapter,
+    QueryProvider,
+    RotarySupport,
+    TrainableQueryProvider,
+)
+from perceiver.model.core.position import RotaryPositionEmbedding
 from perceiver.model.core.utils import init_parameters, Residual, Sequential
 
 
@@ -136,7 +142,7 @@ class CrossAttention(nn.Module):
         qkv_bias: bool = True,
         out_bias: bool = True,
     ):
-        """Pre-layer norm cross-attention (see `MultiHeadAttention` for attention details)."""
+        """Pre-layer-norm cross-attention (see `MultiHeadAttention` for attention details)."""
         super().__init__()
         self.q_norm = nn.LayerNorm(num_q_input_channels)
         self.kv_norm = nn.LayerNorm(num_kv_input_channels)
@@ -153,12 +159,11 @@ class CrossAttention(nn.Module):
         )
 
     def forward(self, x_q, x_kv=None, x_kv_prefix=None, pad_mask=None, rot_pos_emb_q=None, rot_pos_emb_k=None):
-        """Pre-layer norm cross-attention of query input `x_q` to key/value input (`x_kv` or `x_kv_prefix`).
+        """Pre-layer-norm cross-attention of query input `x_q` to key/value input (`x_kv` or `x_kv_prefix`).
 
-        If `x_kv_prefix` is defined, the entire key/value input is assumed to be a concatenation of `x_kv_prefix` and
-        `x_q` along the sequence dimension. In this case, the query attends to itself at the end of the key/value
-        sequence (use case Perceiver AR). If `x_kv_prefix` is not defined, `x_kv` is assumed to be the entire key/value
-        input.
+        If `x_kv_prefix` is defined, the entire key/value input is a concatenation of `x_kv_prefix` and `x_q` along
+        the sequence dimension. In this case, the query attends to itself at the end of the key/value sequence (use
+        case: Perceiver AR). If `x_kv_prefix` is not defined, `x_kv` is the entire key/value input.
         """
         x_q = self.q_norm(x_q)
 
@@ -199,7 +204,7 @@ class SelfAttention(nn.Module):
         )
 
     def forward(self, x, pad_mask=None, rot_pos_emb=None):
-        """Pre-layer norm self-attention of input `x`."""
+        """Pre-layer-norm self-attention of input `x`."""
         x = self.norm(x)
         return self.attention(x, x, pad_mask=pad_mask, rot_pos_emb_q=rot_pos_emb, rot_pos_emb_k=rot_pos_emb)
 
@@ -316,60 +321,6 @@ class MLP(Sequential):
         )
 
 
-class InputAdapter(nn.Module):
-    def __init__(self, num_input_channels: int):
-        """Transforms and position-encodes task-specific input to generic encoder input.
-
-        :param num_input_channels: Number of channels of the generic encoder input produced by this adapter.
-        """
-        super().__init__()
-        self._num_input_channels = num_input_channels
-
-    @property
-    def num_input_channels(self):
-        return self._num_input_channels
-
-    def forward(self, x):
-        raise NotImplementedError()
-
-
-class RotarySupport(InputAdapter):
-    def __init__(self, encoded_channels_per_head: int, *args, **kwargs):
-        """An input adapter mixin that additionally generates constructor arguments for
-        `RotaryPositionEmbedding`."""
-        super().__init__(*args, **kwargs)
-        self.frq_pos_encoding = FrequencyPositionEncoding(encoded_channels_per_head=encoded_channels_per_head)
-
-    def forward(self, x):
-        """Transforms and position-encodes sequence `x` and additionally returns a frequency position encoding of
-        `x` required to create a `RotaryPositionEmbedding` instance."""
-        return super().forward(x), self.frq_pos_encoding(x.shape[1])
-
-
-class OutputAdapter(nn.Module):
-    def __init__(self, output_query: Tensor, init_scale: float):
-        """Transforms generic decoder cross-attention output to task-specific output.
-
-        :param output_query: Output query prototype (does not include batch dimension) used as query input to
-            generic decoder cross-attention.
-        :param init_scale: Output query parameter initialization scale.
-        """
-        super().__init__()
-        self._output_query = nn.Parameter(output_query)
-        self._init_parameters(init_scale)
-
-    def _init_parameters(self, init_scale: float):
-        with torch.no_grad():
-            self._output_query.normal_(0.0, init_scale)
-
-    @property
-    def num_output_query_channels(self):
-        return self._output_query.shape[-1]
-
-    def output_query(self, x, **kwargs):
-        return repeat(self._output_query, "... -> b ...", b=x.shape[0])
-
-
 class PerceiverEncoder(nn.Module):
     def __init__(
         self,
@@ -416,18 +367,19 @@ class PerceiverEncoder(nn.Module):
         :param num_self_attention_v_channels: Number of value channels for self-attention
             (see `MultiHeadAttention.num_v_channels` for details).
         :param num_self_attention_layers_per_block: Number of self-attention layers per self-attention block.
-        :param num_self_attention_blocks: Number of self-attention blocks sharing weights between corresponding
+        :param num_self_attention_blocks: Number of self-attention blocks, with weights shared between corresponding
             self-attention layers.
         :param first_self_attention_block_shared: Whether the first self-attention block should share its weights
             with subsequent self-attention blocks (if any).
-        :param dropout: Dropout probability for self- and cross-attention layers and residuals.
+        :param dropout: Dropout probability for self- and cross-attention layers.
         :param init_scale: Standard deviation for random normal initialization of parameters.
         :param activation_checkpointing: If True, implements an activation checkpoint for each self-attention
-            layer and cross-attention layer.
+            layer and each cross-attention layer.
         :param activation_offloading: If True, offloads checkpointed activations to CPU.
         """
         super().__init__()
 
+        self.latent_provider = TrainableQueryProvider(num_latents, num_latent_channels, init_scale=init_scale)
         self.input_adapter = input_adapter
 
         if num_cross_attention_layers <= 0:
@@ -481,13 +433,10 @@ class PerceiverEncoder(nn.Module):
         if self.extra_self_attention_block:
             self.self_attn_n = self_attn()
 
-        # learnable initial latent vectors
-        self.latent = nn.Parameter(torch.empty(num_latents, num_latent_channels))
         self._init_parameters(init_scale)
 
     def _init_parameters(self, init_scale: float):
         with torch.no_grad():
-            self.latent.normal_(0.0, init_scale)
             init_parameters(self, init_scale)
 
     @property
@@ -498,16 +447,13 @@ class PerceiverEncoder(nn.Module):
     def extra_self_attention_block(self):
         return self.num_self_attention_blocks > 1 and not self.first_self_attention_block_shared
 
-    def forward(self, x, pad_mask=None, return_adapted_inputs: bool = False):
+    def forward(self, x, pad_mask=None, return_adapted_input=False):
         b, *_ = x.shape
 
-        # encode task-specific input
-        x = self.input_adapter(x)
+        x_adapted = self.input_adapter(x)
+        x_latent = self.latent_provider()
 
-        # repeat initial latent vector along batch dimension
-        x_latent = repeat(self.latent, "... -> b ...", b=b)
-
-        x_latent = self.cross_attn_1(x_latent, x, pad_mask=pad_mask)
+        x_latent = self.cross_attn_1(x_latent, x_adapted, pad_mask=pad_mask)
         x_latent = self.self_attn_1(x_latent)
 
         cross_attn_n = self.cross_attn_n if self.extra_cross_attention_layer else self.cross_attn_1
@@ -515,18 +461,20 @@ class PerceiverEncoder(nn.Module):
 
         for i in range(1, self.num_self_attention_blocks):
             if i < self.num_cross_attention_layers:
-                x_latent = cross_attn_n(x_latent, x, pad_mask=pad_mask)
+                x_latent = cross_attn_n(x_latent, x_adapted, pad_mask=pad_mask)
             x_latent = self_attn_n(x_latent)
 
-        if return_adapted_inputs:
-            return x_latent, x
-        return x_latent
+        if return_adapted_input:
+            return x_latent, x_adapted
+        else:
+            return x_latent
 
 
 class PerceiverDecoder(nn.Module):
     def __init__(
         self,
         output_adapter: OutputAdapter,
+        output_query_provider: QueryProvider,
         num_latent_channels: int,
         num_cross_attention_heads: int = 4,
         num_cross_attention_qk_channels: Optional[int] = None,
@@ -542,14 +490,17 @@ class PerceiverDecoder(nn.Module):
 
         :param output_adapter: Transforms generic decoder cross-attention output of shape (B, O, F) to task-specific
             output. B is the batch size, O the output sequence length and F the number of cross-attention output
-            channels. F is determined by the `num_output_query_channels` property of the `output_adapter`.
-        :param num_latent_channels: Number of latent channels (C_latent) as produced by a Perceiver IO encoder.
+            channels.
+        :param output_query_provider: Provides the decoder's output query. Abstracts over output query details e.g.
+            can be a learned query, a deterministic function of the model's input, etc. Configured by `PerceiverIO`
+            subclasses.
+        :param num_latent_channels: Number of latent channels of the Perceiver IO encoder output.
         :param num_cross_attention_heads: Number of cross-attention heads.
         :param num_cross_attention_qk_channels: Number of query and key channels for cross-attention
             (see `MultiHeadAttention.num_qk_channels` for details).
         :param num_cross_attention_v_channels: Number of value channels for cross-attention
             (see `MultiHeadAttention.num_v_channels` for details).
-        :param dropout: Dropout probability for cross-attention layers and residuals.
+        :param dropout: Dropout probability for cross-attention layer.
         :param init_scale: Standard deviation for random normal initialization of parameters.
         :param activation_checkpointing: If True, implements an activation checkpoint for the decoder's
             cross-attention layer.
@@ -557,9 +508,12 @@ class PerceiverDecoder(nn.Module):
         """
         super().__init__()
 
+        self.output_query_provider = output_query_provider
+        self.output_adapter = output_adapter
+
         cross_attn = CrossAttentionLayer(
             num_heads=num_cross_attention_heads,
-            num_q_input_channels=output_adapter.num_output_query_channels,
+            num_q_input_channels=output_query_provider.num_query_channels,
             num_kv_input_channels=num_latent_channels,
             num_qk_channels=num_cross_attention_qk_channels,
             num_v_channels=num_cross_attention_v_channels,
@@ -572,16 +526,15 @@ class PerceiverDecoder(nn.Module):
             cross_attn = checkpoint_wrapper(cross_attn, offload_to_cpu=activation_offloading)
 
         self.cross_attn = cross_attn
-        self.output_adapter = output_adapter
         self._init_parameters(init_scale)
 
     def _init_parameters(self, init_scale: float):
         with torch.no_grad():
             init_parameters(self, init_scale)
 
-    def forward(self, x, **kwargs):
-        output_query = self.output_adapter.output_query(x, **kwargs)
-        output = self.cross_attn(output_query, x)
+    def forward(self, x_latent, x_adapted=None, **kwargs):
+        output_query = self.output_query_provider(x_adapted)
+        output = self.cross_attn(output_query, x_latent)
         return self.output_adapter(output, **kwargs)
 
 
@@ -602,12 +555,12 @@ class PerceiverAR(nn.Module):
     def __init__(
         self,
         input_adapter: RotarySupport,
-        output_layer: nn.Module,
+        output_adapter: OutputAdapter,
         num_latents: int,
         num_heads: int = 8,
         num_self_attention_layers: int = 6,
-        cross_attention_widening_factor: int = 4,
         self_attention_widening_factor: int = 4,
+        cross_attention_widening_factor: int = 4,
         cross_attention_dropout: float = 0.5,
         post_attention_dropout: float = 0.0,
         init_scale: float = 0.02,
@@ -620,13 +573,14 @@ class PerceiverAR(nn.Module):
             to add (absolute) position information to transformed inputs while `PerceiverAR` additionally computes a
             rotary position embedding (i.e. relative position information) for queries and keys. To support the
             computation of rotary position embeddings, concrete input adapters need to mixin `RotarySupport`.
-        :param output_layer: Transforms latent variables to task-specific output. This is usually a layer that predicts
-            the logits of a target sequence.
+        :param output_adapter: Transforms latent variables to task-specific output. This is usually a layer that
+            predicts the logits of a target sequence.
         :param num_latents: Number of latent variables.
         :param num_heads: Number of cross- and self-attention heads.
         :param num_self_attention_layers: Number of self-attention layers.
         :param cross_attention_dropout: Probability of dropping positions in the prefix sequence.
-        :param post_attention_dropout: Probability of dropping cross- and self-attention scores.
+        :param post_attention_dropout: Probability of dropping cross- and self-attention scores (same as `dropout`
+            in Perceiver IO encoder and decoder).
         :param init_scale: Standard deviation for random normal initialization of parameters.
         :param activation_checkpointing: If True, implements an activation checkpoint for each self-attention
             layer and cross-attention layer.
@@ -668,7 +622,7 @@ class PerceiverAR(nn.Module):
         self.num_latents = num_latents
 
         self.input_adapter = input_adapter
-        self.output_layer = output_layer
+        self.output_adapter = output_adapter
 
         self.cross_attention_dropout = cross_attention_dropout
         self.cross_attention = cross_attn()
@@ -719,6 +673,6 @@ class PerceiverAR(nn.Module):
         )
 
         x_latent = self.self_attention(x_latent, rot_pos_emb=RotaryPositionEmbedding(frq_pos_enc, right_align=True))
-        x_logits = self.output_layer(x_latent)
+        x_logits = self.output_adapter(x_latent)
 
         return x_logits

@@ -1,0 +1,24 @@
+python -m perceiver.scripts.text.clm fit \
+  --model.num_latents=512 \
+  --model.cross_attention_dropout=0.5 \
+  --model.post_attention_dropout=0.0 \
+  --model.random_truncation=false \
+  --model.random_min_seq_len=16 \
+  --data=WikiTextDataModule \
+  --data.tokenizer=deepmind/language-perceiver \
+  --data.add_special_tokens=false \
+  --data.max_seq_len=4096 \
+  --data.task=clm \
+  --data.batch_size=24 \
+  --optimizer=Adam \
+  --optimizer.lr=2e-4 \
+  --lr_scheduler.warmup_steps=200 \
+  --trainer.max_epochs=8 \
+  --trainer.accelerator=gpu \
+  --trainer.devices=2 \
+  --trainer.val_check_interval=0.5 \
+  --trainer.gradient_clip_val=0.5 \
+  --trainer.accumulate_grad_batches=2 \
+  --trainer.logger=TensorBoardLogger \
+  --trainer.logger.save_dir=logs \
+  --trainer.logger.name=clm

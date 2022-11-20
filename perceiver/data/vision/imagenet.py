@@ -2,7 +2,7 @@ from PIL import Image
 from torchvision.transforms import Compose
 from transformers.models.perceiver.feature_extraction_perceiver import PerceiverFeatureExtractor
 
-from perceiver.data.image.common import channels_to_last, ImagePreprocessor
+from perceiver.data.vision.common import channels_to_last, ImagePreprocessor
 
 
 class ImageNetPreprocessor(ImagePreprocessor):

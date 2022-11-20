@@ -1,0 +1,23 @@
+python -m perceiver.scripts.text.classifier fit \
+  --model.params="logs/txt_clf/version_0/checkpoints/epoch=009-val_loss=0.215.ckpt" \
+  --model.activation_checkpointing=true \
+  --model.encoder.freeze=false \
+  --model.encoder.dropout=0.1 \
+  --model.decoder.dropout=0.1 \
+  --data=ImdbDataModule \
+  --data.tokenizer=deepmind/language-perceiver \
+  --data.add_special_tokens=true \
+  --data.max_seq_len=2048 \
+  --data.task=clf \
+  --data.batch_size=64 \
+  --optimizer=AdamW \
+  --optimizer.lr=5e-6 \
+  --lr_scheduler.warmup_steps=100 \
+  --trainer.max_epochs=10 \
+  --trainer.accelerator=gpu \
+  --trainer.precision=16 \
+  --trainer.devices=4 \
+  --trainer.log_every_n_steps=20 \
+  --trainer.logger=TensorBoardLogger \
+  --trainer.logger.save_dir=logs \
+  --trainer.logger.name=txt_clf

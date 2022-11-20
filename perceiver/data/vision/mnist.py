@@ -6,7 +6,7 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
-from perceiver.data.image.common import channels_to_last, ImagePreprocessor, lift_transform
+from perceiver.data.vision.common import channels_to_last, ImagePreprocessor, lift_transform
 
 
 class MNISTPreprocessor(ImagePreprocessor):

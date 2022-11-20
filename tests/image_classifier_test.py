@@ -4,13 +4,16 @@ import pytest
 import pytorch_lightning as pl
 import torch
 from einops import rearrange
+from flaky import flaky
 
-from perceiver.model.image.classifier import convert_config, ImageClassifier, LitImageClassifier
-from perceiver.scripts.image.classifier import ImageClassifierCLI
+from perceiver.model.vision.image_classifier import convert_config, ImageClassifier, LitImageClassifier
+from perceiver.scripts.vision.image_classifier import ImageClassifierCLI
+
+from tests.utils import assert_equal_size
 from transformers import AutoConfig, PerceiverForImageClassificationFourier
 
-
 MODEL_NAME = "deepmind/vision-perceiver-fourier"
+MODEL_SIZE = 48440627
 
 
 class MockDataModule(pl.LightningDataModule):
@@ -30,18 +33,23 @@ def source_model():
     yield PerceiverForImageClassificationFourier.from_pretrained(MODEL_NAME).eval()
 
 
+@flaky(max_runs=2)
 def test_conversion(source_config, source_model):
     target_config = convert_config(source_config)
     target_model = ImageClassifier(target_config).eval()
     assert_equal_prediction(source_model, target_model)
+    assert_equal_size(source_model, target_model, expected_size=MODEL_SIZE)
 
 
+@flaky(max_runs=2)
 def test_conversion_lit(source_config, source_model):
     target_config = convert_config(source_config)
     target_model = LitImageClassifier.create(target_config).model.eval()
     assert_equal_prediction(source_model, target_model)
+    assert_equal_size(source_model, target_model, expected_size=MODEL_SIZE)
 
 
+@flaky(max_runs=2)
 def test_conversion_cli(source_model):
     with mock.patch(
         "sys.argv",
@@ -57,10 +65,11 @@ def test_conversion_cli(source_model):
 
     target_model = cli.model.model.eval()
     assert_equal_prediction(source_model, target_model)
+    assert_equal_size(source_model, target_model, expected_size=MODEL_SIZE)
 
 
 def assert_equal_prediction(source_model, target_model):
-    source_inputs = torch.randn(1, 3, 224, 224)
+    source_inputs = torch.randn(2, 3, 224, 224)
     target_inputs = rearrange(source_inputs, "b c ... -> b ... c")
 
     with torch.no_grad():

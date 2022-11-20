@@ -22,7 +22,7 @@ class EncoderConfig:
     freeze: bool = False
 
     def base_kwargs(self, exclude=("freeze",)):
-        return base_kwargs(self, EncoderConfig, exclude)
+        return _base_kwargs(self, EncoderConfig, exclude)
 
 
 @dataclass
@@ -37,7 +37,7 @@ class DecoderConfig:
     freeze: bool = False
 
     def base_kwargs(self, exclude=("freeze",)):
-        return base_kwargs(self, DecoderConfig, exclude)
+        return _base_kwargs(self, DecoderConfig, exclude)
 
 
 E = TypeVar("E", bound=EncoderConfig)
@@ -45,7 +45,7 @@ D = TypeVar("D", bound=DecoderConfig)
 
 
 @dataclass
-class PerceiverConfig(Generic[E, D]):
+class PerceiverIOConfig(Generic[E, D]):
     encoder: E
     decoder: D
     num_latents: int
@@ -55,17 +55,23 @@ class PerceiverConfig(Generic[E, D]):
     params: Optional[str] = None
 
 
-def base_kwargs(config, base_class, exclude):
+@dataclass
+class PerceiverARConfig:
+    num_latents: int
+    num_heads: int = 8
+    num_self_attention_layers: int = 8
+    self_attention_widening_factor: int = 4
+    cross_attention_widening_factor: int = 4
+    cross_attention_dropout: float = 0.5
+    post_attention_dropout: float = 0.0
+    init_scale: float = 0.02
+    activation_checkpointing: bool = False
+    activation_offloading: bool = False
+
+    def base_kwargs(self, exclude=()):
+        return _base_kwargs(self, PerceiverARConfig, exclude)
+
+
+def _base_kwargs(config, base_class, exclude):
     base_field_names = [field.name for field in fields(base_class) if field.name not in exclude]
     return {k: v for k, v in asdict(config).items() if k in base_field_names}
-
-
-# TODO: move to perceiver.model.core.classifier
-# (still kept here for backward compatibility)
-
-
-@dataclass
-class ClassificationDecoderConfig(DecoderConfig):
-    num_output_queries: int = 1
-    num_output_query_channels: int = 256
-    num_classes: int = 100

@@ -1,303 +1,182 @@
 # Training examples
 
-This section contains command line examples for training [Perceiver IO](#perceiver-io) and [Perceiver AR](#perceiver-ar)
-models. If a model must be initialized with parameters from a previous run, it references a checkpoint from that run
-with the `--model.params` option. Checkpoints for all command line examples can be downloaded [here](https://martin-krasser.com/perceiver/logs-update-8.zip).
-They are also used in [Inference examples](../notebooks/inference_examples.ipynb).
+## Overview
 
-The examples were tested on a machine with 4x RTX 3080ti GPUs (12 GB memory each). You'll need to adjust some
-settings (batch size, ...) for running them on a different hardware configuration. Furthermore, I didn't really
-tune these examples, so you'll likely get better results with a bit of experimentation.
+Training examples are provided as executable Python and shell scripts in [examples/training](../examples/training).
+They are tested on a machine with 4 RTX 3080ti GPUs (12 GB memory each). You'll need to adjust some settings (GPU
+count, batch size, ...) for running them on a different hardware configuration. Furthermore, I didn't really tune
+these examples, so you'll likely get better results with a bit of experimentation.
 
-## Dataset preprocessing
+## Training checkpoints
 
-Although data modules automatically download and preprocess datasets if needed, it is usually faster if you preprocess
-datasets prior to training (see [Dataset preprocessing](dataset-preproc.md) for details). Running the following commands
-is optional:
+Some training examples depend on checkpoints produced by other examples. Default checkpoint paths used in the training
+scripts refer to existing [training checkpoints](pretrained-models.md#training-checkpoints) which can be downloaded to
+a local `logs` directory with:
 
 ```shell
-python -m perceiver.scripts.text.preproc imdb \
-  --tokenizer=deepmind/language-perceiver \
-  --max_seq_len=2048 \
-  --add_special_tokens=true
-
-python -m perceiver.scripts.text.preproc wikitext \
-  --tokenizer=bert-base-uncased \
-  --max_seq_len=128 \
-  --filter_empty=true \
-  --filter_headers=true \
-  --task=mlm
-
-python -m perceiver.scripts.text.preproc wikitext \
-  --tokenizer=deepmind/language-perceiver \
-  --max_seq_len=4096 \
-  --filter_empty=false \
-  --filter_headers=false \
-  --task=clm
+bash examples/training/download_checkpoints.sh logs
 ```
+
+If you rather want to run dependent examples yourself, you need to modify checkpoint paths in the training scripts
+accordingly. Checkpoints and Tensorboard logs from newly executed examples are also written to `logs` by default.  
 
 ## Perceiver IO
 
-### Language model fine-tuning (MLM)
+### Masked language modeling
 
-Fine-tune a pretrained `deepmind/language-perceiver` model with masked language modeling (MLM) and whole word masking
-on the IMDb dataset (*unsupervised* split). It prepares the language model for a better performance on IMDb [sentiment
-classification](#sentiment-classification). The tokenizer is a UTF-8 bytes tokenizer and the model attends to the
-raw bytes of the input. Word masking is done dynamically at data loading time i.e. each epoch has a different set
-of words masked.
+Fine-tune a pretrained language model with masked language modeling and whole word masking on the IMDb dataset
+(*unsupervised* split). Fine-tuning on IMDb gives a better performance on downstream [sentiment analysis](#sentiment-analysis).
 
-```shell
-python -m perceiver.scripts.text.mlm fit \
-  --model.params=deepmind/language-perceiver \
-  --model.activation_checkpointing=true \
-  --data=ImdbDataModule \
-  --data.task=mlm \
-  --data.tokenizer=deepmind/language-perceiver \
-  --data.add_special_tokens=true \
-  --data.max_seq_len=2048 \
-  --data.batch_size=32 \
-  --optimizer=AdamW \
-  --optimizer.lr=2e-5 \
-  --optimizer.weight_decay=0.01 \
-  --lr_scheduler.warmup_steps=1000 \
-  --trainer.max_steps=5200 \
-  --trainer.accelerator=gpu \
-  --trainer.precision=16 \
-  --trainer.devices=2 \
-  --trainer.strategy=ddp_sharded \
-  --trainer.log_every_n_steps=20 \
-  --trainer.logger=TensorBoardLogger \
-  --trainer.logger.save_dir=logs \
-  --trainer.logger.name=mlm
-```
+The pretrained model is specified in Section 4 (Table 1) and Appendix F (Table 11) of the
+[Perceiver IO paper](https://arxiv.org/abs/2107.14795) (UTF-8 bytes tokenization, vocabulary size of 262, 201M
+parameters). Pretrained `deepmind/language-perceiver` weights are downloaded from the 🤗 Hub.
 
-### Sentiment classification
+The tokenizer is a UTF-8 bytes tokenizer and the model attends to the raw UTF-8 bytes of the input. Word masking is done
+dynamically at data loading time i.e. each epoch has a different set of words masked. Static word masking can be enabled
+by setting `--data.static_masking=true`.
+
+- Data prep (command line): [examples/training/mlm/prep.sh](../examples/training/mlm/prep.sh)
+  ```shell
+  bash examples/training/mlm/prep.sh
+  ```
+
+- Training (command line): [examples/training/mlm/train.sh](../examples/training/mlm/train.sh)
+  ```shell
+  bash examples/training/mlm/train.sh
+  ```
+
+- Training (Python script): [examples/training/mlm/train.py](../examples/training/mlm/train.py)
+  ```shell
+  python examples/training/mlm/train.py
+  ```
+
+### Sentiment analysis
 
 Train a text classification model on the IMDb dataset (*train* split). The encoder of the classifier is the fine-tuned
-language model encoder from the [previous run](#language-model-fine-tuning-mlm) (`--model.encoder.params=...`), the
-decoder is a randomly initialized classification decoder (see `TextClassifier` and `LitTextClassifier` in
-[classifier.py](../perceiver/model/text/classifier.py)). First, only the decoder is trained, the encoder is frozen
-(`--model.encoder.freeze=true`)
+language model encoder from [masked language modeling](#masked-language-modeling) and is loaded from a training checkpoint
+(by setting `--model.encoder.params` to the checkpoint path). The decoder is a randomly initialized classification decoder.
+In a first step, only the decoder is trained, the encoder is frozen.
 
-```shell
-python -m perceiver.scripts.text.classifier fit \
-  --model.encoder.params="logs/mlm/version_0/checkpoints/epoch=009-val_loss=1.174.ckpt" \
-  --model.encoder.freeze=true \
-  --model.encoder.dropout=0.0 \
-  --model.decoder.dropout=0.1 \
-  --data=ImdbDataModule \
-  --data.task=clf \
-  --data.tokenizer=deepmind/language-perceiver \
-  --data.add_special_tokens=true \
-  --data.max_seq_len=2048 \
-  --data.batch_size=64 \
-  --optimizer=AdamW \
-  --optimizer.lr=1e-3 \
-  --optimizer.weight_decay=0.01 \
-  --trainer.accelerator=gpu \
-  --trainer.precision=16 \
-  --trainer.devices=4 \
-  --trainer.max_epochs=12 \
-  --trainer.logger=TensorBoardLogger \
-  --trainer.logger.save_dir=logs \
-  --trainer.logger.name=txt_clf_dec
-```
+- Data prep (command line): [examples/training/txt_clf/prep.sh](../examples/training/txt_clf/prep.sh)
+  ```shell
+  bash examples/training/txt_clf/prep.sh
+  ```
 
-Then, we unfreeze the encoder, initialize the classifier parameters with a checkpoint from the first classifier training
-(`--model.params=...`) and fine-tune the encoder and decoder together on the IMDb training set for further 4 epochs.
+- Training (command line): [examples/training/txt_clf/train_dec.sh](../examples/training/txt_clf/train_dec.sh)
+  ```shell
+  bash examples/training/txt_clf/train_dec.sh
+  ```
 
-```shell
-python -m perceiver.scripts.text.classifier fit \
-  --model.params="logs/txt_clf_dec/version_1/checkpoints/epoch=010-val_loss=0.212.ckpt" \
-  --model.activation_checkpointing=true \
-  --model.encoder.freeze=false \
-  --model.encoder.dropout=0.1 \
-  --model.decoder.dropout=0.1 \
-  --data=ImdbDataModule \
-  --data.task=clf \
-  --data.tokenizer=deepmind/language-perceiver \
-  --data.add_special_tokens=true \
-  --data.max_seq_len=2048 \
-  --data.batch_size=16 \
-  --data.num_workers=3 \
-  --optimizer=AdamW \
-  --optimizer.lr=5e-6 \
-  --optimizer.weight_decay=0.01 \
-  --trainer.accelerator=gpu \
-  --trainer.precision=16 \
-  --trainer.devices=4 \
-  --trainer.max_epochs=4 \
-  --trainer.logger=TensorBoardLogger \
-  --trainer.logger.save_dir=logs \
-  --trainer.logger.name=txt_clf_all
-```
+- Training (Python script): [examples/training/txt_clf/train_dec.py](../examples/training/txt_clf/train_dec.py)
+  ```shell
+  python examples/training/txt_clf/train_dec.py
+  ```
 
-The validation accuracy of these two runs can be obtained with
+In a second step, all model parameters are fine-tuned (by un-freezing the encoder). They are initialized from the
+results of the previous training run (by setting `--model.params` to a checkpoint path).  
 
-```shell
-python -m perceiver.scripts.text.classifier validate \
-  --config=logs/txt_clf_dec/version_1/config.yaml \
-  --model.encoder.params=null \
-  --trainer.devices=1 \
-  --ckpt_path="logs/txt_clf_dec/version_1/checkpoints/epoch=010-val_loss=0.212.ckpt"
-```
+- Training (command line): [examples/training/txt_clf/train_all.sh](../examples/training/txt_clf/train_all.sh)
+  ```shell
+  bash examples/training/txt_clf/train_all.sh
+  ```
 
-```
-──────────────────────────────────────────────────
-     Validate metric           DataLoader 0
-──────────────────────────────────────────────────
-         val_acc            0.9162399768829346
-        val_loss            0.2121591567993164
-──────────────────────────────────────────────────
-```
+- Training (Python script): [examples/training/txt_clf/train_all.py](../examples/training/txt_clf/train_all.py)
+  ```shell
+  python examples/training/txt_clf/train_all.py
+  ```
 
-and
+Validation of decoder-only training and full-model fine-tuning can be done with:
 
-```shell
-python -m perceiver.scripts.text.classifier validate \
-  --config=logs/txt_clf_all/version_0/config.yaml \
-  --model.params=null \
-  --trainer.devices=1 \
-  --ckpt_path="logs/txt_clf_all/version_0/checkpoints/epoch=002-val_loss=0.156.ckpt"
-```
+- Validation of decoder-only training (command line): [examples/training/txt_clf/valid_dec.sh](../examples/training/txt_clf/valid_dec.sh)
+  ```shell
+  bash examples/training/txt_clf/valid_dec.sh
+  ```
+  ```
+  ──────────────────────────────────────────────────
+       Validate metric           DataLoader 0
+  ──────────────────────────────────────────────────
+           val_acc             0.915120005607605
+          val_loss            0.21508242189884186
+  ──────────────────────────────────────────────────
+  ```
 
-```
-──────────────────────────────────────────────────
-     Validate metric           DataLoader 0
-──────────────────────────────────────────────────
-         val_acc            0.9444000124931335
-        val_loss            0.15592406690120697
-──────────────────────────────────────────────────
-```
+- Validation of full-model fine-tuning (command line): [examples/training/txt_clf/valid_all.sh](../examples/training/txt_clf/valid_all.sh)
+  ```shell
+  bash examples/training/txt_clf/valid_all.sh
+  ```
+  ```
+  ──────────────────────────────────────────────────
+       Validate metric           DataLoader 0
+  ──────────────────────────────────────────────────
+           val_acc            0.9432799816131592
+          val_loss            0.15643823146820068
+  ──────────────────────────────────────────────────
+  ```
 
-When training only the classification decoder, the validation accuracy is 91.6%. Fine-tuning encoder and decoder on the
-classification task further increases validation accuracy to 94.4%.
-
-### Language model pretraining (MLM)
-
-Pretrain a smaller language model (45.2M parameters) with masked language modeling and whole word masking on the
-Wikitext-103 dataset. The example uses a custom model configuration/architecture and another 🤗 tokenizer
-(`bert-base-uncased`, a WordPiece tokenizer with a vocabulary of size of 30,522). To speed up training,
-`--data.max_seq_len=128` and `--model.num_latents=64` is used (a quarter of the default values).
-
-```shell
-python -m perceiver.scripts.text.mlm fit \
-  --model.activation_checkpointing=true \
-  --model.num_latents=64 \
-  --model.num_latent_channels=768 \
-  --model.encoder.num_input_channels=512 \
-  --model.encoder.num_self_attention_layers_per_block=6 \
-  --model.encoder.cross_attention_widening_factor=4 \
-  --model.encoder.self_attention_widening_factor=4 \
-  --model.encoder.dropout=0.1 \
-  --model.decoder.cross_attention_widening_factor=4 \
-  --model.decoder.dropout=0.1 \
-  --data=WikiTextDataModule \
-  --data.tokenizer=bert-base-uncased \
-  --data.filter_empty=true \
-  --data.filter_headers=true \
-  --data.max_seq_len=128 \
-  --data.batch_size=128 \
-  --optimizer=AdamW \
-  --optimizer.lr=1e-4 \
-  --optimizer.weight_decay=0.01 \
-  --lr_scheduler.warmup_steps=1000 \
-  --trainer.max_steps=25000 \
-  --trainer.accelerator=gpu \
-  --trainer.precision=16 \
-  --trainer.devices=4 \
-  --trainer.val_check_interval=0.5 \
-  --trainer.log_every_n_steps=20 \
-  --trainer.logger=TensorBoardLogger \
-  --trainer.logger.save_dir=logs \
-  --trainer.logger.name=mlm_pre
-```
+The corresponding validation accuracies are 91.5% (decoder-only training) and 94.3% (full-model fine-tuning). Please
+note that the validation scripts use the [downloaded checkpoints](#training-checkpoints), by default.  
 
 ### Image classification
 
-Train a tiny image classifier (805K parameters) on the MNIST dataset. The model attends to individual pixels of the
-input image and uses Fourier position encodings. This is another toy example that demonstrates how to use a custom
-model configuration compared to the defaults in [classifier.py](../perceiver/scripts/image/classifier.py).
+Train a small, randomly initialized  image classifier (907K parameters) on the MNIST dataset. The model attends
+to individual pixels of the input image and uses Fourier position encodings. This example also demonstrates how
+a Perceiver IO model can be configured with repeated cross-attention (`--model.encoder.num_cross_attention_layers=2`)
+as specified in the original [Perceiver paper](https://arxiv.org/abs/2103.03206). See also [Building blocks](building-blocks.md)
+for further details.
 
-```shell
-python -m perceiver.scripts.image.classifier fit \
-  --model.num_latents=32 \
-  --model.num_latent_channels=128 \
-  --model.encoder.num_frequency_bands=32 \
-  --model.encoder.num_self_attention_layers_per_block=3 \
-  --model.encoder.num_self_attention_blocks=3 \
-  --model.encoder.first_self_attention_block_shared=false \
-  --model.encoder.dropout=0.0 \
-  --model.encoder.init_scale=0.1 \
-  --model.decoder.num_output_query_channels=128 \
-  --model.decoder.dropout=0.0 \
-  --model.decoder.init_scale=0.1 \
-  --data=MNISTDataModule \
-  --data.batch_size=128 \
-  --optimizer=AdamW \
-  --optimizer.lr=1e-3 \
-  --optimizer.weight_decay=0.01 \
-  --trainer.accelerator=gpu \
-  --trainer.devices=2 \
-  --trainer.max_epochs=20 \
-  --trainer.logger=TensorBoardLogger \
-  --trainer.logger.save_dir=logs \
-  --trainer.logger.name=img_clf
-```
+- Training (command line): [examples/training/img_clf/train.sh](../examples/training/img_clf/train.sh)
+  ```shell
+  bash examples/training/img_clf/train.sh
+  ```
 
-The validation accuracy is 98.1%:
+- Training (Python script): [examples/training/img_clf/train.py](../examples/training/img_clf/train.py)
+  ```shell
+  python examples/training/img_clf/train.py
+  ```
 
-```shell
-python -m perceiver.scripts.image.classifier validate \
-  --config=logs/img_clf/version_0/config.yaml \
-  --trainer.devices=1 \
-  --ckpt_path="logs/img_clf/version_0/checkpoints/epoch=015-val_loss=0.068.ckpt"
-```
+- Validation (command line): [examples/training/img_clf/valid.sh](../examples/training/img_clf/valid.sh)
+  ```shell
+  bash examples/training/img_clf/valid.sh
+  ```
+  ```
+  ──────────────────────────────────────────────────
+       Validate metric           DataLoader 0
+  ──────────────────────────────────────────────────
+           val_acc            0.9815999865531921
+          val_loss            0.06463544070720673
+  ──────────────────────────────────────────────────
+  ```
 
-```
-──────────────────────────────────────────────────
-     Validate metric           DataLoader 0
-──────────────────────────────────────────────────
-         val_acc            0.9805999994277954
-        val_loss            0.06774937361478806
-──────────────────────────────────────────────────
-```
+...
 
 ## Perceiver AR
 
-### Language model pretraining (CLM)
+### Causal language modeling
 
-Pretrain a smaller language model (30.7M parameters) with causal language modeling on the WikiText-103-raw dataset. The
-tokenizer is a UTF-8 bytes tokenizer and the model attends to the raw bytes of the input.
+Train a small, randomly initialized Perceiver AR language model (30.7M parameters) with autoregressive language
+modeling on the WikiText-103 dataset. The tokenizer is a UTF-8 bytes tokenizer and the model attends to the raw
+UTF-8 bytes of the input.
 
-```shell
-python -m perceiver.scripts.text.clm fit \
-  --model.num_latents=512 \
-  --model.cross_attention_dropout=0.5 \
-  --model.post_attention_dropout=0.0 \
-  --data=WikiTextDataModule \
-  --data.tokenizer=deepmind/language-perceiver \
-  --data.max_seq_len=4096 \
-  --data.batch_size=24 \
-  --data.num_workers=3 \
-  --data.task=clm \
-  --optimizer=Adam \
-  --optimizer.lr=2e-4 \
-  --trainer.max_steps=8000 \
-  --trainer.accelerator=gpu \
-  --trainer.devices=2 \
-  --trainer.val_check_interval=0.5 \
-  --trainer.gradient_clip_val=0.5 \
-  --trainer.accumulate_grad_batches=2 \
-  --trainer.logger=TensorBoardLogger \
-  --trainer.logger.save_dir=logs \
-  --trainer.logger.name=clm_pre
-```
+- Data prep (command line): [examples/training/clm/prep.sh](../examples/training/clm/prep.sh)
+  ```shell
+  bash examples/training/clm/prep.sh
+  ```
+
+- Training (command line): [examples/training/clm/train.sh](../examples/training/clm/train.sh)
+  ```shell
+  bash examples/training/clm/train.sh
+  ```
+
+- Training (Python script): [examples/training/clm/train.py](../examples/training/clm/train.py)
+  ```shell
+  python examples/training/clm/train.py
+  ```
 
 For better generalization to shorter sequences I found random sequence truncation helpful which can be enabled with
-`--model.random_sequence_trucation=true`. Random sequence truncation randomly truncates sequences in a batch to a
-length `randint(16, n+1)` where `n` is the original sequence length.
+`--model.random_truncation=true`. The minimum sequence length can be configured with `--model.random_min_seq_lem=m`.
+Random sequence truncation randomly truncates sequences in a batch to length `randint(m, n+1)` where `m < n` and `n`
+is the configured `max_seq_len`.
 
 With option `--model.validation_sample_record=-1` a sequence is randomly picked from the validation set and used as
 prompt for sequence generation during validation. The prompt and the generated sequence is logged to Tensorboard. You
-can also use option `--model.validation_sample_prompt="My own sample prompt"` to provide your own prompt.
+can also use option `--model.validation_sample_prompt="My prompt"` to provide your own prompt.
