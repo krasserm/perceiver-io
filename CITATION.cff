@@ -4,7 +4,10 @@ title: "A PyTorch implementation of Perceiver, Perceiver IO and Perceiver AR wit
 authors:
   - family-names: "Krasser"
     given-names: "Martin"
-version: 0.6.0
-date-released: 2022-09-25
+  - family-names: "Stumpf"
+    given-names: "Christoph"
+version: 0.7b1
+doi: 10.5281/zenodo.7339520
+date-released: 2022-11-20
 url: "https://github.com/krasserm/perceiver-io"
 license: "Apache-2.0"
