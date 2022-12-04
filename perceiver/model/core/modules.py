@@ -31,7 +31,8 @@ class MultiHeadAttention(nn.Module):
         out_bias: bool = True,
     ):
         """Multi-head attention as specified in https://arxiv.org/abs/2107.14795 Appendix E plus support for rotary
-        position embeddings (https://arxiv.org/abs/2104.09864) and causal attention.
+        position embeddings (https://arxiv.org/abs/2104.09864) and causal attention. Causal attention requires
+        queries and keys to be right-aligned, if they have different length.
 
         :param num_heads: Number of attention heads.
         :param num_q_input_channels: Number of query input channels.
@@ -117,6 +118,7 @@ class MultiHeadAttention(nn.Module):
             i = q.shape[2]
             j = k.shape[2]
 
+            # If q and k have different length, causal masking only works if they are right-aligned.
             causal_mask = torch.ones((i, j), device=x_q.device, dtype=torch.bool).triu(j - i + 1)
             attn.masked_fill_(causal_mask, attn_max_neg)
 
