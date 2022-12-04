@@ -26,9 +26,9 @@ def test_fill(preprocessor):
         tokenizer=preprocessor.tokenizer, targets=[["sentence", "is", "bit"], ["phrase", "was", "bunch"]]
     )
 
-    filler = MaskedSampleFiller(preprocessor, model)
+    filler = MaskedSampleFiller(preprocessor)
 
-    masked_samples, filled_samples = filler.fill(MASKED_SAMPLES, num_predictions=len(model.targets))
+    masked_samples, filled_samples = filler.fill(model, MASKED_SAMPLES, num_predictions=len(model.targets))
 
     assert masked_samples == [
         "This is [MASK] one.",

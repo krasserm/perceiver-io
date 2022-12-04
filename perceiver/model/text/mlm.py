@@ -152,7 +152,7 @@ class LitMaskedLanguageModel(LitPerceiverIO):
             self.model.load_state_dict(lit_model.model.state_dict())
 
     def setup(self, stage: Optional[str] = None):
-        self.filler = MaskedSampleFiller(preprocessor=self.trainer.datamodule.text_preprocessor(), model=self)
+        self.filler = MaskedSampleFiller(preprocessor=self.trainer.datamodule.text_preprocessor())
 
     def forward(self, x, pad_mask):
         return self.model(x, pad_mask)
@@ -180,7 +180,10 @@ class LitMaskedLanguageModel(LitPerceiverIO):
     def on_validation_epoch_end(self) -> None:
         if self.hparams.masked_samples:
             masked_samples, filled_samples = self.filler.fill(
-                self.hparams.masked_samples, self.hparams.num_predictions, self.device
+                model=self,
+                masked_samples=self.hparams.masked_samples,
+                num_predictions=self.hparams.num_predictions,
+                device=self.device,
             )
 
             if isinstance(self.logger, TensorBoardLogger):
@@ -194,11 +197,10 @@ class LitMaskedLanguageModel(LitPerceiverIO):
 
 
 class MaskedSampleFiller:
-    def __init__(self, preprocessor, model=None):
+    def __init__(self, preprocessor):
         self.preprocessor = preprocessor
-        self.model = model
 
-    def fill(self, masked_samples, num_predictions, device="cpu"):
+    def fill(self, model, masked_samples, num_predictions, device="cpu"):
         masked_samples = [ms.replace("<mask>", self.preprocessor.tokenizer.mask_token) for ms in masked_samples]
 
         xs, ms = self.preprocessor.preprocess_batch(masked_samples)
@@ -206,7 +208,7 @@ class MaskedSampleFiller:
         ms = ms.to(device)
 
         with torch.no_grad():
-            x_logits = self.model(xs, ms)
+            x_logits = model(xs, ms)
 
         pred_mask = xs == self.preprocessor.tokenizer.mask_token_id
         pred_ids = torch.topk(x_logits[pred_mask, :], k=num_predictions, dim=1).indices
