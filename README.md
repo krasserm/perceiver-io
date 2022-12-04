@@ -41,7 +41,7 @@ and the 🤗 Perceiver UTF-8 bytes tokenizer.
 ### Via pip
 
 ```shell
-pip install perceiver-io[text,vision]==0.7b1
+pip install perceiver-io[text,vision]
 ```
 
 ### From sources
