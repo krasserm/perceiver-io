@@ -7,9 +7,7 @@ from einops import rearrange, repeat
 
 
 class RotaryPositionEmbedding:
-    # See section 3.4.2 in https://arxiv.org/abs/2104.09864
-    # (here, a different permutation of channels is used)
-
+    # See https://arxiv.org/abs/2104.09864
     def __init__(self, frq_pos_enc: torch.Tensor, right_align: bool = False):
         # frq_pos_enc shape is either (n, c) or (b, 1, n, c).
         # frq_pos_enc is broadcast to (b, h, n, c).
@@ -31,22 +29,38 @@ class RotaryPositionEmbedding:
 
         return torch.cat((t_rot, t_pass), dim=-1)
 
-    def _rotate_half(self, x):
-        x1 = x[..., : self.rotate_dim // 2]
-        x2 = x[..., self.rotate_dim // 2 :]
-        return torch.cat((-x2, x1), dim=-1)
+    @staticmethod
+    def _rotate_half(x):
+        # Rearranges channel dimension [x1, x2, x3, x4, ...] -> [-x2, x1, -x4, x3, ...]
+        x = rearrange(x, "... (c r) -> ... c r", r=2)
+        x1, x2 = x.unbind(dim=-1)
+        x = torch.stack((-x2, x1), dim=-1)
+        return rearrange(x, "... c r -> ... (c r)")
 
 
 class FrequencyPositionEncoding(nn.Module):
-    def __init__(self, encoded_channels_per_head):
+    """Encodes positions as inverse frequencies.
+
+    ```
+    inverse_frequencies = 10000 ** -2(i−1)/dim, i = 1, 2, ... dim // 2
+    position_encodings = p * inverse_frequencies, p = 0, 1, ... seq_len - 1
+    ```
+    """
+
+    def __init__(self, dim):
         super().__init__()
-        inv_freq = 1.0 / (10000 ** (torch.arange(0, encoded_channels_per_head, 2).float() / encoded_channels_per_head))
+        inv_freq = 1.0 / (10000 ** (torch.arange(0, dim, 2).float() / dim))
         self.register_buffer("inv_freq", inv_freq)
 
     def forward(self, seq_len):
+        # positions [0, 1, ..., seq_len -1]
         pos = torch.arange(seq_len, dtype=self.inv_freq.dtype, device=self.inv_freq.device)
-        pos_enc = torch.outer(pos, self.inv_freq)
-        return torch.cat((pos_enc, pos_enc), dim=-1)
+        # outer product of positions and inverse frequencies
+        pos_enc = torch.einsum("p, f -> p f", pos, self.inv_freq)
+        # for a single position p: [pf_1, pf_2, ..., pf_dim/2] -> [pf_1, pf1, pf_2, pf_2..., pf_dim/2, pf_dim/2]
+        pos_enc = repeat(pos_enc, "... pf -> ... (pf r)", r=2)
+        # pos_enc.shape == (seq_len, dim)
+        return pos_enc
 
 
 class FourierPositionEncoding(nn.Module):

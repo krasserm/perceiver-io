@@ -24,7 +24,7 @@ class RotarySupport(InputAdapter):
         """An input adapter mixin that additionally generates constructor arguments for
         `RotaryPositionEmbedding`."""
         super().__init__(*args, **kwargs)
-        self.frq_pos_encoding = FrequencyPositionEncoding(encoded_channels_per_head=encoded_channels_per_head)
+        self.frq_pos_encoding = FrequencyPositionEncoding(dim=encoded_channels_per_head)
 
     def forward(self, x):
         """Transforms and position-encodes sequence `x` and additionally returns a frequency position encoding of
