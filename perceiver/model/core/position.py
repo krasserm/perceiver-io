@@ -7,7 +7,8 @@ from einops import rearrange, repeat
 
 
 class RotaryPositionEmbedding:
-    # See https://arxiv.org/abs/2104.09864
+    # Specified in https://arxiv.org/abs/2104.09864
+    # Modified from https://github.com/lucidrains/rotary-embedding-torch
     def __init__(self, frq_pos_enc: torch.Tensor, right_align: bool = False):
         # frq_pos_enc shape is either (n, c) or (b, 1, n, c).
         # frq_pos_enc is broadcast to (b, h, n, c).

@@ -649,6 +649,7 @@ class PerceiverAR(nn.Module):
         b, n, _ = x.shape
 
         if self.training and self.cross_attention_dropout > 0.0:
+            # Modified from https://github.com/lucidrains/perceiver-ar-pytorch
             rand = torch.rand(b, n_prefix, device=x.device)
             # number of positions in prefix sequence to keep
             keep = n_prefix - int(n_prefix * self.cross_attention_dropout)
