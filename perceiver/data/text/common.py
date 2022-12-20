@@ -58,8 +58,12 @@ class TextDataModule(pl.LightningDataModule):
         mask_words: bool = True,
         static_masking: bool = False,
         add_special_tokens: bool = False,
+        padding_side: Optional[str] = None,
         random_train_shift: bool = False,
         random_valid_shift: bool = False,
+        random_train_truncation: bool = False,
+        random_valid_truncation: bool = False,
+        random_min_seq_len: int = 16,
         preproc_batch_size: int = 1000,
         preproc_workers: Optional[int] = None,
         batch_size: int = 64,
@@ -78,6 +82,14 @@ class TextDataModule(pl.LightningDataModule):
         :param static_masking: Whether to mask at preprocessing time (static) or at data loading time (dynamic).
             Ignored if task is not `Task.mlm`.
         :param add_special_tokens: Whether to add special tokens to tokenized text.
+        :param padding_side: If `None`, uses the pre-configured `padding_side` of the tokenizer. Can be overridden by
+            setting to "left" or "right".
+        :param random_train_truncation: Randomly truncates sequences in the training set to length
+            `randint(random_min_seq_len, max_seq_len + 1)`.
+        :param random_valid_truncation: Randomly truncates sequences in the validation set to length
+            `randint(random_min_seq_len, max_seq_len + 1)`.
+        :param random_min_seq_len: Minimum sequence length when using `random_train_truncation` or
+            `random_valid_truncation`.
         :param preproc_batch_size: Preprocessing batch size.
         :param preproc_workers: Number of preprocessing processes. If not defined, defaults to `num_workers`.
         :param batch_size: Batch size of loaded data.
@@ -91,6 +103,10 @@ class TextDataModule(pl.LightningDataModule):
             raise ValueError("static_masking=true is only supported for mask_words=true")
 
         self.tokenizer = AutoTokenizer.from_pretrained(self.hparams.tokenizer, verbose=False)
+
+        if self.hparams.padding_side is not None:
+            self.tokenizer.padding_side = self.hparams.padding_side
+
         # PerceiverTokenizer needs special support for generating word_ids as it is not a fast tokenizer
         self.perceiver_tokenizer_configured = self.hparams.tokenizer == "deepmind/language-perceiver"
         if self.perceiver_tokenizer_configured:
@@ -161,6 +177,11 @@ class TextDataModule(pl.LightningDataModule):
                 self.ds_train = RandomShiftDataset(self.ds_train)
             if self.hparams.random_valid_shift:
                 self.ds_valid = RandomShiftDataset(self.ds_valid)
+
+        if self.hparams.random_train_truncation:
+            self.ds_train = RandomTruncationDataset(self.ds_train, self.hparams.random_min_seq_len)
+        if self.hparams.random_valid_truncation:
+            self.ds_valid = RandomTruncationDataset(self.ds_valid, self.hparams.random_min_seq_len)
 
         if self.hparams.task == Task.clm:
             self.ds_train = CLMDataset(self.ds_train)
@@ -331,6 +352,28 @@ class RandomShiftDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.dataset) - 1
+
+
+class RandomTruncationDataset(torch.utils.data.Dataset):
+    def __init__(self, dataset, random_min_seq_len: int):
+        self.dataset = dataset
+        self.random_min_seq_len = random_min_seq_len
+
+    def __getitem__(self, idx):
+        example = self.dataset[idx]
+        example_seq_len = len(example["input_ids"])
+
+        drop_max = example_seq_len - self.random_min_seq_len
+        if drop_max > 0:
+            drop = torch.randint(drop_max + 1, size=(1,))
+            if drop > 0:
+                for key in example.keys():
+                    example[key] = example[key][:-drop]
+
+        return example
+
+    def __len__(self):
+        return len(self.dataset)
 
 
 class CLMDataset(torch.utils.data.Dataset):

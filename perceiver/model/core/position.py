@@ -6,13 +6,24 @@ import torch.nn as nn
 from einops import rearrange, repeat
 
 
+def positions(b, n, shift: Optional[torch.Tensor] = None, device: Optional[torch.device] = None):
+    pos = repeat(torch.arange(n, device=device), "n -> b n", b=b)
+
+    if shift is not None:
+        if shift.shape != (b, 1):
+            raise ValueError(f"shift must have shape {(1, b)} but has shape {shift.shape}")
+        pos = pos - shift
+
+    return torch.clamp(pos, min=0)
+
+
 class RotaryPositionEmbedding:
     # Specified in https://arxiv.org/abs/2104.09864
     # Modified from https://github.com/lucidrains/rotary-embedding-torch
     def __init__(self, frq_pos_enc: torch.Tensor, right_align: bool = False):
-        # frq_pos_enc shape is either (n, c) or (b, 1, n, c).
+        # frq_pos_enc shape is (b, n, c).
         # frq_pos_enc is broadcast to (b, h, n, c).
-        self.frq_pos_enc = frq_pos_enc
+        self.frq_pos_enc = rearrange(frq_pos_enc, "b n c -> b 1 n c")
         self.rotate_dim = frq_pos_enc.shape[-1]
         self.right_align = right_align
 
@@ -53,15 +64,11 @@ class FrequencyPositionEncoding(nn.Module):
         inv_freq = 1.0 / (10000 ** (torch.arange(0, dim, 2).float() / dim))
         self.register_buffer("inv_freq", inv_freq)
 
-    def forward(self, seq_len):
-        # positions [0, 1, ..., seq_len -1]
-        pos = torch.arange(seq_len, dtype=self.inv_freq.dtype, device=self.inv_freq.device)
-        # outer product of positions and inverse frequencies
-        pos_enc = torch.einsum("p, f -> p f", pos, self.inv_freq)
-        # for a single position p: [pf_1, pf_2, ..., pf_dim/2] -> [pf_1, pf1, pf_2, pf_2..., pf_dim/2, pf_dim/2]
-        pos_enc = repeat(pos_enc, "... pf -> ... (pf r)", r=2)
-        # pos_enc.shape == (seq_len, dim)
-        return pos_enc
+    def forward(self, abs_pos):
+        # outer product of absolute positions and inverse frequencies
+        pos_enc = torch.einsum("b n, f -> b n f", abs_pos, self.inv_freq)
+        # frequency position encodings (per example in batch b)
+        return repeat(pos_enc, "... pf -> ... (pf r)", r=2)
 
 
 class FourierPositionEncoding(nn.Module):

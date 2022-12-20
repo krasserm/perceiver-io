@@ -2,7 +2,7 @@ from typing import Optional
 
 import torch
 import torch.nn as nn
-from einops import rearrange, repeat
+from einops import rearrange
 from fairscale.nn import checkpoint_wrapper
 
 from perceiver.model.core.adapter import (
@@ -12,7 +12,7 @@ from perceiver.model.core.adapter import (
     RotarySupport,
     TrainableQueryProvider,
 )
-from perceiver.model.core.position import RotaryPositionEmbedding
+from perceiver.model.core.position import positions, RotaryPositionEmbedding
 from perceiver.model.core.utils import init_parameters, Residual, Sequential
 
 
@@ -636,14 +636,25 @@ class PerceiverAR(nn.Module):
         with torch.no_grad():
             init_parameters(self, init_scale)
 
-    def forward(self, x):
-        x, frq_pos_enc = self.input_adapter(x)
+    def forward(self, x, pad_mask=None):
+        if pad_mask is None:
+            shift = None
+        else:
+            # caller must ensure that x is left-padded
+            shift = pad_mask.sum(dim=1, keepdim=True)
 
-        frq_pos_enc_q = frq_pos_enc
-        frq_pos_enc_k = frq_pos_enc
+        # freq_pos_enc shape is (b, n, f)
+        x, frq_pos_enc = self.input_adapter(x, abs_pos=positions(*x.shape, shift=shift, device=x.device))
 
         x_latent = x[:, -self.num_latents :]
         x_prefix = x[:, : -self.num_latents]
+
+        frq_pos_enc_latent = frq_pos_enc[:, -self.num_latents :]
+        frq_pos_enc_prefix = frq_pos_enc[:, : -self.num_latents]
+
+        pad_mask_latent = None if pad_mask is None else pad_mask[:, -self.num_latents :]
+        pad_mask_prefix = None if pad_mask is None else pad_mask[:, : -self.num_latents]
+
         n_prefix = x_prefix.shape[1]
 
         b, n, _ = x.shape
@@ -657,25 +668,32 @@ class PerceiverAR(nn.Module):
             keep_indices = rand.topk(keep, dim=-1).indices
             # mask of positions in prefix sequence to keep
             keep_mask = torch.zeros_like(rand, dtype=torch.bool).scatter_(dim=1, index=keep_indices, value=1)
+
             # drop positions in prefix sequence according to prefix_dropout
             x_prefix = rearrange(x_prefix[keep_mask], "(b n) c -> b n c", b=b)
+            # drop positions in prefix frequency position encoding
+            frq_pos_enc_prefix = rearrange(frq_pos_enc_prefix[keep_mask], "(b n) f -> b n f", b=b)
+            # drop positions in prefix pad mask
+            pad_mask_prefix = None if pad_mask is None else rearrange(pad_mask_prefix[keep_mask], "(b n) -> b n", b=b)
 
-            frq_pos_enc_k = repeat(frq_pos_enc_k, "... -> b ...", b=b)
-            frq_pos_enc_k_latent = frq_pos_enc_k[:, n_prefix:]
-            frq_pos_enc_prefix = frq_pos_enc_k[:, :n_prefix]
-            frq_pos_enc_prefix = rearrange(frq_pos_enc_prefix[keep_mask], "(b n) c -> b n c", b=b)
+        frq_pos_enc_q = frq_pos_enc_latent
+        frq_pos_enc_k = torch.cat([frq_pos_enc_prefix, frq_pos_enc_latent], dim=1)
 
-            frq_pos_enc_k = torch.cat((frq_pos_enc_prefix, frq_pos_enc_k_latent), dim=1)
-            frq_pos_enc_k = rearrange(frq_pos_enc_k, "b n c -> b 1 n c")
+        pad_mask_cross_attend = None if pad_mask is None else torch.cat([pad_mask_prefix, pad_mask_latent], dim=1)
+        pad_mask_self_attend = None if pad_mask is None else pad_mask_latent
 
         x_latent = self.cross_attention(
             x_latent,
             x_kv_prefix=x_prefix,
+            pad_mask=pad_mask_cross_attend,
             rot_pos_emb_q=RotaryPositionEmbedding(frq_pos_enc_q, right_align=True),
             rot_pos_emb_k=RotaryPositionEmbedding(frq_pos_enc_k, right_align=True),
         )
 
-        x_latent = self.self_attention(x_latent, rot_pos_emb=RotaryPositionEmbedding(frq_pos_enc, right_align=True))
-        x_logits = self.output_adapter(x_latent)
+        x_latent = self.self_attention(
+            x_latent,
+            pad_mask=pad_mask_self_attend,
+            rot_pos_emb=RotaryPositionEmbedding(frq_pos_enc_latent, right_align=True),
+        )
 
-        return x_logits
+        return self.output_adapter(x_latent)

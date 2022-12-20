@@ -172,10 +172,10 @@ UTF-8 bytes of the input.
   python examples/training/clm/train.py
   ```
 
-For better generalization to shorter sequences I found random sequence truncation helpful which can be enabled with
-`--model.random_truncation=true`. The minimum sequence length can be configured with `--model.random_min_seq_lem=m`.
-Random sequence truncation randomly truncates sequences in a batch to length `randint(m, n+1)` where `m < n` and `n`
-is the configured `max_seq_len`.
+For better generalization to shorter sequences I found random sequence truncation at training time helpful. This can be
+enabled with `--data.random_train_truncation=true`. The minimum sequence length can be configured with `--data.random_min_seq_lem=m`.
+Random sequence truncation randomly truncates sequences in a batch to length `randint(m, n+1)` where `m < n` and `n` is
+the configured `max_seq_len`. Sequences are truncated from the right and padded to the left (`--data.padding_side=left`).
 
 With option `--model.validation_sample_record=-1` a sequence is randomly picked from the validation set and used as
 prompt for sequence generation during validation. The prompt and the generated sequence is logged to Tensorboard. You

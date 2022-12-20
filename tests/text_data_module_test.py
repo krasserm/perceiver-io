@@ -1,5 +1,5 @@
 import os
-from typing import Any
+from typing import Any, Optional
 
 import pytest
 
@@ -7,7 +7,7 @@ import torch
 from datasets import DatasetDict, load_dataset
 from flaky import flaky
 
-from perceiver.data.text.common import RandomShiftDataset, Task, TextDataModule
+from perceiver.data.text.common import RandomShiftDataset, RandomTruncationDataset, Task, TextDataModule
 from pytest import approx
 
 
@@ -37,14 +37,18 @@ class TestTextDataModule(TextDataModule):
 
 
 def create_data_module(
+    max_seq_len: int = 128,
     task: Task = Task.mlm,
     mask_prob: float = 0.15,
     mask_words: bool = True,
     static_masking: bool = False,
     add_special_tokens: bool = False,
+    padding_side: Optional[str] = None,
     random_train_shift: bool = False,
     random_valid_shift: bool = False,
-    max_seq_len: int = 128,
+    random_train_truncation: bool = False,
+    random_valid_truncation: bool = False,
+    random_min_seq_len: int = 16,
 ) -> TestTextDataModule:
     dm = TestTextDataModule(
         dataset_dir=os.path.join(".pytest_cache", "imdb"),
@@ -55,8 +59,12 @@ def create_data_module(
         mask_words=mask_words,
         static_masking=static_masking,
         add_special_tokens=add_special_tokens,
+        padding_side=padding_side,
         random_train_shift=random_train_shift,
         random_valid_shift=random_valid_shift,
+        random_train_truncation=random_train_truncation,
+        random_valid_truncation=random_valid_truncation,
+        random_min_seq_len=random_min_seq_len,
         source_train_size=200,
         source_valid_size=50,
         preproc_batch_size=1000,
@@ -137,6 +145,21 @@ def test_clm_data():
 
 
 @flaky(max_runs=2)
+def test_clm_random_truncation_true():
+    dm = create_data_module(task=Task.clm, random_train_truncation=True, random_valid_truncation=True)
+
+    assert isinstance(dm.ds_train.dataset, RandomTruncationDataset)
+    assert isinstance(dm.ds_valid.dataset, RandomTruncationDataset)
+
+    example_1 = dm.ds_train[0]["input_ids"]
+    example_2 = dm.ds_train[0]["input_ids"]
+
+    assert len(example_1) < 128
+    assert len(example_2) < 128
+    assert example_1 != example_2
+
+
+@flaky(max_runs=2)
 def test_clm_random_shift_true():
     dm = create_data_module(task=Task.clm, random_train_shift=True, random_valid_shift=True)
 
@@ -174,3 +197,33 @@ def test_add_special_tokens_false():
     dm = create_data_module(task=Task.clf, add_special_tokens=False)
     _, x, _ = next(iter(dm.train_dataloader()))
     assert x[0][0] != dm.tokenizer.cls_token_id
+
+
+@flaky(max_runs=2)
+def test_left_padding():
+    dm = create_data_module(task=Task.clm, random_train_truncation=True, padding_side="left")
+
+    label_ids, input_ids, pad_mask = next(iter(dm.train_dataloader()))
+
+    assert torch.any(label_ids[:, 0] == dm.tokenizer.pad_token_id)
+    assert torch.any(input_ids[:, 0] == dm.tokenizer.pad_token_id)
+    assert torch.any(pad_mask[:, 0])
+
+    assert not torch.any(label_ids[:, -1] == dm.tokenizer.pad_token_id)
+    assert not torch.any(input_ids[:, -1] == dm.tokenizer.pad_token_id)
+    assert not torch.any(pad_mask[:, -1])
+
+
+@flaky(max_runs=2)
+def test_right_padding():
+    dm = create_data_module(task=Task.clm, random_train_truncation=True, padding_side="right")
+
+    label_ids, input_ids, pad_mask = next(iter(dm.train_dataloader()))
+
+    assert not torch.any(label_ids[:, 0] == dm.tokenizer.pad_token_id)
+    assert not torch.any(input_ids[:, 0] == dm.tokenizer.pad_token_id)
+    assert not torch.any(pad_mask[:, 0])
+
+    assert torch.any(label_ids[:, -1] == dm.tokenizer.pad_token_id)
+    assert torch.any(input_ids[:, -1] == dm.tokenizer.pad_token_id)
+    assert torch.any(pad_mask[:, -1])

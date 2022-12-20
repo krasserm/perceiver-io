@@ -26,6 +26,8 @@ data = WikiTextDataModule(
     max_seq_len=4096,
     batch_size=24,
     task=Task.clm,
+    padding_side="left",
+    random_train_shift=True,
 )
 
 config = CausalLanguageModelConfig(

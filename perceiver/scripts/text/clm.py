@@ -18,8 +18,6 @@ class CausalLanguageModelCLI(CLI):
                 "model.num_self_attention_layers": 8,
                 "model.cross_attention_dropout": 0.5,
                 "model.post_attention_dropout": 0.0,
-                "model.random_truncation": False,
-                "model.random_min_seq_len": 16,
             }
         )
 
