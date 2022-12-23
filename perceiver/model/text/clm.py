@@ -18,8 +18,6 @@ class CausalLanguageModelConfig(PerceiverARConfig):
     vocab_size: int = 262
     max_seq_len: int = 4096
     num_channels: int = 512
-    random_truncation: bool = False
-    random_min_seq_len: int = 16
 
     @classmethod
     def create(cls, **kwargs):
@@ -27,24 +25,11 @@ class CausalLanguageModelConfig(PerceiverARConfig):
 
 
 class TextInputAdapter(RotarySupport, common.TextInputAdapter):
-    def __init__(self, *args, random_truncation: bool = False, random_min_seq_len: int = 32, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, rotated_channels_per_head: int, vocab_size: int, max_seq_len: int, num_input_channels: int):
+        super().__init__(rotated_channels_per_head, vocab_size, max_seq_len, num_input_channels)
 
-        if random_min_seq_len >= self.max_seq_len:
-            raise ValueError("random_min_seq_len must be less than max_seq_len")
-
-        self.random_truncation = random_truncation
-        self.random_min_seq_len = random_min_seq_len
-
-    def forward(self, x):
-        if self.random_truncation and self.training:
-            # TODO: consider moving random truncation to data loaders
-            # (and make it working properly with distributed training)
-
-            # Alternative to (or combination with) cross-attention dropout
-            n = torch.randint(self.random_min_seq_len, self.max_seq_len + 1, (1,)).to(x.device)
-            x = x[:, -n:]  # right-alignment with labels from data source
-        return super().forward(x)
+    def forward(self, x, abs_pos=None):
+        return super().forward(x, abs_pos)
 
 
 class TextOutputAdapter(OutputAdapter):
@@ -59,13 +44,11 @@ class TextOutputAdapter(OutputAdapter):
 class CausalLanguageModel(PerceiverAR):
     def __init__(self, config: CausalLanguageModelConfig):
         input_adapter = TextInputAdapter(
-            # Compute rotary position embedding for only 50% of channels ...
-            encoded_channels_per_head=config.num_channels // config.num_heads // 2,
+            # Rotary position embedding for first 50% of channels ...
+            rotated_channels_per_head=config.num_channels // config.num_heads // 2,
             vocab_size=config.vocab_size,
             max_seq_len=config.max_seq_len,
             num_input_channels=config.num_channels,
-            random_truncation=config.random_truncation,
-            random_min_seq_len=config.random_min_seq_len,
         )
         output_adapter = TextOutputAdapter(num_channels=config.num_channels, vocab_size=config.vocab_size)
         super().__init__(input_adapter=input_adapter, output_adapter=output_adapter, **config.base_kwargs())
@@ -111,8 +94,6 @@ class LitCausalLanguageModel(pl.LightningModule):
         cross_attention_widening_factor: int = 4,
         cross_attention_dropout: float = 0.5,
         post_attention_dropout: float = 0.0,
-        random_truncation: bool = False,
-        random_min_seq_len: int = 16,
         init_scale: float = 0.02,
         activation_checkpointing=False,
         activation_offloading=False,
@@ -130,17 +111,26 @@ class LitCausalLanguageModel(pl.LightningModule):
 
     def setup(self, stage: Optional[str] = None):
         dm = self.trainer.datamodule
+
+        if dm.tokenizer.padding_side != "left":
+            raise ValueError(
+                "Causal language modeling with Perceiver AR requires a data module configured with padding_side=left"
+            )
+
         self.preprocessor = dm.text_preprocessor()
         self.tokenizer = dm.tokenizer
         self.ds_valid = dm.ds_valid
 
-    def forward(self, x):
-        return self.model(x)
+    def forward(self, x, pad_mask=None):
+        return self.model(x, pad_mask)
 
     def step(self, batch):
-        labels, x, _ = batch
-        logits = self(x)
+        labels, x, pad_mask = batch
+        labels[pad_mask] = -100
+
+        logits = self(x, pad_mask=pad_mask)
         logits = rearrange(logits, "b n c -> b c n")
+
         return self.loss(logits, labels[:, -logits.shape[2] :])
 
     def training_step(self, batch, batch_idx):

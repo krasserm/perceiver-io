@@ -23,7 +23,7 @@ class Collator:
 
 
 class DefaultCollator(Collator):
-    label_keys = ["label", "labels", "label_ids"]
+    label_keys = ["label", "labels"]
 
     def __init__(self, tokenizer: PreTrainedTokenizerFast, max_seq_len: Optional[int] = None):
         self.collator = DefaultDataCollator()
@@ -42,19 +42,27 @@ class DefaultCollator(Collator):
         # must be preserved though. Setting add_special_tokens=true doesn't
         # work either because this would duplicate (some) special tokens
         # already contained in the input sequence.
-        prepared = self.tokenizer.prepare_for_model(
-            example["input_ids"],
+        prepared = self._prepare_sequence(example["input_ids"], max_length)
+
+        if "label_ids" in example:
+            prepared_label_ids = self._prepare_sequence(example["label_ids"], max_length)
+            prepared["label_ids"] = prepared_label_ids["input_ids"]
+
+        for label_key in self.label_keys:
+            if label_key in example:
+                prepared[label_key] = example[label_key]
+
+        return prepared
+
+    def _prepare_sequence(self, sequence, max_length):
+        return self.tokenizer.prepare_for_model(
+            sequence,
             add_special_tokens=False,
             return_token_type_ids=False,
             padding=PaddingStrategy.MAX_LENGTH,
             max_length=max_length,
             truncation=True,
         )
-
-        for label_key in self.label_keys:
-            if label_key in example:
-                prepared[label_key] = example[label_key]
-        return prepared
 
 
 class WordMaskingCollator(Collator):

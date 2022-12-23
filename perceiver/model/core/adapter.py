@@ -2,11 +2,11 @@ import torch
 import torch.nn as nn
 from einops import rearrange
 
-from perceiver.model.core.position import FrequencyPositionEncoding
+from perceiver.model.core.position import FrequencyPositionEncoding, positions
 
 
 class InputAdapter(nn.Module):
-    def __init__(self, num_input_channels: int):
+    def __init__(self, num_input_channels: int, *args, **kwargs):
         """Transforms and position-encodes task-specific input to generic encoder input.
 
         :param num_input_channels: Number of channels of the generic encoder input produced by this adapter.
@@ -20,16 +20,16 @@ class InputAdapter(nn.Module):
 
 
 class RotarySupport(InputAdapter):
-    def __init__(self, encoded_channels_per_head: int, *args, **kwargs):
-        """An input adapter mixin that additionally generates constructor arguments for
-        `RotaryPositionEmbedding`."""
+    def __init__(self, rotated_channels_per_head: int, *args, **kwargs):
+        """An input adapter mixin that additionally generates a frequency position encoding for input sequence
+        `x`."""
         super().__init__(*args, **kwargs)
-        self.frq_pos_encoding = FrequencyPositionEncoding(dim=encoded_channels_per_head)
+        self.frq_pos_encoding = FrequencyPositionEncoding(dim=rotated_channels_per_head)
 
-    def forward(self, x):
-        """Transforms and position-encodes sequence `x` and additionally returns a frequency position encoding of
-        `x` required to create a `RotaryPositionEmbedding` instance."""
-        return super().forward(x), self.frq_pos_encoding(x.shape[1])
+    def forward(self, x, abs_pos=None):
+        if abs_pos is None:
+            abs_pos = positions(*x.shape, device=x.device)
+        return super().forward(x, abs_pos), self.frq_pos_encoding(abs_pos)
 
 
 class OutputAdapter(nn.Module):

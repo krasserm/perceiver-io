@@ -13,6 +13,7 @@ from perceiver.model.core.convert import (
     copy_params,
     copy_self_attention_block_params,
 )
+from perceiver.model.core.position import positions
 from perceiver.model.core.utils import freeze, is_checkpoint
 
 
@@ -38,9 +39,10 @@ class TextInputAdapter(InputAdapter):
     def max_seq_len(self):
         return self.pos_embedding.num_embeddings
 
-    def forward(self, x):
-        positions = torch.arange(0, x.shape[1], device=x.device)
-        return self.txt_embedding(x) + self.pos_embedding(positions)
+    def forward(self, x, abs_pos=None):
+        if abs_pos is None:
+            abs_pos = positions(*x.shape, device=x.device)
+        return self.txt_embedding(x) + self.pos_embedding(abs_pos)
 
 
 class TextEncoder(PerceiverEncoder):
