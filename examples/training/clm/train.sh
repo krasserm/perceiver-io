@@ -13,7 +13,7 @@ python -m perceiver.scripts.text.clm fit \
   --optimizer=Adam \
   --optimizer.lr=2e-4 \
   --lr_scheduler.warmup_steps=200 \
-  --trainer.max_epochs=8 \
+  --trainer.max_steps=43570 \
   --trainer.accelerator=gpu \
   --trainer.devices=2 \
   --trainer.val_check_interval=0.5 \

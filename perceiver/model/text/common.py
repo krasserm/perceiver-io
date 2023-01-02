@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import transformers
 
-from perceiver.model.core import EncoderConfig, InputAdapter, PerceiverEncoder
+from perceiver.model.core import EncoderConfig, InputAdapter, OutputAdapter, PerceiverEncoder
 from perceiver.model.core.convert import (
     copy_cross_attention_layer_params,
     copy_latent_provider_params,
@@ -43,6 +43,15 @@ class TextInputAdapter(InputAdapter):
         if abs_pos is None:
             abs_pos = positions(*x.shape, device=x.device)
         return self.txt_embedding(x) + self.pos_embedding(abs_pos)
+
+
+class TiedTextOutputAdapter(OutputAdapter):
+    def __init__(self, vocab_size: int):
+        super().__init__()
+        self.bias = nn.Parameter(torch.zeros(vocab_size))
+
+    def forward(self, x, txt_embedding: nn.Embedding):
+        return torch.matmul(x, txt_embedding.weight.T) + self.bias
 
 
 class TextEncoder(PerceiverEncoder):

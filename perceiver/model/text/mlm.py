@@ -22,7 +22,7 @@ from perceiver.model.core import (
 
 from perceiver.model.core.convert import copy_cross_attention_layer_params, copy_param
 from perceiver.model.core.utils import is_checkpoint
-from perceiver.model.text.common import TextEncoder, TextEncoderConfig
+from perceiver.model.text.common import TextEncoder, TextEncoderConfig, TiedTextOutputAdapter
 
 
 @dataclass
@@ -39,15 +39,6 @@ class TextOutputAdapter(OutputAdapter):
 
     def forward(self, x):
         return self.linear(x).squeeze(dim=1)
-
-
-class TiedTextOutputAdapter(OutputAdapter):
-    def __init__(self, vocab_size: int):
-        super().__init__()
-        self.bias = nn.Parameter(torch.zeros(vocab_size))
-
-    def forward(self, x, txt_embedding: nn.Embedding):
-        return torch.matmul(x, txt_embedding.weight.T) + self.bias
 
 
 class MaskedLanguageModel(PerceiverIO):

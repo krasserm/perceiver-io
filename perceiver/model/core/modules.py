@@ -557,7 +557,6 @@ class PerceiverAR(nn.Module):
     def __init__(
         self,
         input_adapter: RotarySupport,
-        output_adapter: OutputAdapter,
         num_latents: int,
         num_heads: int = 8,
         num_self_attention_layers: int = 6,
@@ -575,8 +574,6 @@ class PerceiverAR(nn.Module):
             to add (absolute) position information to transformed inputs while `PerceiverAR` additionally computes a
             rotary position embedding (i.e. relative position information) for queries and keys. To support the
             computation of rotary position embeddings, concrete input adapters need to mixin `RotarySupport`.
-        :param output_adapter: Transforms latent variables to task-specific output. This is usually a layer that
-            predicts the logits of a target sequence.
         :param num_latents: Number of latent variables.
         :param num_heads: Number of cross- and self-attention heads.
         :param num_self_attention_layers: Number of self-attention layers.
@@ -621,10 +618,8 @@ class PerceiverAR(nn.Module):
                 mlp_bias=False,
             )
 
-        self.num_latents = num_latents
-
         self.input_adapter = input_adapter
-        self.output_adapter = output_adapter
+        self.num_latents = num_latents
 
         self.cross_attention_dropout = cross_attention_dropout
         self.cross_attention = cross_attn()
@@ -696,4 +691,4 @@ class PerceiverAR(nn.Module):
             rot_pos_emb=RotaryPositionEmbedding(frq_pos_enc_latent, right_align=True),
         )
 
-        return self.output_adapter(x_latent)
+        return x_latent

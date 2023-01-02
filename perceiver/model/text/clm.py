@@ -50,15 +50,18 @@ class CausalLanguageModel(PerceiverAR):
             max_seq_len=config.max_seq_len,
             num_input_channels=config.num_channels,
         )
-        output_adapter = TextOutputAdapter(num_channels=config.num_channels, vocab_size=config.vocab_size)
-        super().__init__(input_adapter=input_adapter, output_adapter=output_adapter, **config.base_kwargs())
+        super().__init__(input_adapter=input_adapter, **config.base_kwargs())
+        self.output_adapter = common.TiedTextOutputAdapter(vocab_size=config.vocab_size)
+
+    def forward(self, x, pad_mask=None):
+        x_latent = super().forward(x, pad_mask)
+        return self.output_adapter(x_latent, txt_embedding=self.input_adapter.txt_embedding)
 
     @torch.no_grad()
     def generate(self, num: int, prompt: torch.Tensor, threshold: float = 0.9, temperature: float = 1.0):
         """Generate sequence from `prompt` via top-k sampling (with k determined by `threshold`) at given
         `temperature`."""
 
-        # TODO: support pad and eos, usually needed for batch sizes > 1 at inference time.
         _, n = prompt.shape
         result = prompt
 
