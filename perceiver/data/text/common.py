@@ -67,6 +67,7 @@ class TextDataModule(pl.LightningDataModule):
         preproc_batch_size: int = 1000,
         preproc_workers: Optional[int] = None,
         batch_size: int = 64,
+        valid_batch_size: Optional[int] = None,
         num_workers: int = 3,
         pin_memory: bool = True,
     ):
@@ -92,7 +93,8 @@ class TextDataModule(pl.LightningDataModule):
             `random_valid_truncation`.
         :param preproc_batch_size: Preprocessing batch size.
         :param preproc_workers: Number of preprocessing processes. If not defined, defaults to `num_workers`.
-        :param batch_size: Batch size of loaded data.
+        :param batch_size: Batch size of loaded training data.
+        :param valid_batch_size: Batch size of loaded validation data. If `None` defaults to `batch_size`
         :param num_workers: Number of data loading processes.
         """
 
@@ -122,6 +124,13 @@ class TextDataModule(pl.LightningDataModule):
 
         self.ds_train = None
         self.ds_valid = None
+
+    @property
+    def valid_batch_size(self):
+        if self.hparams.valid_batch_size is None:
+            return self.hparams.batch_size
+        else:
+            return self.hparams.valid_batch_size
 
     @property
     def vocab_size(self):
@@ -202,7 +211,7 @@ class TextDataModule(pl.LightningDataModule):
             self.ds_valid,
             shuffle=False,
             collate_fn=self.collator,
-            batch_size=self.hparams.batch_size,
+            batch_size=self.valid_batch_size,
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
         )
