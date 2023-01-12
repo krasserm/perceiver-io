@@ -29,12 +29,13 @@ This repository is a PyTorch and PyTorch Lightning implementation of
   </tr>
 </table>
 
-Models are written in plain PyTorch and can be trained at scale with [PyTorch Lightning](https://pytorch-lightning.readthedocs.io/en/stable/)
-and the [Lightning CLI](https://pytorch-lightning.readthedocs.io/en/stable/cli/lightning_cli.html). [Pretrained weights](docs/pretrained-models.md)
-of 🤗 Perceiver models are also supported and can be downloaded from the 🤗 Hub. The provided datasets for model training
-are 🤗 [datasets](https://huggingface.co/docs/datasets) wrapped into PyTorch Lightning [data modules](perceiver/data).
-For NLP tasks, this library supports all 🤗 [fast tokenizers](https://huggingface.co/docs/transformers/fast_tokenizers)
-and the 🤗 Perceiver UTF-8 bytes tokenizer.
+All model classes are written in plain PyTorch and can be wrapped into [PyTorch Lightning](https://pytorch-lightning.readthedocs.io/en/stable/)
+modules for training at scale. The command line interface is implemented with the [Lightning CLI](https://pytorch-lightning.readthedocs.io/en/stable/cli/lightning_cli.html).
+[Pretrained weights](docs/pretrained-models.md) can be imported for [official models](docs/pretrained-models.md#official-models)
+from the 🤗 Hub, [training checkpoints](docs/pretrained-models.md#training-checkpoints) from [training examples](docs/training-examples.md)
+are available for download too. Datasets used in the training examples are 🤗 [datasets](https://huggingface.co/docs/datasets)
+wrapped into PyTorch Lightning [data modules](perceiver/data). For NLP tasks, this library supports all 🤗
+[fast tokenizers](https://huggingface.co/docs/transformers/fast_tokenizers) and the 🤗 Perceiver UTF-8 bytes tokenizer.
 
 ## Installation
 
