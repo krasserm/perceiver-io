@@ -4,6 +4,7 @@ import jsonargparse
 
 from perceiver.data.text import (
     BookCorpusDataModule,
+    BookCorpusOpenDataModule,
     Enwik8DataModule,
     ImdbDataModule,
     Task,
@@ -14,6 +15,7 @@ from perceiver.data.text import (
 
 DATAMODULE_CLASSES = {
     "bookcorpus": BookCorpusDataModule,
+    "bookcorpusopen": BookCorpusOpenDataModule,
     "enwik8": Enwik8DataModule,
     "imdb": ImdbDataModule,
     "wikipedia": WikipediaDataModule,

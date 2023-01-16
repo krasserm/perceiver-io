@@ -21,6 +21,17 @@ to whatever you need for model training.
       --add_special_tokens=false
     ```
 
+- [bookcorpusopen](https://huggingface.co/datasets/bookcorpusopen) (`plain_text`):
+
+    ```shell
+    python -m perceiver.scripts.text.preproc bookcorpusopen \
+      --tokenizer=xlnet-base-cased \
+      --max_seq_len=4096 \
+      --task=clm \
+      --add_special_tokens=false \
+      --random_train_shift=true
+    ```
+
 - [wikipedia](https://huggingface.co/datasets/wikipedia) (`20220301.en`):
 
     ```shell
