@@ -11,13 +11,16 @@ class CosineWithWarmupLR(LambdaLR):
         training_steps: int,
         warmup_steps: int = 0,
         num_cycles: float = 0.5,
+        min_fraction: float = 0.0,
         last_epoch: int = -1,
     ):
         def lr_lambda(current_step):
             if current_step < warmup_steps:
                 return float(current_step) / float(max(1, warmup_steps))
             progress = float(current_step - warmup_steps) / float(max(1, training_steps - warmup_steps))
-            return max(0.0, 0.5 * (1.0 + math.cos(math.pi * float(num_cycles) * 2.0 * progress)))
+            return min_fraction + max(
+                0.0, 0.5 * (1.0 - min_fraction) * (1.0 + math.cos(math.pi * float(num_cycles) * 2.0 * progress))
+            )
 
         super().__init__(optimizer, lr_lambda, last_epoch=last_epoch)
 
