@@ -50,10 +50,24 @@ pip install perceiver-io[text,vision]
 Installation from sources requires a [Miniconda](https://docs.conda.io/en/latest/miniconda.html) and a
 [Poetry](https://python-poetry.org/docs/#installation) (1.2.0 or higher) installation.
 
+Create and activate the `perceiver-io` conda environment:
+
 ```shell
 conda env create -f environment.yml
 conda activate perceiver-io
+```
+
+Install main and test dependencies, including all extras:
+
+```shell
+# Without dependencies required for examples
 poetry install --all-extras
+```
+
+If you want to run the [examples](examples) locally, additionally use `--with examples`:
+
+```shell
+poetry install --all-extras --with examples
 ```
 
 ### Docker image
