@@ -87,6 +87,13 @@ See [Docker image](docs/docker-image.md) for details.
 - [Inference examples](examples/inference.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/krasserm/perceiver-io/blob/0.7.0/examples/inference.ipynb)
 - [Building blocks](docs/building-blocks.md)
 
+## Articles
+
+Articles referencing this repository:
+
+- [Training compute-optimal Perceiver AR language models](https://krasserm.github.io/2023/01/23/scaling-perceiver-ar/)
+- [A gentle introduction to Rotary Position Embedding](https://krasserm.github.io/2022/12/13/rotary-position-embedding/)
+
 ## Getting started
 
 Here's a minimal example for autoregressive language modeling with Perceiver AR. A small language model (30.7M parameters)

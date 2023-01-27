@@ -1,9 +1,10 @@
 # Scaling experiments
 
 Here are the data preparation and training commands used for the scaling experiments in [Training compute-optimal
-Perceiver AR language models](article.ipynb). The training commands have been tested on a machine with 4 RTX 3080ti
-GPUs (12 GB memory each). Training checkpoints and logs can be downloaded [here](https://martin-krasser.com/perceiver/logs-0.8.0-scaling.zip)
-(5.3G). Validation loss data from logs have been exported to [data/validation](data/validation).
+Perceiver AR language models](https://krasserm.github.io/2023/01/23/scaling-perceiver-ar/). The training commands
+have been tested on a machine with 4 RTX 3080ti GPUs (12 GB memory each). Training checkpoints and logs can be
+downloaded [here](https://martin-krasser.com/perceiver/logs-0.8.0-scaling.zip) (5.3G). Validation loss data from
+logs have been exported to [data/validation](data/validation).
 
 ## Experiment 1
 
