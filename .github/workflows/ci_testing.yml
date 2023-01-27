@@ -46,11 +46,11 @@ jobs:
     - name: Install Poetry
       uses: abatilo/actions-poetry@v2.0.0
       with:
-        poetry-version: 1.1.13
+        poetry-version: 1.2.2
 
     - name: Install dependencies
       run: |
-        poetry install -E text -E vision
+        poetry install --all-extras
         poetry run pip install setuptools==59.5.0
         poetry run python --version
         poetry run pip --version

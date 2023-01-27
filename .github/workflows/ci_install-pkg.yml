@@ -21,7 +21,7 @@ jobs:
       - name: Install Poetry
         shell: bash -l {0}
         run: |
-          curl -sSL https://install.python-poetry.org | python3 - --version 1.2.0b2
+          curl -sSL https://install.python-poetry.org | python3 -
 
       - name: Create package
         run: |
@@ -53,7 +53,7 @@ jobs:
       - name: Install Poetry
         uses: abatilo/actions-poetry@v2.0.0
         with:
-          poetry-version: 1.1.13
+          poetry-version: 1.2.2
 
       - name: Prepare env
         run: |
