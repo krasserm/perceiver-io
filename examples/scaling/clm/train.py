@@ -1,5 +1,6 @@
 from typing import Optional
 
+import examples.scaling  # noqa: F401  # usort: skip
 import jsonargparse
 import pytorch_lightning as pl
 
@@ -10,8 +11,6 @@ from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.strategies import DDPStrategy
 from torch.optim import Adam
-
-import examples.scaling  # noqa: F401
 
 
 def configure_optimizers(self):

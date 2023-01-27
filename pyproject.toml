@@ -37,6 +37,7 @@ torch = "^1.12"
 fairscale = "^0.4"
 torchmetrics = "^0.9"
 torch-optimizer = "^0.3"
+tensorboard = "^2.11"
 einops = "^0.4"
 datasets = {version = "^2.4", optional = true}
 tokenizers = {version = "^0.12", optional = true}
