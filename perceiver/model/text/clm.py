@@ -132,9 +132,12 @@ class LitCausalLanguageModel(pl.LightningModule):
         labels[pad_mask] = -100
 
         logits = self(x, pad_mask=pad_mask)
-        logits = rearrange(logits, "b n c -> b c n")
+        labels = labels[:, -logits.shape[1] :]
 
-        return self.loss(logits, labels[:, -logits.shape[2] :])
+        logits = rearrange(logits, "b n c -> (b n) c")
+        labels = rearrange(labels, "b n -> (b n)")
+
+        return self.loss(logits, labels)
 
     def training_step(self, batch, batch_idx):
         loss = self.step(batch)
