@@ -26,6 +26,8 @@ def main(args):
     setattr(LitCausalLanguageModel, "configure_optimizers", configure_optimizers),
 
     data_config = dict(
+        tokenizer=args.tokenizer,
+        max_seq_len=args.max_seq_len,
         add_special_tokens=False,
         batch_size=args.batch_size,
         task=Task.clm,
@@ -34,11 +36,9 @@ def main(args):
     )
 
     if args.dataset == "bookcorpusopen":
-        data = BookCorpusOpenDataModule(tokenizer="xlnet-base-cased", max_seq_len=args.max_seq_len, **data_config)
+        data = BookCorpusOpenDataModule(**data_config)
     elif args.dataset == "bookcorpus":
-        data = BookCorpusDataModule(
-            tokenizer="deepmind/language-perceiver", max_seq_len=args.max_seq_len, **data_config
-        )
+        data = BookCorpusDataModule(**data_config)
     else:
         raise ValueError(f"Invalid dataset: {args.dataset}")
 
