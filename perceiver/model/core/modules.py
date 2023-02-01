@@ -25,6 +25,7 @@ class MultiHeadAttention(nn.Module):
         num_qk_channels: Optional[int] = None,
         num_v_channels: Optional[int] = None,
         num_output_channels: Optional[int] = None,
+        max_heads_parallel: Optional[int] = None,
         causal_attention: bool = False,
         dropout: float = 0.0,
         qkv_bias: bool = True,
@@ -40,6 +41,7 @@ class MultiHeadAttention(nn.Module):
         :param num_qk_channels: Number of query and key channels. Default is number `num_q_input_channels`
         :param num_v_channels: Number of value channels. Default is `num_qk_channels`.
         :param num_output_channels: Number of output channels. Default is `num_q_input_channels`
+        :param max_heads_parallel: Maximum number of heads to be processed in parallel. Default is `num_heads`.
         :param causal_attention: Whether to apply a causal attention mask. Default is `False`.
         :param dropout: Dropout probability for attention matrix values. Default is `0.0`
         :param qkv_bias: Whether to use a bias term for query, key and value projections. Default is `True`.
@@ -67,6 +69,11 @@ class MultiHeadAttention(nn.Module):
         self.dp_scale = num_qk_channels_per_head ** -0.5
         self.num_heads = num_heads
         self.causal_attention = causal_attention
+
+        if max_heads_parallel is None:
+            self.max_heads_parallel = num_heads
+        else:
+            self.max_heads_parallel = max_heads_parallel
 
         self.q_proj = nn.Linear(num_q_input_channels, num_qk_channels, bias=qkv_bias)
         self.k_proj = nn.Linear(num_kv_input_channels, num_qk_channels, bias=qkv_bias)
@@ -107,12 +114,8 @@ class MultiHeadAttention(nn.Module):
         if rot_pos_emb_k is not None:
             k = rot_pos_emb_k.rotate(k)
 
-        attn = torch.einsum("b h i c, b h j c -> b h i j", q, k)
-        attn_max_neg = -torch.finfo(attn.dtype).max
-
         if pad_mask is not None:
             pad_mask = rearrange(pad_mask, "b j -> b 1 1 j")
-            attn.masked_fill_(pad_mask, attn_max_neg)
 
         if self.causal_attention:
             i = q.shape[2]
@@ -120,12 +123,32 @@ class MultiHeadAttention(nn.Module):
 
             # If q and k have different length, causal masking only works if they are right-aligned.
             causal_mask = torch.ones((i, j), device=x_q.device, dtype=torch.bool).triu(j - i + 1)
-            attn.masked_fill_(causal_mask, attn_max_neg)
 
-        attn = attn.softmax(dim=-1)
-        attn = self.dropout(attn)
+        o_chunks = []
 
-        o = torch.einsum("b h i j, b h j c -> b h i c", attn, v)
+        # Only process a given maximum number of heads in
+        # parallel, using several iterations, if necessary.
+        for q_chunk, k_chunk, v_chunk in zip(
+            q.split(self.max_heads_parallel, dim=1),
+            k.split(self.max_heads_parallel, dim=1),
+            v.split(self.max_heads_parallel, dim=1),
+        ):
+            attn = torch.einsum("b h i c, b h j c -> b h i j", q_chunk, k_chunk)
+            attn_max_neg = -torch.finfo(attn.dtype).max
+
+            if pad_mask is not None:
+                attn.masked_fill_(pad_mask, attn_max_neg)
+
+            if self.causal_attention:
+                attn.masked_fill_(causal_mask, attn_max_neg)
+
+            attn = attn.softmax(dim=-1)
+            attn = self.dropout(attn)
+
+            o_chunk = torch.einsum("b h i j, b h j c -> b h i c", attn, v_chunk)
+            o_chunks.append(o_chunk)
+
+        o = torch.cat(o_chunks, dim=1)
         o = rearrange(o, "b h n c -> b n (h c)", h=self.num_heads)
 
         return self.o_proj(o)
@@ -139,6 +162,7 @@ class CrossAttention(nn.Module):
         num_kv_input_channels: int,
         num_qk_channels: Optional[int] = None,
         num_v_channels: Optional[int] = None,
+        max_heads_parallel: Optional[int] = None,
         causal_attention: bool = False,
         dropout: float = 0.0,
         qkv_bias: bool = True,
@@ -154,6 +178,7 @@ class CrossAttention(nn.Module):
             num_kv_input_channels=num_kv_input_channels,
             num_qk_channels=num_qk_channels,
             num_v_channels=num_v_channels,
+            max_heads_parallel=max_heads_parallel,
             causal_attention=causal_attention,
             dropout=dropout,
             qkv_bias=qkv_bias,
@@ -185,6 +210,7 @@ class SelfAttention(nn.Module):
         num_channels: int,
         num_qk_channels: Optional[int] = None,
         num_v_channels: Optional[int] = None,
+        max_heads_parallel: Optional[int] = None,
         causal_attention: bool = False,
         dropout: float = 0.0,
         qkv_bias: bool = True,
@@ -199,6 +225,7 @@ class SelfAttention(nn.Module):
             num_kv_input_channels=num_channels,
             num_qk_channels=num_qk_channels,
             num_v_channels=num_v_channels,
+            max_heads_parallel=max_heads_parallel,
             causal_attention=causal_attention,
             dropout=dropout,
             qkv_bias=qkv_bias,
@@ -219,6 +246,7 @@ class CrossAttentionLayer(Sequential):
         num_kv_input_channels: int,
         num_qk_channels: Optional[int] = None,
         num_v_channels: Optional[int] = None,
+        max_heads_parallel: Optional[int] = None,
         causal_attention: bool = False,
         widening_factor: int = 1,
         dropout: float = 0.0,
@@ -233,6 +261,7 @@ class CrossAttentionLayer(Sequential):
             num_kv_input_channels=num_kv_input_channels,
             num_qk_channels=num_qk_channels,
             num_v_channels=num_v_channels,
+            max_heads_parallel=max_heads_parallel,
             causal_attention=causal_attention,
             dropout=dropout,
             qkv_bias=qkv_bias,
@@ -251,6 +280,7 @@ class SelfAttentionLayer(Sequential):
         num_channels: int,
         num_qk_channels: Optional[int] = None,
         num_v_channels: Optional[int] = None,
+        max_heads_parallel: Optional[int] = None,
         causal_attention: bool = False,
         widening_factor: int = 1,
         dropout: float = 0.0,
@@ -263,6 +293,7 @@ class SelfAttentionLayer(Sequential):
             num_channels=num_channels,
             num_qk_channels=num_qk_channels,
             num_v_channels=num_v_channels,
+            max_heads_parallel=max_heads_parallel,
             causal_attention=causal_attention,
             dropout=dropout,
             qkv_bias=qkv_bias,
@@ -282,6 +313,7 @@ class SelfAttentionBlock(Sequential):
         num_channels: int,
         num_qk_channels: Optional[int] = None,
         num_v_channels: Optional[int] = None,
+        max_heads_parallel: Optional[int] = None,
         causal_attention: bool = False,
         widening_factor: int = 1,
         dropout: float = 0.0,
@@ -297,6 +329,7 @@ class SelfAttentionBlock(Sequential):
                 num_channels=num_channels,
                 num_qk_channels=num_qk_channels,
                 num_v_channels=num_v_channels,
+                max_heads_parallel=max_heads_parallel,
                 causal_attention=causal_attention,
                 widening_factor=widening_factor,
                 dropout=dropout,
@@ -559,6 +592,7 @@ class PerceiverAR(nn.Module):
         input_adapter: RotarySupport,
         num_latents: int,
         num_heads: int = 8,
+        max_heads_parallel: Optional[int] = None,
         num_self_attention_layers: int = 6,
         self_attention_widening_factor: int = 4,
         cross_attention_widening_factor: int = 4,
@@ -576,6 +610,8 @@ class PerceiverAR(nn.Module):
             computation of rotary position embeddings, concrete input adapters need to mixin `RotarySupport`.
         :param num_latents: Number of latent variables.
         :param num_heads: Number of cross- and self-attention heads.
+        :param max_heads_parallel: Maximum number of cross-attention heads to be processed in parallel.
+            Default is `num_heads`.
         :param num_self_attention_layers: Number of self-attention layers.
         :param cross_attention_dropout: Probability of dropping positions in the prefix sequence.
         :param post_attention_dropout: Probability of dropping cross- and self-attention scores (same as `dropout`
@@ -592,6 +628,7 @@ class PerceiverAR(nn.Module):
                 num_heads=num_heads,
                 num_q_input_channels=input_adapter.num_input_channels,
                 num_kv_input_channels=input_adapter.num_input_channels,
+                max_heads_parallel=max_heads_parallel,
                 causal_attention=True,
                 widening_factor=cross_attention_widening_factor,
                 dropout=post_attention_dropout,
