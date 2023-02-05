@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from einops import rearrange
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.utilities import rank_zero_only
+from tqdm import tqdm
 
 from perceiver.model.core import OutputAdapter, PerceiverAR, PerceiverARConfig, RotarySupport
 from perceiver.model.text import common
@@ -65,7 +66,7 @@ class CausalLanguageModel(PerceiverAR):
         _, n = prompt.shape
         result = prompt
 
-        for _ in range(num):
+        for _ in tqdm(range(num)):
             logits = self(result[:, -self.input_adapter.max_seq_len :])[:, -1]
             logits = self.top_f(logits, fraction=1 - threshold)
             probs = F.softmax(logits / temperature, dim=-1)
