@@ -75,7 +75,6 @@ class CausalLanguageModelCLI(CLI):
 if __name__ == "__main__":
     CausalLanguageModelCLI(
         LitCausalLanguageModelFSDP,
-        description="Causal language model",
         auto_configure_optimizers=False,
         save_config_callback=None,
         run=True,

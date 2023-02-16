@@ -30,4 +30,4 @@ class ImageClassifierCLI(CLI):
 
 
 if __name__ == "__main__":
-    ImageClassifierCLI(LitImageClassifier, description="Image classifier", run=True)
+    ImageClassifierCLI(LitImageClassifier, run=True)

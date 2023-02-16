@@ -24,4 +24,4 @@ class CausalLanguageModelCLI(CLI):
 
 
 if __name__ == "__main__":
-    CausalLanguageModelCLI(LitCausalLanguageModel, description="Causal language model", run=True)
+    CausalLanguageModelCLI(LitCausalLanguageModel, run=True)

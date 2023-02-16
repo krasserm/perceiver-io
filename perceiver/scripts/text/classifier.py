@@ -35,4 +35,4 @@ class TextClassifierCLI(CLI):
 
 
 if __name__ == "__main__":
-    TextClassifierCLI(LitTextClassifier, description="Text classifier", run=True)
+    TextClassifierCLI(LitTextClassifier, run=True)
