@@ -57,7 +57,6 @@ class PerceiverIOConfig(Generic[E, D]):
 
 @dataclass
 class PerceiverARConfig:
-    num_latents: int
     num_heads: int = 8
     max_heads_parallel: Optional[int] = None
     num_self_attention_layers: int = 8

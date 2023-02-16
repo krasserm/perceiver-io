@@ -590,7 +590,6 @@ class PerceiverAR(nn.Module):
     def __init__(
         self,
         input_adapter: RotarySupport,
-        num_latents: int,
         num_heads: int = 8,
         max_heads_parallel: Optional[int] = None,
         num_self_attention_layers: int = 6,
@@ -608,7 +607,6 @@ class PerceiverAR(nn.Module):
             to add (absolute) position information to transformed inputs while `PerceiverAR` additionally computes a
             rotary position embedding (i.e. relative position information) for queries and keys. To support the
             computation of rotary position embeddings, concrete input adapters need to mixin `RotarySupport`.
-        :param num_latents: Number of latent variables.
         :param num_heads: Number of cross- and self-attention heads.
         :param max_heads_parallel: Maximum number of cross-attention heads to be processed in parallel.
             Default is `num_heads`.
@@ -656,19 +654,21 @@ class PerceiverAR(nn.Module):
             )
 
         self.input_adapter = input_adapter
-        self.num_latents = num_latents
 
         self.cross_attention_dropout = cross_attention_dropout
         self.cross_attention = cross_attn()
         self.self_attention = self_attn()
 
-        self._init_parameters(init_scale)
-
     def _init_parameters(self, init_scale: float):
         with torch.no_grad():
             init_parameters(self, init_scale)
 
-    def forward(self, x, pad_mask=None):
+    def forward(self, x, prefix_len, pad_mask=None):
+        b, n = x.shape
+
+        if not 0 <= prefix_len < n:
+            raise ValueError(f"prefix_len ({prefix_len}) out of valid range [0..{n})")
+
         if pad_mask is None:
             shift = None
         else:
@@ -678,24 +678,21 @@ class PerceiverAR(nn.Module):
         # freq_pos_enc shape is (b, n, f)
         x, frq_pos_enc = self.input_adapter(x, abs_pos=positions(*x.shape, shift=shift, device=x.device))
 
-        x_latent = x[:, -self.num_latents :]
-        x_prefix = x[:, : -self.num_latents]
+        x_latent = x[:, prefix_len:]
+        x_prefix = x[:, :prefix_len]
 
-        frq_pos_enc_latent = frq_pos_enc[:, -self.num_latents :]
-        frq_pos_enc_prefix = frq_pos_enc[:, : -self.num_latents]
+        frq_pos_enc_latent = frq_pos_enc[:, prefix_len:]
+        frq_pos_enc_prefix = frq_pos_enc[:, :prefix_len]
 
-        pad_mask_latent = None if pad_mask is None else pad_mask[:, -self.num_latents :]
-        pad_mask_prefix = None if pad_mask is None else pad_mask[:, : -self.num_latents]
+        if pad_mask is not None:
+            pad_mask_latent = pad_mask[:, prefix_len:]
+            pad_mask_prefix = pad_mask[:, :prefix_len]
 
-        n_prefix = x_prefix.shape[1]
-
-        b, n, _ = x.shape
-
-        if self.training and self.cross_attention_dropout > 0.0:
+        if self.training and prefix_len > 0 and self.cross_attention_dropout > 0.0:
             # Modified from https://github.com/lucidrains/perceiver-ar-pytorch
-            rand = torch.rand(b, n_prefix, device=x.device)
+            rand = torch.rand(b, prefix_len, device=x.device)
             # number of positions in prefix sequence to keep
-            keep = n_prefix - int(n_prefix * self.cross_attention_dropout)
+            keep = prefix_len - int(prefix_len * self.cross_attention_dropout)
             # indices of positions in prefix sequence to keep
             keep_indices = rand.topk(keep, dim=-1).indices
             # mask of positions in prefix sequence to keep
@@ -705,26 +702,27 @@ class PerceiverAR(nn.Module):
             x_prefix = rearrange(x_prefix[keep_mask], "(b n) c -> b n c", b=b)
             # drop positions in prefix frequency position encoding
             frq_pos_enc_prefix = rearrange(frq_pos_enc_prefix[keep_mask], "(b n) f -> b n f", b=b)
-            # drop positions in prefix pad mask
-            pad_mask_prefix = None if pad_mask is None else rearrange(pad_mask_prefix[keep_mask], "(b n) -> b n", b=b)
+
+            if pad_mask is not None:
+                # drop positions in prefix pad mask
+                pad_mask_prefix = rearrange(pad_mask_prefix[keep_mask], "(b n) -> b n", b=b)
 
         frq_pos_enc_q = frq_pos_enc_latent
         frq_pos_enc_k = torch.cat([frq_pos_enc_prefix, frq_pos_enc_latent], dim=1)
 
-        pad_mask_cross_attend = None if pad_mask is None else torch.cat([pad_mask_prefix, pad_mask_latent], dim=1)
-        pad_mask_self_attend = None if pad_mask is None else pad_mask_latent
+        if pad_mask is not None:
+            pad_mask = torch.cat([pad_mask_prefix, pad_mask_latent], dim=1)
 
         x_latent = self.cross_attention(
             x_latent,
             x_kv_prefix=x_prefix,
-            pad_mask=pad_mask_cross_attend,
+            pad_mask=pad_mask,
             rot_pos_emb_q=RotaryPositionEmbedding(frq_pos_enc_q, right_align=True),
             rot_pos_emb_k=RotaryPositionEmbedding(frq_pos_enc_k, right_align=True),
         )
 
         x_latent = self.self_attention(
             x_latent,
-            pad_mask=pad_mask_self_attend,
             rot_pos_emb=RotaryPositionEmbedding(frq_pos_enc_latent, right_align=True),
         )
 

@@ -14,7 +14,7 @@ class CausalLanguageModelCLI(CLI):
         parser.link_arguments("data.vocab_size", "model.vocab_size", apply_on="instantiate")
         parser.set_defaults(
             {
-                "model.num_latents": 512,
+                "model.max_latents": 512,
                 "model.num_channels": 512,
                 "model.num_self_attention_layers": 8,
                 "model.cross_attention_dropout": 0.5,

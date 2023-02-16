@@ -259,8 +259,8 @@ from perceiver.model.text.clm import LitCausalLanguageModel
 model = LitCausalLanguageModel.load_from_checkpoint("/path/to/checkpoint").model.eval()
 
 # Alternatively, load the model's state_dict directly
-#model = CausalLanguageModel(config=model_config).eval()
-#model.load_state_dict(torch.load("/path/to/model.pt"))
+# model = CausalLanguageModel(config=model_config).eval()
+# model.load_state_dict(torch.load("/path/to/model.pt"))
 
 # Create a text preprocessor  
 preproc = TextPreprocessor(tokenizer="deepmind/language-perceiver", max_seq_len=4096, add_special_tokens=False)
@@ -269,7 +269,7 @@ preproc = TextPreprocessor(tokenizer="deepmind/language-perceiver", max_seq_len=
 prompt, _ = preproc.preprocess("A man was reading a book on a sunny day until he sudden")
 
 # Continue prompt via top-k sampling where k = f(vocab_size, threshold)
-generated = model.generate(num=512, prompt=prompt[None, ...], threshold=0.9)
+generated = model.generate(prompt=prompt[None, ...], num_tokens=512, num_latents=10, threshold=0.9)
 
 # Decode model output using preprocessor's tokenizer
 generated_text = preproc.tokenizer.decode(generated[0])
