@@ -23,6 +23,7 @@ def config(preprocessor):
     yield CausalLanguageModelConfig(
         vocab_size=preprocessor.tokenizer.vocab_size,
         max_seq_len=preprocessor.max_seq_len,
+        max_latents=512,
         num_channels=128,
         num_self_attention_layers=3,
         cross_attention_dropout=0.5,
@@ -43,7 +44,7 @@ def test_construction_and_inference(config, preprocessor):
 
 
 def test_construction_and_inference_lit(config, preprocessor):
-    lit_model = LitCausalLanguageModel.create(config, num_latents=preprocessor.max_seq_len - PREFIX_LEN).eval()
+    lit_model = LitCausalLanguageModel.create(config).eval()
     prompt, pad_mask = preprocessor.preprocess_batch(PROMPT_TEXT)
 
     b, n = prompt.shape

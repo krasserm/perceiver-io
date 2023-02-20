@@ -170,7 +170,6 @@ class LitCausalLanguageModel(pl.LightningModule):
         activation_offloading=False,
         validation_sample_prompt: Optional[str] = None,
         validation_sample_record: Optional[int] = None,
-        **kwargs,
     ):
         super().__init__()
         self.save_hyperparameters()

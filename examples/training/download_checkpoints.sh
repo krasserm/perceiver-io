@@ -7,7 +7,7 @@ fi
 
 if [ -z $2 ]
 then
-  ver=0.7.0
+  ver=0.8.0
 else
   ver=$2
 fi

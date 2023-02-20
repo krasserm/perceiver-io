@@ -12,7 +12,7 @@ class WikipediaDataModule(TextDataModule):
         *args: Any,
         dataset_dir: str = os.path.join(".cache", "wikipedia"),
         source_train_size: Union[float, int, None] = None,
-        source_valid_size: Union[float, int, None] = 0.05,
+        source_valid_size: Union[float, int, None] = 0.02,
         **kwargs: Any,
     ):
         super().__init__(dataset_dir, *args, **kwargs)

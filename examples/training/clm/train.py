@@ -33,6 +33,7 @@ data = WikiTextDataModule(
 config = CausalLanguageModelConfig(
     vocab_size=data.vocab_size,
     max_seq_len=data.max_seq_len,
+    max_latents=512,
     num_channels=512,
     num_self_attention_layers=8,
     cross_attention_dropout=0.5,
@@ -40,12 +41,12 @@ config = CausalLanguageModelConfig(
 
 
 if __name__ == "__main__":
-    lit_model = LitCausalLanguageModel.create(config, num_latents=512)
+    lit_model = LitCausalLanguageModel.create(config)
 
     trainer = pl.Trainer(
         accelerator="gpu",
         devices=2,
-        max_steps=43570,
+        max_steps=20000,
         accumulate_grad_batches=2,
         val_check_interval=0.5,
         gradient_clip_val=0.5,
