@@ -39,13 +39,14 @@ torchmetrics = "^0.9"
 torch-optimizer = "^0.3"
 tensorboard = "^2.11"
 einops = "^0.4"
+cchardet = "^2.1"
 datasets = {version = "^2.4", optional = true}
 tokenizers = {version = "^0.12", optional = true}
 transformers = {version = "^4.21", optional = true}
 torchvision = {version = "^0.14", optional = true}
+opencv-python = {version = "^4.6.0.66", optional = true}
 jsonargparse = {extras = ["signatures"], version = "^4.12"}
 fsspec = {extras = ["s3"], version = "*"}
-opencv-python = {version = "^4.6.0.66", optional = true}
 
 [tool.poetry.group.dev.dependencies]
 invoke = "^1.6.0"
@@ -63,6 +64,7 @@ pandas = "^1.1"
 notebook = "*"
 matplotlib = "*"
 ipywidgets = "*"
+termcolor = "2.0.1"
 
 [tool.poetry.extras]
 text = ["datasets", "tokenizers", "transformers"]

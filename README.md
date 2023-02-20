@@ -84,7 +84,7 @@ See [Docker image](docs/docker-image.md) for details.
 - [Model construction](docs/model-construction.md)
 - [Pretrained models](docs/pretrained-models.md)
 - [Training examples](docs/training-examples.md)
-- [Inference examples](examples/inference.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/krasserm/perceiver-io/blob/0.7.0/examples/inference.ipynb)
+- [Inference examples](examples/inference.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/krasserm/perceiver-io/blob/0.8.0/examples/inference.ipynb)
 - [Building blocks](docs/building-blocks.md)
 
 ## Articles
