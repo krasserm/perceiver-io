@@ -151,7 +151,8 @@ class LitMaskedLanguageModel(LitPerceiverIO):
     def step(self, batch):
         labels, x, pad_mask = batch
         logits = self(x, pad_mask)
-        logits = rearrange(logits, "b n c -> b c n")
+        logits = rearrange(logits, "b n c -> (b n) c")
+        labels = rearrange(labels, "b n -> (b n)")
         return self.loss(logits, labels)
 
     def training_step(self, batch, batch_idx):

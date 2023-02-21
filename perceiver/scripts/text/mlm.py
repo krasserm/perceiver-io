@@ -40,4 +40,4 @@ class MaskedLanguageModelCLI(CLI):
 
 
 if __name__ == "__main__":
-    MaskedLanguageModelCLI(LitMaskedLanguageModel, description="Masked language model", run=True)
+    MaskedLanguageModelCLI(LitMaskedLanguageModel, run=True)

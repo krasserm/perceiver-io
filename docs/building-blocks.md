@@ -53,5 +53,6 @@ Perceiver IO architecture (1 cross-attention layer, `L` self-attention blocks wi
 
 [Perceiver AR](https://arxiv.org/abs/2202.07765) models are constructed from a generic `PerceiverAR` class and
 task-specific `InputAdapter` and `OutputAdapter` subclasses. The implementation of Perceiver AR is similar to
-that of a Perceiver IO encoder. Perceiver AR additionally uses [rotary position embeddings](https://arxiv.org/abs/2104.09864)
-and causal cross- and self- attention masks. The current Perceiver AR implementation is still experimental.
+that of a Perceiver IO encoder. In addition to absolute position embedding, Perceiver AR also uses [rotary position
+embedding](https://krasserm.github.io/2022/12/13/rotary-position-embedding/) to encode relative position information.
+It also uses causal cross- and self-attention masks.

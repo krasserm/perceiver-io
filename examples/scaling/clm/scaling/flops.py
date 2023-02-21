@@ -164,7 +164,7 @@ def num_model_params(num_channels, num_layers, num_latents, num_prefix, vocab_si
     config = CausalLanguageModelConfig(
         vocab_size=vocab_size,
         max_seq_len=num_latents + num_prefix,
-        num_latents=num_latents,
+        max_latents=num_latents,
         num_channels=num_channels,
         num_self_attention_layers=num_layers - 1,
     )

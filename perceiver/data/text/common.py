@@ -217,11 +217,16 @@ class TextDataModule(pl.LightningDataModule):
         )
 
     def text_preprocessor(self):
-        return TextPreprocessor(
+        preproc = TextPreprocessor(
             tokenizer=self.hparams.tokenizer,
             max_seq_len=self.hparams.max_seq_len,
             add_special_tokens=self.hparams.add_special_tokens,
         )
+
+        if self.hparams.padding_side is not None:
+            preproc.tokenizer.padding_side = self.hparams.padding_side
+
+        return preproc
 
     def load_source_dataset(self) -> DatasetDict:
         """Must return a DatasetDict with keys 'train' and 'valid'."""

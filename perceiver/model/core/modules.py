@@ -25,6 +25,7 @@ class MultiHeadAttention(nn.Module):
         num_qk_channels: Optional[int] = None,
         num_v_channels: Optional[int] = None,
         num_output_channels: Optional[int] = None,
+        max_heads_parallel: Optional[int] = None,
         causal_attention: bool = False,
         dropout: float = 0.0,
         qkv_bias: bool = True,
@@ -40,6 +41,7 @@ class MultiHeadAttention(nn.Module):
         :param num_qk_channels: Number of query and key channels. Default is number `num_q_input_channels`
         :param num_v_channels: Number of value channels. Default is `num_qk_channels`.
         :param num_output_channels: Number of output channels. Default is `num_q_input_channels`
+        :param max_heads_parallel: Maximum number of heads to be processed in parallel. Default is `num_heads`.
         :param causal_attention: Whether to apply a causal attention mask. Default is `False`.
         :param dropout: Dropout probability for attention matrix values. Default is `0.0`
         :param qkv_bias: Whether to use a bias term for query, key and value projections. Default is `True`.
@@ -67,6 +69,11 @@ class MultiHeadAttention(nn.Module):
         self.dp_scale = num_qk_channels_per_head ** -0.5
         self.num_heads = num_heads
         self.causal_attention = causal_attention
+
+        if max_heads_parallel is None:
+            self.max_heads_parallel = num_heads
+        else:
+            self.max_heads_parallel = max_heads_parallel
 
         self.q_proj = nn.Linear(num_q_input_channels, num_qk_channels, bias=qkv_bias)
         self.k_proj = nn.Linear(num_kv_input_channels, num_qk_channels, bias=qkv_bias)
@@ -107,12 +114,8 @@ class MultiHeadAttention(nn.Module):
         if rot_pos_emb_k is not None:
             k = rot_pos_emb_k.rotate(k)
 
-        attn = torch.einsum("b h i c, b h j c -> b h i j", q, k)
-        attn_max_neg = -torch.finfo(attn.dtype).max
-
         if pad_mask is not None:
             pad_mask = rearrange(pad_mask, "b j -> b 1 1 j")
-            attn.masked_fill_(pad_mask, attn_max_neg)
 
         if self.causal_attention:
             i = q.shape[2]
@@ -120,12 +123,32 @@ class MultiHeadAttention(nn.Module):
 
             # If q and k have different length, causal masking only works if they are right-aligned.
             causal_mask = torch.ones((i, j), device=x_q.device, dtype=torch.bool).triu(j - i + 1)
-            attn.masked_fill_(causal_mask, attn_max_neg)
 
-        attn = attn.softmax(dim=-1)
-        attn = self.dropout(attn)
+        o_chunks = []
 
-        o = torch.einsum("b h i j, b h j c -> b h i c", attn, v)
+        # Only process a given maximum number of heads in
+        # parallel, using several iterations, if necessary.
+        for q_chunk, k_chunk, v_chunk in zip(
+            q.split(self.max_heads_parallel, dim=1),
+            k.split(self.max_heads_parallel, dim=1),
+            v.split(self.max_heads_parallel, dim=1),
+        ):
+            attn = torch.einsum("b h i c, b h j c -> b h i j", q_chunk, k_chunk)
+            attn_max_neg = -torch.finfo(attn.dtype).max
+
+            if pad_mask is not None:
+                attn.masked_fill_(pad_mask, attn_max_neg)
+
+            if self.causal_attention:
+                attn.masked_fill_(causal_mask, attn_max_neg)
+
+            attn = attn.softmax(dim=-1)
+            attn = self.dropout(attn)
+
+            o_chunk = torch.einsum("b h i j, b h j c -> b h i c", attn, v_chunk)
+            o_chunks.append(o_chunk)
+
+        o = torch.cat(o_chunks, dim=1)
         o = rearrange(o, "b h n c -> b n (h c)", h=self.num_heads)
 
         return self.o_proj(o)
@@ -139,6 +162,7 @@ class CrossAttention(nn.Module):
         num_kv_input_channels: int,
         num_qk_channels: Optional[int] = None,
         num_v_channels: Optional[int] = None,
+        max_heads_parallel: Optional[int] = None,
         causal_attention: bool = False,
         dropout: float = 0.0,
         qkv_bias: bool = True,
@@ -154,6 +178,7 @@ class CrossAttention(nn.Module):
             num_kv_input_channels=num_kv_input_channels,
             num_qk_channels=num_qk_channels,
             num_v_channels=num_v_channels,
+            max_heads_parallel=max_heads_parallel,
             causal_attention=causal_attention,
             dropout=dropout,
             qkv_bias=qkv_bias,
@@ -185,6 +210,7 @@ class SelfAttention(nn.Module):
         num_channels: int,
         num_qk_channels: Optional[int] = None,
         num_v_channels: Optional[int] = None,
+        max_heads_parallel: Optional[int] = None,
         causal_attention: bool = False,
         dropout: float = 0.0,
         qkv_bias: bool = True,
@@ -199,6 +225,7 @@ class SelfAttention(nn.Module):
             num_kv_input_channels=num_channels,
             num_qk_channels=num_qk_channels,
             num_v_channels=num_v_channels,
+            max_heads_parallel=max_heads_parallel,
             causal_attention=causal_attention,
             dropout=dropout,
             qkv_bias=qkv_bias,
@@ -219,6 +246,7 @@ class CrossAttentionLayer(Sequential):
         num_kv_input_channels: int,
         num_qk_channels: Optional[int] = None,
         num_v_channels: Optional[int] = None,
+        max_heads_parallel: Optional[int] = None,
         causal_attention: bool = False,
         widening_factor: int = 1,
         dropout: float = 0.0,
@@ -233,6 +261,7 @@ class CrossAttentionLayer(Sequential):
             num_kv_input_channels=num_kv_input_channels,
             num_qk_channels=num_qk_channels,
             num_v_channels=num_v_channels,
+            max_heads_parallel=max_heads_parallel,
             causal_attention=causal_attention,
             dropout=dropout,
             qkv_bias=qkv_bias,
@@ -251,6 +280,7 @@ class SelfAttentionLayer(Sequential):
         num_channels: int,
         num_qk_channels: Optional[int] = None,
         num_v_channels: Optional[int] = None,
+        max_heads_parallel: Optional[int] = None,
         causal_attention: bool = False,
         widening_factor: int = 1,
         dropout: float = 0.0,
@@ -263,6 +293,7 @@ class SelfAttentionLayer(Sequential):
             num_channels=num_channels,
             num_qk_channels=num_qk_channels,
             num_v_channels=num_v_channels,
+            max_heads_parallel=max_heads_parallel,
             causal_attention=causal_attention,
             dropout=dropout,
             qkv_bias=qkv_bias,
@@ -282,6 +313,7 @@ class SelfAttentionBlock(Sequential):
         num_channels: int,
         num_qk_channels: Optional[int] = None,
         num_v_channels: Optional[int] = None,
+        max_heads_parallel: Optional[int] = None,
         causal_attention: bool = False,
         widening_factor: int = 1,
         dropout: float = 0.0,
@@ -297,6 +329,7 @@ class SelfAttentionBlock(Sequential):
                 num_channels=num_channels,
                 num_qk_channels=num_qk_channels,
                 num_v_channels=num_v_channels,
+                max_heads_parallel=max_heads_parallel,
                 causal_attention=causal_attention,
                 widening_factor=widening_factor,
                 dropout=dropout,
@@ -557,8 +590,8 @@ class PerceiverAR(nn.Module):
     def __init__(
         self,
         input_adapter: RotarySupport,
-        num_latents: int,
         num_heads: int = 8,
+        max_heads_parallel: Optional[int] = None,
         num_self_attention_layers: int = 6,
         self_attention_widening_factor: int = 4,
         cross_attention_widening_factor: int = 4,
@@ -574,8 +607,9 @@ class PerceiverAR(nn.Module):
             to add (absolute) position information to transformed inputs while `PerceiverAR` additionally computes a
             rotary position embedding (i.e. relative position information) for queries and keys. To support the
             computation of rotary position embeddings, concrete input adapters need to mixin `RotarySupport`.
-        :param num_latents: Number of latent variables.
         :param num_heads: Number of cross- and self-attention heads.
+        :param max_heads_parallel: Maximum number of cross-attention heads to be processed in parallel.
+            Default is `num_heads`.
         :param num_self_attention_layers: Number of self-attention layers.
         :param cross_attention_dropout: Probability of dropping positions in the prefix sequence.
         :param post_attention_dropout: Probability of dropping cross- and self-attention scores (same as `dropout`
@@ -592,6 +626,7 @@ class PerceiverAR(nn.Module):
                 num_heads=num_heads,
                 num_q_input_channels=input_adapter.num_input_channels,
                 num_kv_input_channels=input_adapter.num_input_channels,
+                max_heads_parallel=max_heads_parallel,
                 causal_attention=True,
                 widening_factor=cross_attention_widening_factor,
                 dropout=post_attention_dropout,
@@ -619,19 +654,21 @@ class PerceiverAR(nn.Module):
             )
 
         self.input_adapter = input_adapter
-        self.num_latents = num_latents
 
         self.cross_attention_dropout = cross_attention_dropout
         self.cross_attention = cross_attn()
         self.self_attention = self_attn()
 
-        self._init_parameters(init_scale)
-
     def _init_parameters(self, init_scale: float):
         with torch.no_grad():
             init_parameters(self, init_scale)
 
-    def forward(self, x, pad_mask=None):
+    def forward(self, x, prefix_len, pad_mask=None):
+        b, n = x.shape
+
+        if not 0 <= prefix_len < n:
+            raise ValueError(f"prefix_len ({prefix_len}) out of valid range [0..{n})")
+
         if pad_mask is None:
             shift = None
         else:
@@ -641,24 +678,21 @@ class PerceiverAR(nn.Module):
         # freq_pos_enc shape is (b, n, f)
         x, frq_pos_enc = self.input_adapter(x, abs_pos=positions(*x.shape, shift=shift, device=x.device))
 
-        x_latent = x[:, -self.num_latents :]
-        x_prefix = x[:, : -self.num_latents]
+        x_latent = x[:, prefix_len:]
+        x_prefix = x[:, :prefix_len]
 
-        frq_pos_enc_latent = frq_pos_enc[:, -self.num_latents :]
-        frq_pos_enc_prefix = frq_pos_enc[:, : -self.num_latents]
+        frq_pos_enc_latent = frq_pos_enc[:, prefix_len:]
+        frq_pos_enc_prefix = frq_pos_enc[:, :prefix_len]
 
-        pad_mask_latent = None if pad_mask is None else pad_mask[:, -self.num_latents :]
-        pad_mask_prefix = None if pad_mask is None else pad_mask[:, : -self.num_latents]
+        if pad_mask is not None:
+            pad_mask_latent = pad_mask[:, prefix_len:]
+            pad_mask_prefix = pad_mask[:, :prefix_len]
 
-        n_prefix = x_prefix.shape[1]
-
-        b, n, _ = x.shape
-
-        if self.training and self.cross_attention_dropout > 0.0:
+        if self.training and prefix_len > 0 and self.cross_attention_dropout > 0.0:
             # Modified from https://github.com/lucidrains/perceiver-ar-pytorch
-            rand = torch.rand(b, n_prefix, device=x.device)
+            rand = torch.rand(b, prefix_len, device=x.device)
             # number of positions in prefix sequence to keep
-            keep = n_prefix - int(n_prefix * self.cross_attention_dropout)
+            keep = prefix_len - int(prefix_len * self.cross_attention_dropout)
             # indices of positions in prefix sequence to keep
             keep_indices = rand.topk(keep, dim=-1).indices
             # mask of positions in prefix sequence to keep
@@ -668,26 +702,27 @@ class PerceiverAR(nn.Module):
             x_prefix = rearrange(x_prefix[keep_mask], "(b n) c -> b n c", b=b)
             # drop positions in prefix frequency position encoding
             frq_pos_enc_prefix = rearrange(frq_pos_enc_prefix[keep_mask], "(b n) f -> b n f", b=b)
-            # drop positions in prefix pad mask
-            pad_mask_prefix = None if pad_mask is None else rearrange(pad_mask_prefix[keep_mask], "(b n) -> b n", b=b)
+
+            if pad_mask is not None:
+                # drop positions in prefix pad mask
+                pad_mask_prefix = rearrange(pad_mask_prefix[keep_mask], "(b n) -> b n", b=b)
 
         frq_pos_enc_q = frq_pos_enc_latent
         frq_pos_enc_k = torch.cat([frq_pos_enc_prefix, frq_pos_enc_latent], dim=1)
 
-        pad_mask_cross_attend = None if pad_mask is None else torch.cat([pad_mask_prefix, pad_mask_latent], dim=1)
-        pad_mask_self_attend = None if pad_mask is None else pad_mask_latent
+        if pad_mask is not None:
+            pad_mask = torch.cat([pad_mask_prefix, pad_mask_latent], dim=1)
 
         x_latent = self.cross_attention(
             x_latent,
             x_kv_prefix=x_prefix,
-            pad_mask=pad_mask_cross_attend,
+            pad_mask=pad_mask,
             rot_pos_emb_q=RotaryPositionEmbedding(frq_pos_enc_q, right_align=True),
             rot_pos_emb_k=RotaryPositionEmbedding(frq_pos_enc_k, right_align=True),
         )
 
         x_latent = self.self_attention(
             x_latent,
-            pad_mask=pad_mask_self_attend,
             rot_pos_emb=RotaryPositionEmbedding(frq_pos_enc_latent, right_align=True),
         )
 

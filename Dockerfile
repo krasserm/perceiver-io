@@ -1,9 +1,9 @@
-FROM pytorch/pytorch:1.12.1-cuda11.3-cudnn8-runtime
+FROM pytorch/pytorch:1.13.1-cuda11.6-cudnn8-runtime
 
 WORKDIR /app
 
 RUN apt-get update
-RUN apt-get install -y --no-install-recommends curl
+RUN apt-get install -y --no-install-recommends curl build-essential
 
 RUN curl -sSL https://install.python-poetry.org | POETRY_HOME=/opt/poetry python3 -
 

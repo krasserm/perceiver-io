@@ -45,7 +45,7 @@ def main(args):
     model_config = CausalLanguageModelConfig(
         vocab_size=data.vocab_size,
         max_seq_len=data.max_seq_len,
-        num_latents=args.num_latents,
+        max_latents=args.num_latents,
         num_channels=args.num_channels,
         num_self_attention_layers=args.num_layers - 1,
         cross_attention_dropout=0.5,

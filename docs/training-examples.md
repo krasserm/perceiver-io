@@ -153,6 +153,8 @@ for further details.
 
 ### Causal language modeling
 
+#### Model 1
+
 Train a small, randomly initialized Perceiver AR language model (30.7M parameters) with autoregressive language
 modeling on the WikiText-103 dataset. The tokenizer is a UTF-8 bytes tokenizer and the model attends to the raw
 UTF-8 bytes of the input.
@@ -172,11 +174,14 @@ UTF-8 bytes of the input.
   python examples/training/clm/train.py
   ```
 
-For better generalization to shorter sequences I found random sequence truncation at training time helpful. This can be
-enabled with `--data.random_train_truncation=true`. The minimum sequence length can be configured with `--data.random_min_seq_lem=m`.
-Random sequence truncation randomly truncates sequences in a batch to length `randint(m, n+1)` where `m < n` and `n` is
-the configured `max_seq_len`. Sequences are truncated from the right and padded to the left (`--data.padding_side=left`).
+#### Model 2
 
-With option `--model.validation_sample_record=-1` a sequence is randomly picked from the validation set and used as
-prompt for sequence generation during validation. The prompt and the generated sequence is logged to Tensorboard. You
-can also use option `--model.validation_sample_prompt="My prompt"` to provide your own prompt.
+Train a medium, randomly initialized Perceiver AR language model (455M parameters) with autoregressive language
+modeling on approx. 1e-10 tokens from the C4 dataset. The tokenizer is a SentencePiece tokenizer with a vocabulary
+size of 32,000. Distribution strategy is FSDP. This example is configured to run on 8 A100 GPUs with 40GB memory
+each.
+
+- Training (command line): [examples/training/clm/train_fsdp.sh](../examples/training/clm/train_fsdp.sh)
+  ```shell
+  bash examples/training/clm/train_fsdp.sh
+  ```

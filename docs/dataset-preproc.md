@@ -2,8 +2,10 @@
 
 Datasets used for model training are 🤗 [Datasets](https://huggingface.co/docs/datasets) wrapped into PyTorch Lightning
 data modules (see [data](../perceiver/data) package). Datasets are automatically downloaded, preprocessed and cached
-when their corresponding Lightning data module is loaded during training. For larger datasets however, like Wikipedia,
-BookCorpus or ImageNet, for example, it is recommended to do this prior to training as described here.
+when their corresponding Lightning data module is loaded during training. For larger datasets, like [Wikipedia](../perceiver/data/text/wikipedia.py)
+or [BookCorpus](../perceiver/data/text/bookcorpus.py), it is recommended to do this prior to training as described in
+the [next section](#text-datasets). The [C4](../perceiver/data/text/c4.py) dataset is streamed directly and doesn't need
+preprocessing.
 
 ## Text datasets
 
@@ -70,6 +72,10 @@ to whatever you need for model training.
       --max_seq_len=4096 \
       --add_special_tokens=false
     ```
+
+- [C4](https://huggingface.co/datasets/c4) (`c4`), used in [training examples](training-examples.md):
+
+  Streaming dataset, no preprocessing needed.
 
 ## Image datasets
 

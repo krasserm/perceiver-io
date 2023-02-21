@@ -180,7 +180,7 @@ can be overridden on the command line.
 ## Perceiver AR
 
 The following subsections demonstrate the construction of a small Perceiver AR language model (UTF-8 bytes
-tokenization, vocabulary size of 262, 30.7M parameters).
+tokenization, vocabulary size of 262, 30.6M parameters).
 
 ### PyTorch model API
 
@@ -193,7 +193,7 @@ from perceiver.model.text.clm import CausalLanguageModel, CausalLanguageModelCon
 config = CausalLanguageModelConfig(
     vocab_size=262,
     max_seq_len=4096,
-    num_latents=512,
+    max_latents=512,
     num_channels=512,
     num_self_attention_layers=8,
     cross_attention_dropout=0.5,
@@ -247,7 +247,7 @@ class CLI(LightningCLI):
         parser.link_arguments("data.vocab_size", "model.vocab_size", apply_on="instantiate")
         parser.set_defaults(
             {
-                "model.num_latents": 512,
+                "model.max_latents": 512,
                 "model.num_channels": 512,
                 "model.num_self_attention_layers": 8,
                 "model.cross_attention_dropout": 0.5,
@@ -260,20 +260,22 @@ if __name__ == "__main__":
     CLI(LitCausalLanguageModel)
 ```
 
-Training a `LitCausalLanguageModel` from scratch with the WikiText-103-raw dataset can then be started e.g. with:
+Training a `LitCausalLanguageModel` from scratch on the WikiText-103-raw dataset can then be started e.g. with:
 
 ```shell
 python clm.py fit \
   --model.cross_attention_dropout=0.6 \
   --data=WikiTextDataModule \
   --data.tokenizer=deepmind/language-perceiver \
-  --data.task=clm \
+  --data.padding_side=left \
   --data.max_seq_len=4096 \
   --data.batch_size=24 \
+  --data.task=clm \
   --optimizer=Adam \
   --optimizer.lr=2e-4 \
   --trainer.accelerator=gpu \
   --trainer.devices=-1 \
+  --trainer.max_epochs=5 \
   --trainer.logger=TensorBoardLogger \
   --trainer.logger.save_dir=logs \
   --trainer.logger.name=clm

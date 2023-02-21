@@ -1,4 +1,4 @@
-from pytorch_lightning.utilities.cli import LightningArgumentParser
+from pytorch_lightning.cli import LightningArgumentParser
 
 from perceiver.model.text.clm import LitCausalLanguageModel
 from perceiver.scripts.cli import CLI
@@ -14,7 +14,7 @@ class CausalLanguageModelCLI(CLI):
         parser.link_arguments("data.vocab_size", "model.vocab_size", apply_on="instantiate")
         parser.set_defaults(
             {
-                "model.num_latents": 512,
+                "model.max_latents": 512,
                 "model.num_channels": 512,
                 "model.num_self_attention_layers": 8,
                 "model.cross_attention_dropout": 0.5,
@@ -24,4 +24,4 @@ class CausalLanguageModelCLI(CLI):
 
 
 if __name__ == "__main__":
-    CausalLanguageModelCLI(LitCausalLanguageModel, description="Causal language model", run=True)
+    CausalLanguageModelCLI(LitCausalLanguageModel, run=True)

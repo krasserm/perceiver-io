@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from einops import rearrange
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.utilities import rank_zero_only
+from tqdm import tqdm
 
 from perceiver.model.core import OutputAdapter, PerceiverAR, PerceiverARConfig, RotarySupport
 from perceiver.model.text import common
@@ -17,7 +18,9 @@ from perceiver.model.text import common
 class CausalLanguageModelConfig(PerceiverARConfig):
     vocab_size: int = 262
     max_seq_len: int = 4096
+    max_latents: int = 512
     num_channels: int = 512
+    output_norm: bool = False
 
     @classmethod
     def create(cls, **kwargs):
@@ -51,32 +54,95 @@ class CausalLanguageModel(PerceiverAR):
             num_input_channels=config.num_channels,
         )
         super().__init__(input_adapter=input_adapter, **config.base_kwargs())
-        self.output_adapter = common.TiedTextOutputAdapter(vocab_size=config.vocab_size)
+        self._config = config
 
-    def forward(self, x, pad_mask=None):
-        x_latent = super().forward(x, pad_mask)
+        if config.output_norm:
+            self.out_norm = nn.LayerNorm(config.num_channels)
+
+        self.output_adapter = common.TiedTextOutputAdapter(vocab_size=config.vocab_size)
+        self._init_parameters(config.init_scale)
+
+    @property
+    def max_seq_len(self):
+        return self.input_adapter.max_seq_len
+
+    @property
+    def max_latents(self):
+        return self._config.max_latents
+
+    @property
+    def max_prefix_len(self):
+        return self.max_seq_len - self.max_latents
+
+    def forward(self, x, prefix_len, pad_mask=None):
+        if prefix_len > self.max_prefix_len:
+            raise ValueError(f"prefix_len ({prefix_len}) exceeds max_prefix_len ({self.max_prefix_len})")
+
+        x_latent = super().forward(x, prefix_len, pad_mask)
+
+        if self._config.output_norm:
+            x_latent = self.out_norm(x_latent)
+
         return self.output_adapter(x_latent, txt_embedding=self.input_adapter.txt_embedding)
 
     @torch.no_grad()
-    def generate(self, num: int, prompt: torch.Tensor, threshold: float = 0.9, temperature: float = 1.0):
+    def generate(
+        self,
+        prompt: torch.Tensor,
+        pad_mask: Optional[torch.Tensor] = None,
+        num_tokens: int = 512,
+        num_latents: int = 1,
+        threshold: float = 0.9,
+        temperature: float = 1.0,
+        pbar: bool = True,
+    ):
         """Generate sequence from `prompt` via top-k sampling (with k determined by `threshold`) at given
-        `temperature`."""
+        `temperature`.
 
-        _, n = prompt.shape
+        :param prompt: Prompt of shape (B, N). If sequences have different length they must be left-padded.
+        :param pad_mask: Prompt pad mask of shape (B, N). Must be supplied if prompt contains pad tokens.
+        :param num_tokens: Number of tokens to generate.
+        :param num_latents: Initial number of latent positions.
+        """
+
+        n_init = prompt.shape[1]
+
+        if 0 <= num_latents <= self.max_latents:
+            prefix_len = n_init - num_latents
+        else:
+            raise ValueError(f"num_latents ({num_latents}) must be in range [0..{self.max_latents}]")
+
         result = prompt
+        result_pad_mask = pad_mask
 
-        for _ in range(num):
-            logits = self(result[:, -self.input_adapter.max_seq_len :])[:, -1]
+        num_tokens_range = range(num_tokens)
+
+        if pbar:
+            num_tokens_range = tqdm(num_tokens_range)
+
+        for _ in num_tokens_range:
+            if result.shape[1] - prefix_len == self.max_latents and prefix_len < self.max_prefix_len:
+                # num_latents == max_latents reached, but not max_prefix_len yet.
+                # Extend prefix by 1 token and keep num_latents == max_latents.
+                prefix_len += 1
+
+            logits = self(result[:, -self.max_seq_len :], prefix_len=prefix_len, pad_mask=result_pad_mask)[:, -1]
             logits = self.top_f(logits, fraction=1 - threshold)
+
             probs = F.softmax(logits / temperature, dim=-1)
             sample = torch.multinomial(probs, 1)
             result = torch.cat((result, sample), dim=-1)
 
-        return result[:, n:]
+            if result_pad_mask is not None:
+                sample_pad_mask = torch.zeros_like(sample, dtype=torch.bool)
+                result_pad_mask = torch.cat((result_pad_mask, sample_pad_mask), dim=-1)
+                result_pad_mask = result_pad_mask[:, -self.max_seq_len :]
+
+        return result[:, n_init:]
 
     @staticmethod
     def top_f(logits: torch.Tensor, fraction: float = 0.1):
-        """Keep the highest `fraction` of elements in `logits` and set others to `-inf`."""
+        """Keep the highest `fraction` of `logits` and set others to `-inf`."""
         k = int(fraction * logits.shape[-1])
         val, idx = torch.topk(logits, k)
         logits_top = torch.full_like(logits, float("-inf"))
@@ -89,14 +155,16 @@ class LitCausalLanguageModel(pl.LightningModule):
         self,
         vocab_size: int,
         max_seq_len: int,
-        num_channels: int,
-        num_latents: int,
+        max_latents: int = 512,
+        num_channels: int = 512,
         num_heads: int = 8,
+        max_heads_parallel: Optional[int] = None,
         num_self_attention_layers: int = 6,
         self_attention_widening_factor: int = 4,
         cross_attention_widening_factor: int = 4,
         cross_attention_dropout: float = 0.5,
         post_attention_dropout: float = 0.0,
+        output_norm: bool = False,
         init_scale: float = 0.02,
         activation_checkpointing=False,
         activation_offloading=False,
@@ -124,17 +192,26 @@ class LitCausalLanguageModel(pl.LightningModule):
         self.tokenizer = dm.tokenizer
         self.ds_valid = dm.ds_valid
 
-    def forward(self, x, pad_mask=None):
-        return self.model(x, pad_mask)
+    def forward(self, x, prefix_len, pad_mask=None):
+        return self.model(x, prefix_len=prefix_len, pad_mask=pad_mask)
 
     def step(self, batch):
         labels, x, pad_mask = batch
         labels[pad_mask] = -100
 
-        logits = self(x, pad_mask=pad_mask)
-        logits = rearrange(logits, "b n c -> b c n")
+        seq_len = x.shape[1]
+        max_lat = self.hparams.max_latents
 
-        return self.loss(logits, labels[:, -logits.shape[2] :])
+        if seq_len < max_lat:
+            raise ValueError(f"Training sequence length must be at least {max_lat} (= nax_latents)")
+
+        logits = self(x, prefix_len=seq_len - max_lat, pad_mask=pad_mask)
+        labels = labels[:, -logits.shape[1] :]
+
+        logits = rearrange(logits, "b n c -> (b n) c")
+        labels = rearrange(labels, "b n -> (b n)")
+
+        return self.loss(logits, labels)
 
     def training_step(self, batch, batch_idx):
         loss = self.step(batch)
@@ -159,7 +236,13 @@ class LitCausalLanguageModel(pl.LightningModule):
             prompt_text = self.tokenizer.decode(prompt)
             prompt = torch.tensor(prompt).to(self.device)
 
-            result = self.model.generate(num=512, prompt=prompt[None, ...], threshold=0.9)
+            result = self.model.generate(
+                num_tokens=512,
+                prompt=prompt[None, ...],
+                num_latents=self.hparams.max_latents,
+                threshold=0.9,
+                pbar=False,
+            )
             result_text = self.tokenizer.decode(result[0])
 
             self.log_sample(tag="generated text (1)", prompt=prompt_text, generated=result_text)
@@ -169,7 +252,9 @@ class LitCausalLanguageModel(pl.LightningModule):
             prompt, _ = self.preprocessor.preprocess(prompt_text)
             prompt = prompt.to(self.device)
 
-            result = self.model.generate(num=512, prompt=prompt[None, ...], threshold=0.9)
+            result = self.model.generate(
+                num_tokens=512, prompt=prompt[None, ...], num_latents=1, threshold=0.9, pbar=False
+            )
             result_text = self.tokenizer.decode(result[0])
 
             self.log_sample(tag="generated text (2)", prompt=prompt_text, generated=result_text)

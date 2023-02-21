@@ -1,7 +1,8 @@
 # Pretrained models
 
-Pretrained weights of [official models](#official-models) can be downloaded from the 🤗 Hub. [Checkpoints](#training-checkpoints)
-from training examples are available too.
+Pretrained weights of [official models](#official-models) are automatically downloaded from the 🤗 Hub and converted
+to the model implementations of this repository. [Checkpoints](#training-checkpoints) from training examples are available
+too.
 
 ## Official models
 
@@ -108,14 +109,14 @@ lit_model_3 = LitTextClassifier.load_from_checkpoint(
     "logs/txt_clf/version_1/checkpoints/epoch=006-val_loss=0.156.ckpt"
 )
 
-# Autoregressive language model trained on WikiText-103-raw dataset (without random sequence truncation)
+# Autoregressive language model trained on WikiText-103-raw dataset (model 1)
 lit_model_4 = LitCausalLanguageModel.load_from_checkpoint(
-    "logs/clm/version_0/checkpoints/epoch=007-val_loss=0.954.ckpt"
+    "logs/clm/version_0/checkpoints/epoch=011-val_loss=0.876.ckpt"
 )
 
-# Autoregressive language model trained on WikiText-103-raw dataset (with random sequence truncation)
+# Autoregressive language model trained on 1e10 tokens of the C4 dataset  (model 2)
 lit_model_5 = LitCausalLanguageModel.load_from_checkpoint(
-    "logs/clm/version_1/checkpoints/epoch=007-val_loss=0.956.ckpt"
+    "logs/clm-fsdp/version_0/checkpoints/epoch=000-val_loss=3.070.ckpt"
 )
 
 # Image classifier trained on MNIST dataset
@@ -124,10 +125,10 @@ lit_model_6 = LitImageClassifier.load_from_checkpoint(
 )
 ```
 
-Wrapped PyTorch models are accessible via the `model` property e.g.:
+Wrapped PyTorch models are accessible with the `model` property e.g.:
 
 ```python
-from perceiver.model.text.mlm import LitMaskedLanguageModel, MaskedLanguageModel
+from perceiver.model.text.mlm import MaskedLanguageModel
 
 # Access to wrapped MaskedLanguageModel
 model_1 = lit_model_1.model
@@ -139,8 +140,10 @@ assert type(model_1) == MaskedLanguageModel
 Lightning wrappers also support remote loading of checkpoints e.g.:
 
 ```python
+from perceiver.model.text.mlm import LitMaskedLanguageModel
+
 lit_model_1 = LitMaskedLanguageModel.load_from_checkpoint(
-    "https://martin-krasser.com/perceiver/logs-0.7.0/mlm/version_0/checkpoints/epoch=012-val_loss=1.165.ckpt"
+    "https://martin-krasser.com/perceiver/logs-0.8.0/mlm/version_0/checkpoints/epoch=012-val_loss=1.165.ckpt"
 )
 
 ...
