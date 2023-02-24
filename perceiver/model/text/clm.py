@@ -246,7 +246,7 @@ class LitCausalLanguageModel(pl.LightningModule):
                 num_tokens=512,
                 prompt=prompt[None, ...],
                 num_latents=self.hparams.max_latents,
-                threshold=0.9,
+                top_k=10,
                 pbar=False,
             )
             result_text = self.tokenizer.decode(result[0])
@@ -258,9 +258,7 @@ class LitCausalLanguageModel(pl.LightningModule):
             prompt, _ = self.preprocessor.preprocess(prompt_text)
             prompt = prompt.to(self.device)
 
-            result = self.model.generate(
-                num_tokens=512, prompt=prompt[None, ...], num_latents=1, threshold=0.9, pbar=False
-            )
+            result = self.model.generate(num_tokens=512, prompt=prompt[None, ...], num_latents=1, top_k=10, pbar=False)
             result_text = self.tokenizer.decode(result[0])
 
             self.log_sample(tag="generated text (2)", prompt=prompt_text, generated=result_text)
