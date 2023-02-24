@@ -11,6 +11,7 @@ from pytorch_lightning.utilities import rank_zero_only
 from tqdm import tqdm
 
 from perceiver.model.core import OutputAdapter, PerceiverAR, PerceiverARConfig, RotarySupport
+from perceiver.model.core.utils import init_parameters
 from perceiver.model.text import common
 
 
@@ -21,6 +22,7 @@ class CausalLanguageModelConfig(PerceiverARConfig):
     max_latents: int = 512
     num_channels: int = 512
     output_norm: bool = False
+    init_scale: float = 0.02
 
     @classmethod
     def create(cls, **kwargs):
@@ -62,6 +64,10 @@ class CausalLanguageModel(PerceiverAR):
         self.output_adapter = common.TiedTextOutputAdapter(vocab_size=config.vocab_size)
         self._init_parameters(config.init_scale)
 
+    def _init_parameters(self, init_scale: float):
+        with torch.no_grad():
+            init_parameters(self, init_scale)
+
     @property
     def max_seq_len(self):
         return self.input_adapter.max_seq_len
@@ -92,17 +98,19 @@ class CausalLanguageModel(PerceiverAR):
         pad_mask: Optional[torch.Tensor] = None,
         num_tokens: int = 512,
         num_latents: int = 1,
-        threshold: float = 0.9,
+        top_k: int = 5,
         temperature: float = 1.0,
         pbar: bool = True,
     ):
-        """Generate sequence from `prompt` via top-k sampling (with k determined by `threshold`) at given
-        `temperature`.
+        """Generate sequence from `prompt` via `top-k` sampling at given `temperature`.
 
         :param prompt: Prompt of shape (B, N). If sequences have different length they must be left-padded.
         :param pad_mask: Prompt pad mask of shape (B, N). Must be supplied if prompt contains pad tokens.
         :param num_tokens: Number of tokens to generate.
         :param num_latents: Initial number of latent positions.
+        :param top_k: Number of most likely tokens to sample from.
+        :param temperature: "Controls the entropy of next token probabilities."
+        :param pbar: If `True`, uses a progress bar during generation.
         """
 
         n_init = prompt.shape[1]
@@ -127,7 +135,7 @@ class CausalLanguageModel(PerceiverAR):
                 prefix_len += 1
 
             logits = self(result[:, -self.max_seq_len :], prefix_len=prefix_len, pad_mask=result_pad_mask)[:, -1]
-            logits = self.top_f(logits, fraction=1 - threshold)
+            logits = self.top_k(logits, top_k)
 
             probs = F.softmax(logits / temperature, dim=-1)
             sample = torch.multinomial(probs, 1)
@@ -141,9 +149,7 @@ class CausalLanguageModel(PerceiverAR):
         return result[:, n_init:]
 
     @staticmethod
-    def top_f(logits: torch.Tensor, fraction: float = 0.1):
-        """Keep the highest `fraction` of `logits` and set others to `-inf`."""
-        k = int(fraction * logits.shape[-1])
+    def top_k(logits: torch.Tensor, k: int):
         val, idx = torch.topk(logits, k)
         logits_top = torch.full_like(logits, float("-inf"))
         logits_top.scatter_(1, idx, val)

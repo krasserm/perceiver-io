@@ -597,11 +597,10 @@ class PerceiverAR(nn.Module):
         cross_attention_widening_factor: int = 4,
         cross_attention_dropout: float = 0.5,
         post_attention_dropout: float = 0.0,
-        init_scale: float = 0.02,
         activation_checkpointing: bool = False,
         activation_offloading: bool = False,
     ):
-        """Experimental implementation of Perceiver AR (https://arxiv.org/abs/2202.07765).
+        """Implementation of Perceiver AR (https://arxiv.org/abs/2202.07765).
 
         :param input_adapter: Transforms an input sequence to generic Perceiver AR input. An input adapter may choose
             to add (absolute) position information to transformed inputs while `PerceiverAR` additionally computes a
@@ -614,7 +613,6 @@ class PerceiverAR(nn.Module):
         :param cross_attention_dropout: Probability of dropping positions in the prefix sequence.
         :param post_attention_dropout: Probability of dropping cross- and self-attention scores (same as `dropout`
             in Perceiver IO encoder and decoder).
-        :param init_scale: Standard deviation for random normal initialization of parameters.
         :param activation_checkpointing: If True, implements an activation checkpoint for each self-attention
             layer and cross-attention layer.
         :param activation_offloading: If True, offloads checkpointed activations to CPU.
@@ -658,10 +656,6 @@ class PerceiverAR(nn.Module):
         self.cross_attention_dropout = cross_attention_dropout
         self.cross_attention = cross_attn()
         self.self_attention = self_attn()
-
-    def _init_parameters(self, init_scale: float):
-        with torch.no_grad():
-            init_parameters(self, init_scale)
 
     def forward(self, x, prefix_len, pad_mask=None):
         b, n = x.shape
