@@ -172,8 +172,8 @@ preproc.tokenizer.padding_side = "left"
 # Convert text to model input
 prompt, pad_mask = preproc.preprocess_batch(["A man was reading a book on a sunny day until he sudden"])
 
-# Continue prompt via top-k sampling where k = f(vocab_size, threshold), starting with 7 latent tokens
-generated = model.generate(prompt=prompt, pad_mask=pad_mask, num_tokens=256, num_latents=7, threshold=0.9)
+# Continue prompt via top-k sampling, starting with 7 latent tokens
+generated = model.generate(prompt=prompt, pad_mask=pad_mask, num_tokens=256, num_latents=7, top_k=10)
 
 # Decode model output using preprocessor's tokenizer
 generated_text = preproc.tokenizer.decode(generated[0])
