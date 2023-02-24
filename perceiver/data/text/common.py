@@ -58,6 +58,7 @@ class TextDataModule(pl.LightningDataModule):
         mask_words: bool = True,
         static_masking: bool = False,
         add_special_tokens: bool = False,
+        add_eos_token: bool = False,
         padding_side: Optional[str] = None,
         random_train_shift: bool = False,
         random_valid_shift: bool = False,
@@ -83,6 +84,7 @@ class TextDataModule(pl.LightningDataModule):
         :param static_masking: Whether to mask at preprocessing time (static) or at data loading time (dynamic).
             Ignored if task is not `Task.mlm`.
         :param add_special_tokens: Whether to add special tokens to tokenized text.
+        :param add_eos_token: Whether to append an EOS tokens to each example.
         :param padding_side: If `None`, uses the pre-configured `padding_side` of the tokenizer. Can be overridden by
             setting to "left" or "right".
         :param random_train_truncation: Randomly truncates sequences in the training set to length
@@ -163,6 +165,8 @@ class TextDataModule(pl.LightningDataModule):
             hash_input = f"{hash_input}-{self.hparams.mask_words}-{self.hparams.mask_prob}"
         if self.hparams.add_special_tokens:
             hash_input = f"{hash_input}-st"
+        if self.hparams.add_eos_token:
+            hash_input = f"{hash_input}-eos"
         if self.hparams.get("source_train_size") is not None:
             hash_input = f"{hash_input}-ts-{self.hparams.source_train_size}"
         if self.hparams.get("source_valid_size") is not None:
@@ -261,7 +265,8 @@ class TextDataModule(pl.LightningDataModule):
         return_word_ids=True,
     ):
         def tokenize(examples):
-            examples["text"] = [text + self.tokenizer.eos_token for text in examples["text"]]
+            if self.hparams.add_eos_token:
+                examples["text"] = [text + self.tokenizer.eos_token for text in examples["text"]]
             encoding = self.tokenizer(
                 examples["text"],
                 padding=padding,

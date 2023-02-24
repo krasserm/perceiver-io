@@ -41,6 +41,7 @@ if __name__ == "__main__":
     parser.add_argument("--mask_words", default=True, type=bool)
     parser.add_argument("--static_masking", default=False, type=bool)
     parser.add_argument("--add_special_tokens", default=False, type=bool)
+    parser.add_argument("--add_eos_token", default=False, type=bool)
     parser.add_argument("--random_train_shift", default=False, type=bool)
     parser.add_argument("--preproc_workers", default=mp.cpu_count(), type=int)
     main(parser.parse_args())
