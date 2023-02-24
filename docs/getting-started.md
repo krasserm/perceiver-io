@@ -152,7 +152,7 @@ torch.save(model.state_dict(), "/path/to/model.pt")
 
 For generating text from a prompt via top-k sampling, `CausalLanguageModel` provides a `generate()` method. The following
 example first loads a trained model from a checkpoint and then generates text from a short sample prompt. An interactive
-demo is also available in the [Colab notebook](https://colab.research.google.com/github/krasserm/perceiver-io/blob/0.8.0/examples/inference.ipynb).
+demo is also available in the [Colab notebook](https://colab.research.google.com/github/krasserm/perceiver-io/blob/0.8.1/examples/inference.ipynb).
 
 ```python
 from perceiver.data.text import TextPreprocessor
