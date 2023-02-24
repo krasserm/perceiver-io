@@ -183,7 +183,7 @@ class LitCausalLanguageModel(pl.LightningModule):
     def setup(self, stage: Optional[str] = None):
         dm = self.trainer.datamodule
 
-        if dm.tokenizer.padding_side != "left":
+        if dm.tokenizer.pad_token is not None and dm.tokenizer.padding_side != "left":
             raise ValueError(
                 "Causal language modeling with Perceiver AR requires a data module configured with padding_side=left"
             )

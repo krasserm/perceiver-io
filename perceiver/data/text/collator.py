@@ -59,7 +59,7 @@ class DefaultCollator(Collator):
             sequence,
             add_special_tokens=False,
             return_token_type_ids=False,
-            padding=PaddingStrategy.MAX_LENGTH,
+            padding=False if self.tokenizer.pad_token is None else PaddingStrategy.MAX_LENGTH,
             max_length=max_length,
             truncation=True,
         )

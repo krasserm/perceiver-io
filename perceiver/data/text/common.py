@@ -30,7 +30,7 @@ class TextPreprocessor:
     def preprocess_batch(self, text_batch):
         result = self.tokenizer(
             text_batch,
-            padding=True,
+            padding=self.tokenizer.pad_token is not None,
             truncation=True,
             add_special_tokens=self.add_special_tokens,
             return_token_type_ids=False,
@@ -261,6 +261,7 @@ class TextDataModule(pl.LightningDataModule):
         return_word_ids=True,
     ):
         def tokenize(examples):
+            examples["text"] = [text + self.tokenizer.eos_token for text in examples["text"]]
             encoding = self.tokenizer(
                 examples["text"],
                 padding=padding,
