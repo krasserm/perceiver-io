@@ -9,6 +9,7 @@ from datasets.distributed import split_dataset_by_node
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
+from perceiver.data.text.collator import Collator
 from perceiver.data.text.common import TextPreprocessor
 
 
@@ -151,14 +152,13 @@ class C4DataModule(pl.LightningDataModule):
         )
 
 
-class C4Collator:
+class C4Collator(Collator):
     def __init__(self, tokenizer):
         self.tokenizer = tokenizer
 
-    def __call__(self, batch):
-        batch = self.tokenizer.pad(batch, return_attention_mask=True, return_tensors="pt")
-        return (
-            batch["input_ids"][..., 1:],
-            batch["input_ids"][..., :-1],
-            ~batch["attention_mask"][..., :-1].type(torch.bool),
-        )
+    def collate(self, examples):
+        batch = self.tokenizer.pad(examples, return_attention_mask=True, return_tensors="pt")
+        batch["labels"] = batch["input_ids"][..., 1:]
+        batch["input_ids"] = batch["input_ids"][..., :-1]
+        batch["attention_mask"] = batch["attention_mask"][..., :-1]
+        return batch
