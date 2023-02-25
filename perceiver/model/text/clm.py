@@ -209,7 +209,7 @@ class LitCausalLanguageModel(pl.LightningModule):
         max_lat = self.hparams.max_latents
 
         if seq_len < max_lat:
-            raise ValueError(f"Training sequence length must be at least {max_lat} (= nax_latents)")
+            raise ValueError(f"Training sequence length must be at least {max_lat} (= max_latents)")
 
         logits = self(x, prefix_len=seq_len - max_lat, pad_mask=pad_mask)
         labels = labels[:, -logits.shape[1] :]
