@@ -7,7 +7,8 @@ import torch
 from datasets import DatasetDict, load_dataset
 from flaky import flaky
 
-from perceiver.data.text.common import RandomShiftDataset, RandomTruncationDataset, Task, TextDataModule
+from perceiver.data.text.collator import RandomTruncateCollator
+from perceiver.data.text.common import RandomShiftDataset, Task, TextDataModule
 from pytest import approx
 
 
@@ -37,39 +38,43 @@ class TestTextDataModule(TextDataModule):
 
 
 def create_data_module(
+    tokenizer="bert-base-uncased",
     max_seq_len: int = 128,
     task: Task = Task.mlm,
     mask_prob: float = 0.15,
     mask_words: bool = True,
     static_masking: bool = False,
     add_special_tokens: bool = False,
+    add_eos_token: bool = False,
     padding_side: Optional[str] = None,
     random_train_shift: bool = False,
     random_valid_shift: bool = False,
     random_train_truncation: bool = False,
     random_valid_truncation: bool = False,
     random_min_seq_len: int = 16,
+    batch_size: int = 4,
 ) -> TestTextDataModule:
     dm = TestTextDataModule(
         dataset_dir=os.path.join(".pytest_cache", "imdb"),
-        tokenizer="bert-base-uncased",
+        tokenizer=tokenizer,
         max_seq_len=max_seq_len,
         task=task,
         mask_prob=mask_prob,
         mask_words=mask_words,
         static_masking=static_masking,
         add_special_tokens=add_special_tokens,
+        add_eos_token=add_eos_token,
         padding_side=padding_side,
         random_train_shift=random_train_shift,
         random_valid_shift=random_valid_shift,
         random_train_truncation=random_train_truncation,
         random_valid_truncation=random_valid_truncation,
         random_min_seq_len=random_min_seq_len,
+        batch_size=batch_size,
         source_train_size=200,
         source_valid_size=50,
         preproc_batch_size=1000,
         preproc_workers=1,
-        batch_size=4,
         num_workers=0,
         pin_memory=False,
     )
@@ -148,15 +153,42 @@ def test_clm_data():
 def test_clm_random_truncation_true():
     dm = create_data_module(task=Task.clm, random_train_truncation=True, random_valid_truncation=True)
 
-    assert isinstance(dm.ds_train.dataset, RandomTruncationDataset)
-    assert isinstance(dm.ds_valid.dataset, RandomTruncationDataset)
+    train_dl = dm.train_dataloader()
+    valid_dl = dm.val_dataloader()
 
-    example_1 = dm.ds_train[0]["input_ids"]
-    example_2 = dm.ds_train[0]["input_ids"]
+    assert isinstance(train_dl.collate_fn, RandomTruncateCollator)
+    assert isinstance(valid_dl.collate_fn, RandomTruncateCollator)
 
-    assert len(example_1) < 128
-    assert len(example_2) < 128
-    assert example_1 != example_2
+    _, input_ids_1, pad_mask_1 = next(iter(train_dl))
+    _, input_ids_2, pad_mask_2 = next(iter(train_dl))
+
+    assert dm.hparams.random_min_seq_len <= input_ids_1.shape[1] <= dm.hparams.max_seq_len
+    assert dm.hparams.random_min_seq_len <= input_ids_2.shape[1] <= dm.hparams.max_seq_len
+
+    assert input_ids_1.shape != input_ids_2.shape
+
+    assert torch.all(~pad_mask_1)
+    assert torch.all(~pad_mask_2)
+
+
+@flaky(max_runs=2)
+def test_clm_random_truncation_false():
+    dm = create_data_module(task=Task.clm, random_train_truncation=False, random_valid_truncation=False)
+
+    train_dl = dm.train_dataloader()
+    valid_dl = dm.val_dataloader()
+
+    assert not isinstance(train_dl.collate_fn, RandomTruncateCollator)
+    assert not isinstance(valid_dl.collate_fn, RandomTruncateCollator)
+
+    _, input_ids_1, pad_mask_1 = next(iter(train_dl))
+    _, input_ids_2, pad_mask_2 = next(iter(train_dl))
+
+    assert input_ids_1.shape[1] == dm.hparams.max_seq_len
+    assert input_ids_1.shape == input_ids_2.shape
+
+    assert torch.all(~pad_mask_1)
+    assert torch.all(~pad_mask_2)
 
 
 @flaky(max_runs=2)
@@ -199,31 +231,41 @@ def test_add_special_tokens_false():
     assert x[0][0] != dm.tokenizer.cls_token_id
 
 
+def test_add_eos_token_true():
+    dm = create_data_module(
+        tokenizer="xlnet-base-cased", task=Task.clf, add_special_tokens=False, add_eos_token=True, batch_size=64
+    )
+    _, x, _ = next(iter(dm.val_dataloader()))
+    assert torch.any(x == dm.tokenizer.eos_token_id)
+
+
+def test_add_eos_token_false():
+    dm = create_data_module(
+        tokenizer="xlnet-base-cased", task=Task.clf, add_special_tokens=False, add_eos_token=False, batch_size=64
+    )
+    _, x, _ = next(iter(dm.val_dataloader()))
+    assert torch.all(x != dm.tokenizer.eos_token_id)
+
+
 @flaky(max_runs=2)
 def test_left_padding():
-    dm = create_data_module(task=Task.clm, random_train_truncation=True, padding_side="left")
+    dm = create_data_module(task=Task.clf, max_seq_len=2048, padding_side="left")
+    _, input_ids, pad_mask = next(iter(dm.train_dataloader()))
 
-    label_ids, input_ids, pad_mask = next(iter(dm.train_dataloader()))
-
-    assert torch.any(label_ids[:, 0] == dm.tokenizer.pad_token_id)
     assert torch.any(input_ids[:, 0] == dm.tokenizer.pad_token_id)
     assert torch.any(pad_mask[:, 0])
 
-    assert not torch.any(label_ids[:, -1] == dm.tokenizer.pad_token_id)
     assert not torch.any(input_ids[:, -1] == dm.tokenizer.pad_token_id)
     assert not torch.any(pad_mask[:, -1])
 
 
 @flaky(max_runs=2)
 def test_right_padding():
-    dm = create_data_module(task=Task.clm, random_train_truncation=True, padding_side="right")
+    dm = create_data_module(task=Task.clf, max_seq_len=2048, padding_side="right")
+    _, input_ids, pad_mask = next(iter(dm.train_dataloader()))
 
-    label_ids, input_ids, pad_mask = next(iter(dm.train_dataloader()))
-
-    assert not torch.any(label_ids[:, 0] == dm.tokenizer.pad_token_id)
     assert not torch.any(input_ids[:, 0] == dm.tokenizer.pad_token_id)
     assert not torch.any(pad_mask[:, 0])
 
-    assert torch.any(label_ids[:, -1] == dm.tokenizer.pad_token_id)
     assert torch.any(input_ids[:, -1] == dm.tokenizer.pad_token_id)
     assert torch.any(pad_mask[:, -1])

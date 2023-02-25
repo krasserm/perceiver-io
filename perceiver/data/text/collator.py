@@ -22,6 +22,25 @@ class Collator:
         return result["labels"], result["input_ids"], ~result["attention_mask"].type(torch.bool)
 
 
+class RandomTruncateCollator(Collator):
+    def __init__(self, collator: Collator, min_seq_len: int):
+        self.collator = collator
+        self.min_seq_len = min_seq_len
+
+    def collate(self, examples):
+        result = self.collator.collate(examples)
+
+        seq_len = result["input_ids"].shape[1]
+        if seq_len <= self.min_seq_len:
+            return result
+        else:
+            drop = torch.randint(1, seq_len - self.min_seq_len + 1, size=(1,))
+            result["labels"] = result["labels"][:, :-drop]
+            result["input_ids"] = result["input_ids"][:, :-drop]
+            result["attention_mask"] = result["attention_mask"][:, :-drop]
+            return result
+
+
 class DefaultCollator(Collator):
     label_keys = ["label", "labels"]
 

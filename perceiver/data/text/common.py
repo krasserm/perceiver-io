@@ -10,7 +10,12 @@ from datasets import Dataset, DatasetDict
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
-from perceiver.data.text.collator import DefaultCollator, TokenMaskingCollator, WordMaskingCollator
+from perceiver.data.text.collator import (
+    DefaultCollator,
+    RandomTruncateCollator,
+    TokenMaskingCollator,
+    WordMaskingCollator,
+)
 from perceiver.data.text.utils import PerceiverTokenizerUtil
 
 
@@ -191,30 +196,35 @@ class TextDataModule(pl.LightningDataModule):
             if self.hparams.random_valid_shift:
                 self.ds_valid = RandomShiftDataset(self.ds_valid)
 
-        if self.hparams.random_train_truncation:
-            self.ds_train = RandomTruncationDataset(self.ds_train, self.hparams.random_min_seq_len)
-        if self.hparams.random_valid_truncation:
-            self.ds_valid = RandomTruncationDataset(self.ds_valid, self.hparams.random_min_seq_len)
-
         if self.hparams.task == Task.clm:
             self.ds_train = CLMDataset(self.ds_train)
             self.ds_valid = CLMDataset(self.ds_valid)
 
     def train_dataloader(self):
+        if self.hparams.random_train_truncation:
+            collator = RandomTruncateCollator(self.collator, self.hparams.random_min_seq_len)
+        else:
+            collator = self.collator
+
         return DataLoader(
             self.ds_train,
             shuffle=True,
-            collate_fn=self.collator,
+            collate_fn=collator,
             batch_size=self.hparams.batch_size,
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
         )
 
     def val_dataloader(self):
+        if self.hparams.random_valid_truncation:
+            collator = RandomTruncateCollator(self.collator, self.hparams.random_min_seq_len)
+        else:
+            collator = self.collator
+
         return DataLoader(
             self.ds_valid,
             shuffle=False,
-            collate_fn=self.collator,
+            collate_fn=collator,
             batch_size=self.valid_batch_size,
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
@@ -372,28 +382,6 @@ class RandomShiftDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.dataset) - 1
-
-
-class RandomTruncationDataset(torch.utils.data.Dataset):
-    def __init__(self, dataset, random_min_seq_len: int):
-        self.dataset = dataset
-        self.random_min_seq_len = random_min_seq_len
-
-    def __getitem__(self, idx):
-        example = self.dataset[idx]
-        example_seq_len = len(example["input_ids"])
-
-        drop_max = example_seq_len - self.random_min_seq_len
-        if drop_max > 0:
-            drop = torch.randint(drop_max + 1, size=(1,))
-            if drop > 0:
-                for key in example.keys():
-                    example[key] = example[key][:-drop]
-
-        return example
-
-    def __len__(self):
-        return len(self.dataset)
 
 
 class CLMDataset(torch.utils.data.Dataset):
