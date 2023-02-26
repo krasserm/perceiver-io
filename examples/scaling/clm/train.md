@@ -2,9 +2,13 @@
 
 Here are the data preparation and training commands used for the scaling experiments in [Training compute-optimal
 Perceiver AR language models](https://krasserm.github.io/2023/01/23/scaling-perceiver-ar/). The training commands
-have been tested on a machine with 4 RTX 3080ti GPUs (12 GB memory each). Training checkpoints and logs can be
-downloaded [here](https://martin-krasser.com/perceiver/logs-0.8.0-scaling.zip) (5.3G). Validation loss data from
-logs have been exported to [data/validation](data/validation).
+have been tested on a machine with 4 RTX 3080ti GPUs (12 GB memory each). Training checkpoints are available for
+download:
+
+- [original](https://martin-krasser.com/perceiver/logs-0.8.0-scaling.zip) (5.3G, all models)
+- [update](https://martin-krasser.com/perceiver/logs-0.8.0-scaling-update.zip) (0.6G, model 2 in [experiment 1](#experiment-1))
+
+Validation loss data have been exported to [data/validation](data/validation).
 
 ## Experiment 1
 
@@ -26,9 +30,9 @@ python -m perceiver.scripts.text.preproc bookcorpusopen \
 python examples/scaling/clm/train.py --dataset=bookcorpusopen --tokenizer=xlnet-base-cased --max_seq_len=2048 \
   --num_channels=512 --num_layers=9 --num_steps=50000 --activation_checkpointing=true --experiment=scaling-1
 
-# model 2
+# model 2 (updated)
 python examples/scaling/clm/train.py --dataset=bookcorpusopen --tokenizer=xlnet-base-cased --max_seq_len=2048 \
-  --num_channels=624 --num_layers=11 --num_steps=31421 --activation_checkpointing=true --experiment=scaling-1
+  --num_channels=592 --num_layers=10 --num_steps=34336 --activation_checkpointing=true --experiment=scaling-1
 
 # model 3
 python examples/scaling/clm/train.py --dataset=bookcorpusopen --tokenizer=xlnet-base-cased --max_seq_len=2048 \
