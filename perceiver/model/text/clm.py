@@ -23,6 +23,7 @@ class CausalLanguageModelConfig(PerceiverARConfig):
     num_channels: int = 512
     output_norm: bool = False
     output_bias: bool = True
+    abs_pos_emb: bool = True
     init_scale: float = 0.02
 
     @classmethod
@@ -31,8 +32,21 @@ class CausalLanguageModelConfig(PerceiverARConfig):
 
 
 class TextInputAdapter(RotarySupport, common.TextInputAdapter):
-    def __init__(self, rotated_channels_per_head: int, vocab_size: int, max_seq_len: int, num_input_channels: int):
-        super().__init__(rotated_channels_per_head, vocab_size, max_seq_len, num_input_channels)
+    def __init__(
+        self,
+        rotated_channels_per_head: int,
+        vocab_size: int,
+        max_seq_len: int,
+        num_input_channels: int,
+        abs_pos_emb: bool,
+    ):
+        super().__init__(
+            rotated_channels_per_head=rotated_channels_per_head,
+            vocab_size=vocab_size,
+            max_seq_len=max_seq_len,
+            num_input_channels=num_input_channels,
+            abs_pos_emb=abs_pos_emb,
+        )
 
     def forward(self, x, abs_pos=None):
         return super().forward(x, abs_pos)
@@ -49,12 +63,18 @@ class TextOutputAdapter(OutputAdapter):
 
 class CausalLanguageModel(PerceiverAR):
     def __init__(self, config: CausalLanguageModelConfig):
+        num_rotated_channels = config.num_channels // config.num_heads
+
+        if config.abs_pos_emb:
+            # Rotary embedding only for first 50% of channels ...
+            num_rotated_channels = num_rotated_channels // 2
+
         input_adapter = TextInputAdapter(
-            # Rotary position embedding for first 50% of channels ...
-            rotated_channels_per_head=config.num_channels // config.num_heads // 2,
+            rotated_channels_per_head=num_rotated_channels,
             vocab_size=config.vocab_size,
             max_seq_len=config.max_seq_len,
             num_input_channels=config.num_channels,
+            abs_pos_emb=config.abs_pos_emb,
         )
         super().__init__(input_adapter=input_adapter, **config.base_kwargs())
         self._config = config
@@ -173,6 +193,7 @@ class LitCausalLanguageModel(pl.LightningModule):
         post_attention_dropout: float = 0.0,
         output_norm: bool = False,
         output_bias: bool = True,
+        abs_pos_emb: bool = True,
         init_scale: float = 0.02,
         activation_checkpointing=False,
         activation_offloading=False,

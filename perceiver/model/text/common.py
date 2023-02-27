@@ -26,10 +26,15 @@ class TextEncoderConfig(EncoderConfig):
 
 
 class TextInputAdapter(InputAdapter):
-    def __init__(self, vocab_size: int, max_seq_len: int, num_input_channels: int):
+    def __init__(self, vocab_size: int, max_seq_len: int, num_input_channels: int, abs_pos_emb: bool = True):
         super().__init__(num_input_channels)
+        self._max_seq_len = max_seq_len
+        self._abs_pos_emb = abs_pos_emb
+
         self.txt_embedding = nn.Embedding(vocab_size, num_input_channels)
-        self.pos_embedding = nn.Embedding(max_seq_len, num_input_channels)
+
+        if abs_pos_emb:
+            self.pos_embedding = nn.Embedding(max_seq_len, num_input_channels)
 
     @property
     def vocab_size(self):
@@ -37,12 +42,15 @@ class TextInputAdapter(InputAdapter):
 
     @property
     def max_seq_len(self):
-        return self.pos_embedding.num_embeddings
+        return self._max_seq_len
 
     def forward(self, x, abs_pos=None):
-        if abs_pos is None:
-            abs_pos = positions(*x.shape, device=x.device)
-        return self.txt_embedding(x) + self.pos_embedding(abs_pos)
+        if self._abs_pos_emb:
+            if abs_pos is None:
+                abs_pos = positions(*x.shape, device=x.device)
+            return self.txt_embedding(x) + self.pos_embedding(abs_pos)
+        else:
+            return self.txt_embedding(x)
 
 
 class TiedTextOutputAdapter(OutputAdapter):
