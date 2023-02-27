@@ -22,6 +22,7 @@ class CausalLanguageModelConfig(PerceiverARConfig):
     max_latents: int = 512
     num_channels: int = 512
     output_norm: bool = False
+    output_bias: bool = True
     init_scale: float = 0.02
 
     @classmethod
@@ -61,7 +62,7 @@ class CausalLanguageModel(PerceiverAR):
         if config.output_norm:
             self.out_norm = nn.LayerNorm(config.num_channels)
 
-        self.output_adapter = common.TiedTextOutputAdapter(vocab_size=config.vocab_size)
+        self.output_adapter = common.TiedTextOutputAdapter(vocab_size=config.vocab_size, emb_bias=config.output_bias)
         self._init_parameters(config.init_scale)
 
     def _init_parameters(self, init_scale: float):
@@ -171,6 +172,7 @@ class LitCausalLanguageModel(pl.LightningModule):
         cross_attention_dropout: float = 0.5,
         post_attention_dropout: float = 0.0,
         output_norm: bool = False,
+        output_bias: bool = True,
         init_scale: float = 0.02,
         activation_checkpointing=False,
         activation_offloading=False,

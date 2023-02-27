@@ -46,12 +46,18 @@ class TextInputAdapter(InputAdapter):
 
 
 class TiedTextOutputAdapter(OutputAdapter):
-    def __init__(self, vocab_size: int):
+    def __init__(self, vocab_size: int, emb_bias: bool = True):
         super().__init__()
-        self.bias = nn.Parameter(torch.zeros(vocab_size))
+        self._emb_bias = emb_bias
+        if emb_bias:
+            self.bias = nn.Parameter(torch.zeros(vocab_size))
 
     def forward(self, x, txt_embedding: nn.Embedding):
-        return torch.matmul(x, txt_embedding.weight.T) + self.bias
+        result = torch.matmul(x, txt_embedding.weight.T)
+        if self._emb_bias:
+            return result + self.bias
+        else:
+            return result
 
 
 class TextEncoder(PerceiverEncoder):
