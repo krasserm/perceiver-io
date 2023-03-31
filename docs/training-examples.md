@@ -177,7 +177,7 @@ UTF-8 bytes of the input.
 #### Model 2
 
 Train a medium, randomly initialized Perceiver AR language model (455M parameters) with autoregressive language
-modeling on approx. 1e-10 tokens from the C4 dataset. The tokenizer is a SentencePiece tokenizer with a vocabulary
+modeling on 79B tokens from the C4 dataset. The tokenizer is a SentencePiece tokenizer with a vocabulary
 size of 32,000. Distribution strategy is FSDP. This example is configured to run on 8 A100 GPUs with 40GB memory
 each.
 
