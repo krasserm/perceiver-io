@@ -3,7 +3,8 @@ from typing import Optional
 
 import torch
 from pytorch_lightning.cli import LightningArgumentParser, LRSchedulerCallable, OptimizerCallable
-from pytorch_lightning.strategies import DDPFullyShardedNativeStrategy, StrategyRegistry
+from pytorch_lightning.strategies import FSDPStrategy, StrategyRegistry
+from pytorch_lightning.utilities import grad_norm
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 
 from perceiver.model.core import CrossAttentionLayer, SelfAttentionLayer
@@ -27,7 +28,7 @@ policy = functools.partial(
 
 StrategyRegistry.register(
     name="fsdp_perceiver_ar",
-    strategy=DDPFullyShardedNativeStrategy,
+    strategy=FSDPStrategy,
     description="FSDP strategy optimized for Perceiver AR models",
     activation_checkpointing=[CrossAttentionLayer, SelfAttentionLayer],
     auto_wrap_policy=policy,
@@ -60,9 +61,10 @@ class LitCausalLanguageModelFSDP(LitCausalLanguageModel):
             "lr_scheduler": {"scheduler": scheduler, "interval": "step", "frequency": 1},
         }
 
-    def on_before_optimizer_step(self, optimizer, optimizer_idx):
+    def on_before_optimizer_step(self, optimizer):
         if self.hparams.max_grad_norm is not None:
             self.trainer.model.clip_grad_norm_(self.hparams.max_grad_norm)
+            self.log_dict(grad_norm(self, norm_type=2))
 
 
 class CausalLanguageModelCLI(CLI):

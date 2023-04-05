@@ -32,8 +32,8 @@ include = ["docs"]
 
 [tool.poetry.dependencies]
 python = "^3.8,<3.11"
-pytorch-lightning = "^1.7"
-torch = "^1.13"
+pytorch-lightning = "^2.0"
+torch = "^2.0"
 fairscale = "^0.4"
 torchmetrics = "^0.9"
 torch-optimizer = "^0.3"
@@ -43,9 +43,9 @@ cchardet = "^2.1"
 datasets = {version = "^2.4", optional = true}
 tokenizers = {version = "^0.12", optional = true}
 transformers = {version = "^4.21", optional = true}
-torchvision = {version = "^0.14", optional = true}
+torchvision = {version = "^0.15", optional = true}
 opencv-python = {version = "^4.6.0.66", optional = true}
-jsonargparse = {extras = ["signatures"], version = "^4.12"}
+jsonargparse = {extras = ["signatures"], version = "^4.18"}
 fsspec = {extras = ["s3"], version = "*"}
 
 [tool.poetry.group.dev.dependencies]
