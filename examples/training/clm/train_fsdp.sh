@@ -30,7 +30,6 @@ python -m perceiver.scripts.text.clm_fsdp fit \
   --trainer.precision=bf16 \
   --trainer.max_steps=50000 \
   --trainer.accumulate_grad_batches=1 \
-  --trainer.track_grad_norm=2 \
   --trainer.check_val_every_n_epoch=null \
   --trainer.val_check_interval=500 \
   --trainer.limit_val_batches=20 \
