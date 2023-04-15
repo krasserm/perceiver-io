@@ -1,6 +1,6 @@
 import torch
-import torch.nn as nn
 from einops import rearrange
+from torch import nn as nn
 
 from perceiver.model.core.position import FrequencyPositionEncoding, positions
 
@@ -34,6 +34,19 @@ class RotarySupport(InputAdapter):
 
 class OutputAdapter(nn.Module):
     """Transforms generic decoder cross-attention output to task-specific output."""
+
+
+class ClassificationOutputAdapter(OutputAdapter):
+    def __init__(
+        self,
+        num_classes: int,
+        num_output_query_channels: int,
+    ):
+        super().__init__()
+        self.linear = nn.Linear(num_output_query_channels, num_classes)
+
+    def forward(self, x):
+        return self.linear(x).squeeze(dim=1)
 
 
 class QueryProvider:

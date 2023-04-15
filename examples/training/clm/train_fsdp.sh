@@ -35,5 +35,5 @@ python -m perceiver.scripts.text.clm_fsdp fit \
   --trainer.limit_val_batches=20 \
   --trainer.log_every_n_steps=20 \
   --trainer.logger=TensorBoardLogger \
-  --trainer.logger.save_dir=s3://merlin-sagemaker/sandbox \
+  --trainer.logger.save_dir=logs \
   --trainer.logger.name=clm-fsdp

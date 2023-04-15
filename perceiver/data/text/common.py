@@ -117,7 +117,10 @@ class TextDataModule(pl.LightningDataModule):
             self.tokenizer.padding_side = self.hparams.padding_side
 
         # PerceiverTokenizer needs special support for generating word_ids as it is not a fast tokenizer
-        self.perceiver_tokenizer_configured = self.hparams.tokenizer == "deepmind/language-perceiver"
+        self.perceiver_tokenizer_configured = self.hparams.tokenizer in [
+            "krasserm/perceiver-io-mlm",
+            "deepmind/language-perceiver",
+        ]
         if self.perceiver_tokenizer_configured:
             self.perceiver_tokenizer_util = PerceiverTokenizerUtil(self.tokenizer)
 

@@ -209,7 +209,6 @@ class OpticalFlowProcessor:
         model,
         image_pairs: Union[List[Tuple[np.ndarray, np.ndarray]], List[Tuple[torch.Tensor, torch.Tensor]]],
         batch_size: int,
-        device: torch.device,
     ) -> torch.Tensor:
         """Combines preprocessing, inference and postprocessing steps for the optical flow.
 
@@ -233,7 +232,6 @@ class OpticalFlowProcessor:
                 input_features_batch = rearrange(input_features_batch, "b p t c h w -> (b p) t c h w")
                 for j in range(0, input_features_batch.shape[0], batch_size):
                     input_features_micro_batch = input_features_batch[j : (j + batch_size)]
-                    input_features_micro_batch = input_features_micro_batch.to(device)
                     pred = model(input_features_micro_batch)
                     predictions.append(pred.cpu().detach())
 

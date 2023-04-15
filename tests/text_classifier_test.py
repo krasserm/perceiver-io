@@ -1,13 +1,8 @@
 import pytest
 
 from perceiver.data.text import TextPreprocessor
-from perceiver.model.text.classifier import (
-    ClassificationDecoderConfig,
-    LitTextClassifier,
-    PerceiverIOConfig,
-    TextClassifier,
-    TextEncoderConfig,
-)
+from perceiver.model.core import ClassificationDecoderConfig
+from perceiver.model.text.classifier import LitTextClassifier, TextClassifier, TextClassifierConfig, TextEncoderConfig
 
 
 @pytest.fixture(scope="module")
@@ -27,12 +22,12 @@ def config(preprocessor):
         num_classes=3, num_output_query_channels=encoder_config.num_input_channels
     )
 
-    yield PerceiverIOConfig(encoder_config, decoder_config, num_latents=64, num_latent_channels=512)
+    yield TextClassifierConfig(encoder_config, decoder_config, num_latents=64, num_latent_channels=512)
 
 
 @pytest.fixture(scope="module")
 def text():
-    return [
+    yield [
         "This is sentence 1.",
         "This is a longer sentence 2.",
     ]

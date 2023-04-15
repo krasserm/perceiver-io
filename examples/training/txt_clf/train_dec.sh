@@ -4,7 +4,7 @@ python -m perceiver.scripts.text.classifier fit \
   --model.encoder.dropout=0.0 \
   --model.decoder.dropout=0.1 \
   --data=ImdbDataModule \
-  --data.tokenizer=deepmind/language-perceiver \
+  --data.tokenizer=krasserm/perceiver-io-mlm \
   --data.add_special_tokens=true \
   --data.max_seq_len=2048 \
   --data.task=clf \

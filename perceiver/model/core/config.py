@@ -40,6 +40,13 @@ class DecoderConfig:
         return _base_kwargs(self, DecoderConfig, exclude)
 
 
+@dataclass
+class ClassificationDecoderConfig(DecoderConfig):
+    num_output_queries: int = 1
+    num_output_query_channels: int = 256
+    num_classes: int = 100
+
+
 E = TypeVar("E", bound=EncoderConfig)
 D = TypeVar("D", bound=DecoderConfig)
 
@@ -52,7 +59,6 @@ class PerceiverIOConfig(Generic[E, D]):
     num_latent_channels: int
     activation_checkpointing: bool = False
     activation_offloading: bool = False
-    params: Optional[str] = None
 
 
 @dataclass

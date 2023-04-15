@@ -2,16 +2,17 @@
 
 ## Overview
 
-Training examples are provided as executable Python and shell scripts in [examples/training](../examples/training).
-They are tested on a machine with 4 RTX 3080ti GPUs (12 GB memory each). You'll need to adjust some settings (GPU
-count, batch size, ...) for running them on a different hardware configuration. Furthermore, I didn't really tune
-these examples, so you'll likely get better results with a bit of experimentation.
+[Training examples](../examples/training) are provided as executable Python scripts (`train.py`) and shell scripts
+(`train.sh`). They are tested on a machine with 4 RTX 3080ti GPUs (12 GB memory each). You'll need to adjust some
+settings (GPU count, batch size, ...) for running them on a different hardware configuration. Furthermore, I didn't
+really tune these examples, so you'll likely get better results with a bit of experimentation. For
+[dataset preprocessing](dataset-preproc.md) some training examples also provide a `prep.sh` script.
 
 ## Training checkpoints
 
 Some training examples depend on checkpoints produced by other examples. Default checkpoint paths used in the training
-scripts refer to existing [training checkpoints](pretrained-models.md#training-checkpoints) which can be downloaded to
-a local `logs` directory with:
+scripts refer to existing [training checkpoints](https://martin-krasser.com/perceiver/logs-0.8.0/) which can be downloaded
+to a local `logs` directory with:
 
 ```shell
 bash examples/training/download_checkpoints.sh logs
@@ -24,16 +25,17 @@ accordingly. Checkpoints and Tensorboard logs from newly executed examples are a
 
 ### Masked language modeling
 
-Fine-tune a pretrained language model with masked language modeling and whole word masking on the IMDb dataset
-(*unsupervised* split). Fine-tuning on IMDb gives a better performance on downstream [sentiment analysis](#sentiment-analysis).
+Fine-tune a [pretrained language model](pretrained-models.md#krassermperceiver-io-mlm) with masked language modeling
+and whole word masking on the IMDb dataset (*unsupervised* split). Fine-tuning on IMDb gives a better performance on
+downstream [sentiment analysis](#sentiment-analysis).
 
 The pretrained model is specified in Section 4 (Table 1) and Appendix F (Table 11) of the
 [Perceiver IO paper](https://arxiv.org/abs/2107.14795) (UTF-8 bytes tokenization, vocabulary size of 262, 201M
-parameters). Pretrained `deepmind/language-perceiver` weights are downloaded from the 🤗 Hub.
+parameters).
 
-The tokenizer is a UTF-8 bytes tokenizer and the model attends to the raw UTF-8 bytes of the input. Word masking is done
-dynamically at data loading time i.e. each epoch has a different set of words masked. Static word masking can be enabled
-by setting `--data.static_masking=true`.
+The tokenizer is a UTF-8 bytes tokenizer and the model cross-attends to the raw UTF-8 bytes of the input. Word masking
+is done dynamically at data loading time i.e. each epoch has a different set of words masked. Static word masking can
+be enabled by setting `--data.static_masking=true`.
 
 - Data prep (command line): [examples/training/mlm/prep.sh](../examples/training/mlm/prep.sh)
   ```shell
