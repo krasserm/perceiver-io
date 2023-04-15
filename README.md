@@ -62,7 +62,7 @@ and the 🤗 Perceiver UTF-8 bytes tokenizer.
 ### Via pip
 
 ```shell
-pip install perceiver-io[text,vision]
+pip install perceiver-io[text,vision,audio]
 ```
 
 ### From sources
@@ -102,6 +102,8 @@ See [Docker image](docs/docker-image.md) for details.
 
 ### Inference
 
+#### Optical flow
+
 Compute the optical flow between consecutive frames of an input video and write the rendered results to an output
 video:
 
@@ -135,6 +137,30 @@ Here is a side-by-side comparison of the input and output video:
 <p align="center">
     <img src="docs/images/optical-flow.gif" alt="optical-flow-sbs">
 </p>
+
+#### Symbolic audio generation
+
+Create audio sequences by generating symbolic ([MIDI](https://en.wikipedia.org/wiki/MIDI)) audio data and converting the
+generated audio symbols into WAV output using [fluidsynth](https://www.fluidsynth.org/) (_Note:_ fluidsynth must be installed
+in order for the following example to work):  
+
+```python
+from transformers import pipeline
+from pretty_midi import PrettyMIDI
+from perceiver.model.audio import symbolic  # auto-class registration
+
+repo_id = "krasserm/perceiver-ar-sam-giant-midi"
+
+prompt = PrettyMIDI("prompt.mid")
+audio_generator = pipeline("symbolic-audio-generation", model=repo_id)
+
+output = audio_generator(prompt, max_new_tokens=64, num_latents=1, do_sample=True, top_p=0.95, temperature=1.0, render=True)
+
+with open("generated_audio.wav", "wb") as f:
+    f.write(output["generated_audio_wav"])
+```
+
+Examples of generated audio sequences are available on the 🤗 [hub](https://huggingface.co/krasserm/perceiver-ar-sam-giant-midi#audio-samples).
 
 See [inference examples](https://colab.research.google.com/github/krasserm/perceiver-io/blob/main/examples/inference.ipynb)
 for more examples.

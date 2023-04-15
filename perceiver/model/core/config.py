@@ -70,6 +70,7 @@ class PerceiverARConfig:
     cross_attention_widening_factor: int = 4
     cross_attention_dropout: float = 0.5
     post_attention_dropout: float = 0.0
+    residual_dropout: float = 0.0
     activation_checkpointing: bool = False
     activation_offloading: bool = False
 

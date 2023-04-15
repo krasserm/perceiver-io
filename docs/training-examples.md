@@ -187,3 +187,48 @@ each.
   ```shell
   bash examples/training/clm/train_fsdp.sh
   ```
+
+### Symbolic audio modeling
+
+#### Maestro V3
+
+Train a small, randomly initialized Perceiver AR audio model (28.5M parameters) with the task of autoregressive
+symbolic audio modeling on the [Maestro V3](https://magenta.tensorflow.org/datasets/maestro#v300) dataset.
+This example is configured to run on 2 RTX 3090 GPUs with 24GB memory each.
+
+- Data prep (command line): [examples/training/sam/maestrov3/prep.sh](../examples/training/sam/maestrov3/prep.sh)
+  ```shell
+  bash examples/training/sam/maestrov3/prep.sh
+  ```
+
+- Training (command line): [examples/training/sam/maestrov3/train.sh](../examples/training/sam/maestrov3/train.sh)
+  ```shell
+  bash examples/training/sam/maestrov3/train.sh
+  ```
+
+- Training (Python script): [examples/training/sam/maestrov3/train.py](../examples/training/sam/maestrov3/train.py)
+  ```shell
+  python examples/training/sam/maestrov3/train.py
+  ```
+
+#### GiantMIDI-Piano
+
+Train a medium, randomly initialized Perceiver AR audio model (~134M parameters) with the task of autoregressive
+symbolic audio modeling on the [GiantMIDI-Piano](https://github.com/bytedance/GiantMIDI-Piano) dataset.
+This example uses a custom dataset split for the training and validation subsets.
+The example is configured to run on 2 RTX 3090 GPUs with 24GB memory each.
+
+- Data prep (command line): [examples/training/sam/giantmidi/prep.sh](../examples/training/sam/giantmidi/prep.sh)
+  ```shell
+  bash examples/training/sam/giantmidi/prep.sh
+  ```
+
+- Training (command line): [examples/training/sam/giantmidi/train.sh](../examples/training/sam/giantmidi/train.sh)
+  ```shell
+  bash examples/training/sam/giantmidi/train.sh
+  ```
+
+- Training (Python script): [examples/training/sam/giantmidi/train.py](../examples/training/sam/giantmidi/train.py)
+  ```shell
+  python examples/training/sam/giantmidi/train.py
+  ```

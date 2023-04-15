@@ -15,12 +15,13 @@ class Sequential(nn.Sequential):
 
 
 class Residual(nn.Module):
-    def __init__(self, module: nn.Module):
+    def __init__(self, module: nn.Module, dropout: float = 0.0):
         super().__init__()
         self.module = module
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, *args, **kwargs):
-        return self.module(*args, **kwargs) + args[0]
+        return self.dropout(self.module(*args, **kwargs)) + args[0]
 
 
 def init_parameters(module, init_scale):

@@ -1,6 +1,7 @@
 import os
 
 import jsonargparse
+from perceiver.model.audio import symbolic as sam
 
 from perceiver.model.text import classifier as txt_clf, clm, mlm
 from perceiver.model.vision import image_classifier as img_clf, optical_flow as opt_flow
@@ -54,6 +55,12 @@ def convert_training_checkpoints(output_dir, **kwargs):
     img_clf.convert_mnist_classifier_checkpoint(
         save_dir=os.path.join(output_dir, "perceiver-io-img-clf-mnist"),
         ckpt_url=checkpoint_url("img_clf/version_0/checkpoints/epoch=025-val_loss=0.065.ckpt"),
+        **kwargs,
+    )
+
+    sam.convert_checkpoint(
+        save_dir=os.path.join(output_dir, "perceiver-ar-sam-giant-midi"),
+        ckpt_url=checkpoint_url("sam/version_1/checkpoints/epoch=027-val_loss=1.944.ckpt"),
         **kwargs,
     )
 

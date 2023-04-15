@@ -47,6 +47,7 @@ torchvision = {version = "^0.15", optional = true}
 opencv-python = {version = "^4.6.0.66", optional = true}
 jsonargparse = {extras = ["signatures"], version = "^4.18"}
 fsspec = {extras = ["s3"], version = "*"}
+pretty_midi = {version = "^0.2.10", optional = true}
 
 [tool.poetry.group.dev.dependencies]
 invoke = "^1.6.0"
@@ -69,6 +70,7 @@ termcolor = "2.0.1"
 [tool.poetry.extras]
 text = ["datasets", "tokenizers", "transformers"]
 vision = ["datasets", "torchvision", "opencv-python"]
+audio = ["datasets", "pretty_midi", "transformers"]
 
 [tool.black]
 line-length = 120
