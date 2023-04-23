@@ -3,7 +3,8 @@ import pytorch_lightning as pl
 
 from examples.training.mlm.train import config
 from perceiver.data.text import ImdbDataModule, Task
-from perceiver.model.text.classifier import ClassificationDecoderConfig, LitTextClassifier
+from perceiver.model.core import ClassificationDecoderConfig
+from perceiver.model.text.classifier import LitTextClassifier
 from perceiver.scripts.lrs import ConstantWithWarmupLR
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.strategies import DDPStrategy
@@ -26,7 +27,7 @@ config.encoder.freeze = True
 config.encoder.dropout = 0.0
 
 data = ImdbDataModule(
-    tokenizer="deepmind/language-perceiver",
+    tokenizer="krasserm/perceiver-io-mlm",
     add_special_tokens=True,
     max_seq_len=config.encoder.max_seq_len,
     batch_size=64,

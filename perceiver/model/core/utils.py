@@ -1,5 +1,3 @@
-import os
-
 import torch.nn as nn
 
 
@@ -38,8 +36,3 @@ def init_parameters(module, init_scale):
 def freeze(module: nn.Module):
     for param in module.parameters():
         param.requires_grad = False
-
-
-def is_checkpoint(path: str):
-    # TODO: provide a more robust implementation
-    return os.path.splitext(path)[1] == ".ckpt"

@@ -1,150 +1,141 @@
 # Pretrained models
 
-Pretrained weights of [official models](#official-models) are automatically downloaded from the 🤗 Hub and converted
-to the model implementations of this repository. [Checkpoints](#training-checkpoints) from training examples are available
-too.
-
 ## Official models
 
-### Masked language model
-
-Perceiver IO masked language model (UTF-8 bytes tokenization, vocabulary size of 262, 201M parameters), as specified
-in Section 4 (Table 1) and Appendix F (Table 11) of the [Perceiver IO paper](https://arxiv.org/abs/2107.14795):
-
-```python
-from transformers import AutoConfig
-from perceiver.model.text.mlm import convert_config, LitMaskedLanguageModel, MaskedLanguageModel
-
-# Import and convert language model configuration from Hugging Face Hub
-config = convert_config(AutoConfig.from_pretrained("deepmind/language-perceiver"))
-
-# Construct a PyTorch model and load pretrained weights
-model = MaskedLanguageModel(config)
-
-# Alternatively, construct a PyTorch Lightning module and load pretrained weights  
-lit_model = LitMaskedLanguageModel.create(config)
-```
-
-See [Model construction](model-construction.md) for further details. On the command line, the pretrained model can be
-referenced with the `--model.params=deepmind/language-perceiver` option.
+These Perceiver models are weight-equivalent to the official 🤗 Perceiver models but based on model
+classes from this `perceiver-io` library. Official models have been [converted](../examples/convert.py) and
+to `perceiver-io` 🤗 models and pushed to the 🤗 Hub with:
 
 ```shell
-python -m perceiver.scripts.text.mlm fit \
-  --model.params=deepmind/language-perceiver \
-  ...
+python examples/convert.py official-models --push_to_hub=true
 ```
 
-### ImageNet classifier
+These are currently:
 
-Perceiver IO ImageNet classifier (config A, 2D Fourier features, 48.8M parameters), as specified in Appendix A of the
-[Perceiver IO paper](https://arxiv.org/abs/2107.14795):
+### [krasserm/perceiver-io-mlm](https://huggingface.co/krasserm/perceiver-io-mlm)
+
+A Perceiver IO masked language model converted from the official [deepmind/language-perceiver](https://huggingface.co/deepmind/language-perceiver)
+model. It is specified in Section 4 (Table 1) and Appendix F (Table 11) of the [Perceiver IO paper](https://arxiv.org/abs/2107.14795)
+(UTF-8 bytes tokenization, vocabulary size of 262, 201M parameters).
 
 ```python
-from transformers import AutoConfig
-from perceiver.model.vision.image_classifier import convert_config, ImageClassifier, LitImageClassifier
+from transformers import AutoModelForMaskedLM, AutoTokenizer, pipeline
+from perceiver.model.text import mlm  # auto-class registration
 
-# Import and convert image classification model configuration from Hugging Face Hub
-config = convert_config(AutoConfig.from_pretrained("deepmind/vision-perceiver-fourier"))
+repo_id = "krasserm/perceiver-io-mlm"
 
-# Construct a PyTorch model and load pretrained weights
-model = ImageClassifier(config)
+model = AutoModelForMaskedLM.from_pretrained(repo_id)
+tokenizer = AutoTokenizer.from_pretrained(repo_id)
 
-# Alternatively, construct a PyTorch Lightning module and load pretrained weights  
-lit_model = LitImageClassifier.create(config)
+filler_pipeline = pipeline("fill-mask", model=repo_id)
 ```
 
-On the command line, the pretrained model can be referenced with the `--model.params=deepmind/vision-perceiver-fourier`
-option.
+### [krasserm/perceiver-io-img-clf](https://huggingface.co/krasserm/perceiver-io-img-clf)
 
-```shell
-python -m perceiver.scripts.vision.classifier fit \
-  --model.params=deepmind/vision-perceiver-fourier \
-  ...
-```
-
-### Optical flow
-
-Perceiver IO optical flow (3x3 patch size, frame concatenation, no downsample, 41M parameters),
-as specified in Appendix H (Table 16) of the [Perceiver IO paper](https://arxiv.org/abs/2107.14795):
+A Perceiver IO image classifier converted from the official [deepmind/vision-perceiver-fourier](https://huggingface.co/deepmind/vision-perceiver-fourier)
+model. It is specified in Appendix A of the [Perceiver IO paper](https://arxiv.org/abs/2107.14795) (2D Fourier features).
 
 ```python
-from transformers import AutoConfig
-from perceiver.model.vision.optical_flow import convert_config, OpticalFlow
+from transformers import AutoModelForImageClassification, AutoImageProcessor, pipeline
+from perceiver.model.vision import image_classifier  # auto-class registration
 
-# Import and convert optical flow model configuration from Hugging Face Hub
-config = convert_config(AutoConfig.from_pretrained("deepmind/optical-flow-perceiver"))
+repo_id = "krasserm/perceiver-io-img-clf"
 
-# Construct a PyTorch model and load pretrained weights
-model = OpticalFlow(config)
+model = AutoModelForImageClassification.from_pretrained(repo_id)
+processor = AutoImageProcessor.from_pretrained(repo_id)
+
+classifier_pipeline = pipeline("image-classification", model=repo_id)
+```
+
+### [krasserm/perceiver-io-optical-flow](https://huggingface.co/krasserm/perceiver-io-optical-flow)
+
+A Perceiver IO optical flow model converted from the official [deepmind/optical-flow-perceiver](https://huggingface.co/deepmind/optical-flow-perceiver)
+model. It is specified in Appendix H (Table 16) of the [Perceiver IO paper](https://arxiv.org/abs/2107.14795).
+
+```python
+from transformers import pipeline
+from perceiver.model.vision.optical_flow import OpticalFlow, OpticalFlowPerceiver  # also registers pipeline
+
+repo_id = "krasserm/perceiver-io-optical-flow"
+
+model = OpticalFlowPerceiver.from_pretrained(repo_id)
+
+flow_pipeline = pipeline("optical-flow", model=repo_id)
 ```
 
 ## Training checkpoints
 
-Checkpoints from [training examples](training-examples.md) can be downloaded to a local `logs` directory with
+Lightning checkpoints from [training examples](training-examples.md) have been converted to `perceiver-io` 🤗 models
+and pushed to the 🤗 Hub with:
 
 ```shell
-bash examples/training/download_checkpoints.sh logs
+python examples/convert.py training-checkpoints --push_to_hub=true
 ```
 
-and then loaded with Lightning wrappers of models:
+### [krasserm/perceiver-ar-clm-base](https://huggingface.co/krasserm/perceiver-ar-clm-base)
+
+A Perceiver AR causal language model converted from the results of [this training example](training-examples.md#model-2)
+(Model 2). It has 455M parameters and has been trained on 79B tokens from the C4 dataset.
 
 ```python
-from perceiver.model.text.classifier import LitTextClassifier
-from perceiver.model.text.clm import LitCausalLanguageModel
-from perceiver.model.text.mlm import LitMaskedLanguageModel
-from perceiver.model.vision.image_classifier import LitImageClassifier
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+from perceiver.model.text import clm  # auto-class registration
 
-# Official deepmind/language-perceiver model fine-tuned with MLM on IMDb dataset
-lit_model_1 = LitMaskedLanguageModel.load_from_checkpoint(
-    "logs/mlm/version_0/checkpoints/epoch=012-val_loss=1.165.ckpt"
-)
+repo_id = "krasserm/perceiver-ar-clm-base"
 
-# IMDb sentiment classifier trained on IMDb dataset (with frozen encoder of lit_model_1)
-lit_model_2 = LitTextClassifier.load_from_checkpoint(
-    "logs/txt_clf/version_0/checkpoints/epoch=009-val_loss=0.215.ckpt"
-)
+model = AutoModelForCausalLM.from_pretrained(repo_id)
+tokenizer = AutoTokenizer.from_pretrained(repo_id)
 
-# IMDb sentiment classifier trained on IMDb dataset (all weights of lit_model_2 fine-tuned)
-lit_model_3 = LitTextClassifier.load_from_checkpoint(
-    "logs/txt_clf/version_1/checkpoints/epoch=006-val_loss=0.156.ckpt"
-)
-
-# Autoregressive language model trained on WikiText-103-raw dataset (model 1)
-lit_model_4 = LitCausalLanguageModel.load_from_checkpoint(
-    "logs/clm/version_0/checkpoints/epoch=011-val_loss=0.876.ckpt"
-)
-
-# Autoregressive language model trained on 1e10 tokens of the C4 dataset  (model 2)
-lit_model_5 = LitCausalLanguageModel.load_from_checkpoint(
-    "logs/clm-fsdp/version_0/checkpoints/epoch=000-val_loss=3.070.ckpt"
-)
-
-# Image classifier trained on MNIST dataset
-lit_model_6 = LitImageClassifier.load_from_checkpoint(
-    "logs/img_clf/version_0/checkpoints/epoch=025-val_loss=0.065.ckpt"
-)
+generator_pipeline = pipeline("text-generation", model=repo_id)
 ```
 
-Wrapped PyTorch models are accessible with the `model` property e.g.:
+### [krasserm/perceiver-io-mlm-imdb](https://huggingface.co/krasserm/perceiver-io-mlm-imdb)
+
+A Perceiver IO masked language model fine-tuned on IMDb in [this training example](training-examples.md#masked-language-modeling).
+Fine-tuning used the pretrained weights of [krasserm/perceiver-io-mlm](#krassermperceiver-io-mlm).
 
 ```python
-from perceiver.model.text.mlm import MaskedLanguageModel
+from transformers import AutoModelForMaskedLM, AutoTokenizer, pipeline
+from perceiver.model.text import mlm  # auto-class registration
 
-# Access to wrapped MaskedLanguageModel
-model_1 = lit_model_1.model
-assert type(model_1) == MaskedLanguageModel
+repo_id = "krasserm/perceiver-io-mlm-imdb"
 
-...
+model = AutoModelForMaskedLM.from_pretrained(repo_id)
+tokenizer = AutoTokenizer.from_pretrained(repo_id)
+
+filler_pipeline = pipeline("fill-mask", model=repo_id)
 ```
 
-Lightning wrappers also support remote loading of checkpoints e.g.:
+### [krasserm/perceiver-io-txt-clf-imdb](https://huggingface.co/krasserm/perceiver-io-txt-clf-imdb)
+
+A Perceiver IO sentiment analysis model trained on IMDb in [this training example](training-examples.md#sentiment-analysis).
+Classifier training used the pretrained Perceiver IO encoder of [krasserm/perceiver-io-mlm-imdb](#krassermperceiver-io-mlm-imdb).
 
 ```python
-from perceiver.model.text.mlm import LitMaskedLanguageModel
+from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
+from perceiver.model.text import classifier  # auto-class registration
 
-lit_model_1 = LitMaskedLanguageModel.load_from_checkpoint(
-    "https://martin-krasser.com/perceiver/logs-0.8.0/mlm/version_0/checkpoints/epoch=012-val_loss=1.165.ckpt"
-)
+repo_id = "krasserm/perceiver-io-txt-clf-imdb"
 
-...
+model = AutoModelForSequenceClassification.from_pretrained(repo_id)
+tokenizer = AutoTokenizer.from_pretrained(repo_id)
+
+classifier_pipeline = pipeline("sentiment-analysis", model=repo_id)
+```
+
+### [krasserm/perceiver-io-img-clf-mnist](https://huggingface.co/krasserm/perceiver-io-img-clf-mnist)
+
+A small Perceiver IO image classifier trained on the MNIST dataset in [this training example](training-examples.md#image-classification).
+Encoder cross-attention is on pixel-level.
+
+```python
+from transformers import AutoModelForImageClassification, AutoImageProcessor, pipeline
+from perceiver.model.vision import image_classifier  # auto-class registration
+
+repo_id = "krasserm/perceiver-io-img-clf-mnist"
+
+model = AutoModelForImageClassification.from_pretrained(repo_id)
+processor = AutoImageProcessor.from_pretrained(repo_id)
+
+classifier_pipeline = pipeline("image-classification", model=repo_id)
 ```

@@ -1,8 +1,8 @@
 python -m perceiver.scripts.text.mlm fit \
-  --model.params=deepmind/language-perceiver \
+  --model.params=krasserm/perceiver-io-mlm \
   --model.activation_checkpointing=true \
   --data=ImdbDataModule \
-  --data.tokenizer=deepmind/language-perceiver \
+  --data.tokenizer=krasserm/perceiver-io-mlm \
   --data.add_special_tokens=true \
   --data.static_masking=false \
   --data.max_seq_len=2048 \

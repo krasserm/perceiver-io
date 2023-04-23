@@ -2,12 +2,8 @@ import examples.training  # noqa: F401
 import pytorch_lightning as pl
 
 from perceiver.data.vision import MNISTDataModule
-from perceiver.model.vision.image_classifier import (
-    ClassificationDecoderConfig,
-    ImageEncoderConfig,
-    LitImageClassifier,
-    PerceiverIOConfig,
-)
+from perceiver.model.core import ClassificationDecoderConfig
+from perceiver.model.vision.image_classifier import ImageClassifierConfig, ImageEncoderConfig, LitImageClassifier
 from perceiver.scripts.lrs import ConstantWithWarmupLR
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.strategies import DDPStrategy
@@ -27,7 +23,7 @@ setattr(LitImageClassifier, "configure_optimizers", configure_optimizers),
 
 data = MNISTDataModule(batch_size=128)
 
-config = PerceiverIOConfig(
+config = ImageClassifierConfig(
     encoder=ImageEncoderConfig(
         image_shape=data.image_shape,
         num_frequency_bands=32,

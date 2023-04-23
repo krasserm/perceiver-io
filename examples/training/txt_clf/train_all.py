@@ -27,7 +27,7 @@ config.encoder.freeze = False
 config.encoder.dropout = 0.1
 
 data = ImdbDataModule(
-    tokenizer="deepmind/language-perceiver",
+    tokenizer="krasserm/perceiver-io-mlm",
     add_special_tokens=True,
     max_seq_len=config.encoder.max_seq_len,
     batch_size=64,

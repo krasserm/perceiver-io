@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "perceiver-io"
-version = "0.8.2"
+version = "0.9.0"
 description = "Perceiver IO"
 readme = "README.md"
 authors = [
@@ -42,7 +42,7 @@ einops = "^0.4"
 cchardet = "^2.1"
 datasets = {version = "^2.4", optional = true}
 tokenizers = {version = "^0.12", optional = true}
-transformers = {version = "^4.21", optional = true}
+transformers = {version = "^4.28", optional = true}
 torchvision = {version = "^0.15", optional = true}
 opencv-python = {version = "^4.6.0.66", optional = true}
 jsonargparse = {extras = ["signatures"], version = "^4.18"}

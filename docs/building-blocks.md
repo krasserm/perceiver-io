@@ -1,7 +1,8 @@
 # Building blocks
 
 The following subsections map Perceiver, Perceiver IO and Perceiver AR concepts to the [core modules](../perceiver/model/core/modules.py)
-of this library. Core modules are the building blocks of concrete PyTorch models (see also [model construction](model-construction.md)).
+of this library. Core modules are the building blocks of concrete backend models (see also [library-design](library-design.md)
+and [model construction](model-construction.md)).
 
 ## Perceiver IO
 
