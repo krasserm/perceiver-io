@@ -197,7 +197,7 @@ images = mnist_dataset["image"]
 labels = mnist_dataset["label"]
 
 classifier = pipeline("image-classification", model="example/mnist-classifier")
-predictions = [int(pred[0]["label"]) for pred in classifier(images)]
+predictions = [pred[0]["label"] for pred in classifier(images)]
 
 print(f"Labels:      {labels}")
 print(f"Predictions: {predictions}")
