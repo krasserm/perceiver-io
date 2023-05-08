@@ -6,8 +6,8 @@ authors:
     given-names: "Martin"
   - family-names: "Stumpf"
     given-names: "Christoph"
-version: 0.9.0
-doi: 10.5281/zenodo.7856979
-date-released: 2023-04-23
+version: 0.10.0
+doi: 10.5281/zenodo.7907181
+date-released: 2023-05-08
 url: "https://github.com/krasserm/perceiver-io"
 license: "Apache-2.0"
