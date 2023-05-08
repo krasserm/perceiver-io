@@ -250,6 +250,7 @@ class CrossAttentionLayer(Sequential):
         causal_attention: bool = False,
         widening_factor: int = 1,
         dropout: float = 0.0,
+        residual_dropout: float = 0.0,
         attention_residual: bool = True,
         qkv_bias: bool = True,
         out_bias: bool = True,
@@ -268,8 +269,8 @@ class CrossAttentionLayer(Sequential):
             out_bias=out_bias,
         )
         super().__init__(
-            Residual(cross_attn) if attention_residual else cross_attn,
-            Residual(MLP(num_q_input_channels, widening_factor, bias=mlp_bias)),
+            Residual(cross_attn, residual_dropout) if attention_residual else cross_attn,
+            Residual(MLP(num_q_input_channels, widening_factor, bias=mlp_bias), residual_dropout),
         )
 
 
@@ -284,6 +285,7 @@ class SelfAttentionLayer(Sequential):
         causal_attention: bool = False,
         widening_factor: int = 1,
         dropout: float = 0.0,
+        residual_dropout: float = 0.0,
         qkv_bias: bool = True,
         out_bias: bool = True,
         mlp_bias: bool = True,
@@ -300,8 +302,8 @@ class SelfAttentionLayer(Sequential):
             out_bias=out_bias,
         )
         super().__init__(
-            Residual(self_attn),
-            Residual(MLP(num_channels, widening_factor, bias=mlp_bias)),
+            Residual(self_attn, residual_dropout),
+            Residual(MLP(num_channels, widening_factor, bias=mlp_bias), residual_dropout),
         )
 
 
@@ -317,6 +319,7 @@ class SelfAttentionBlock(Sequential):
         causal_attention: bool = False,
         widening_factor: int = 1,
         dropout: float = 0.0,
+        residual_dropout: float = 0.0,
         activation_checkpointing: bool = False,
         activation_offloading: bool = False,
         qkv_bias: bool = True,
@@ -333,6 +336,7 @@ class SelfAttentionBlock(Sequential):
                 causal_attention=causal_attention,
                 widening_factor=widening_factor,
                 dropout=dropout,
+                residual_dropout=residual_dropout,
                 qkv_bias=qkv_bias,
                 out_bias=out_bias,
                 mlp_bias=mlp_bias,
@@ -376,6 +380,7 @@ class PerceiverEncoder(nn.Module):
         first_self_attention_block_shared: bool = True,
         self_attention_widening_factor: int = 1,
         dropout: float = 0.0,
+        residual_dropout: float = 0.0,
         init_scale: float = 0.02,
         activation_checkpointing: bool = False,
         activation_offloading: bool = False,
@@ -407,6 +412,7 @@ class PerceiverEncoder(nn.Module):
         :param first_self_attention_block_shared: Whether the first self-attention block should share its weights
             with subsequent self-attention blocks (if any).
         :param dropout: Dropout probability for self- and cross-attention layers.
+        :param residual_dropout: Dropout probability for residual connections.
         :param init_scale: Standard deviation for random normal initialization of parameters.
         :param activation_checkpointing: If True, implements an activation checkpoint for each self-attention
             layer and each cross-attention layer.
@@ -441,6 +447,7 @@ class PerceiverEncoder(nn.Module):
                 num_v_channels=num_cross_attention_v_channels,
                 widening_factor=cross_attention_widening_factor,
                 dropout=dropout,
+                residual_dropout=residual_dropout,
             )
             return (
                 checkpoint_wrapper(layer, offload_to_cpu=activation_offloading) if activation_checkpointing else layer
@@ -455,6 +462,7 @@ class PerceiverEncoder(nn.Module):
                 num_v_channels=num_self_attention_v_channels,
                 widening_factor=self_attention_widening_factor,
                 dropout=dropout,
+                residual_dropout=residual_dropout,
                 activation_checkpointing=activation_checkpointing,
                 activation_offloading=activation_offloading,
             )
@@ -597,6 +605,7 @@ class PerceiverAR(nn.Module):
         cross_attention_widening_factor: int = 4,
         cross_attention_dropout: float = 0.5,
         post_attention_dropout: float = 0.0,
+        residual_dropout: float = 0.0,
         activation_checkpointing: bool = False,
         activation_offloading: bool = False,
     ):
@@ -613,6 +622,7 @@ class PerceiverAR(nn.Module):
         :param cross_attention_dropout: Probability of dropping positions in the prefix sequence.
         :param post_attention_dropout: Probability of dropping cross- and self-attention scores (same as `dropout`
             in Perceiver IO encoder and decoder).
+        :param residual_dropout: Probability of dropping residual connections.
         :param activation_checkpointing: If True, implements an activation checkpoint for each self-attention
             layer and cross-attention layer.
         :param activation_offloading: If True, offloads checkpointed activations to CPU.
@@ -628,6 +638,7 @@ class PerceiverAR(nn.Module):
                 causal_attention=True,
                 widening_factor=cross_attention_widening_factor,
                 dropout=post_attention_dropout,
+                residual_dropout=residual_dropout,
                 qkv_bias=False,
                 out_bias=True,
                 mlp_bias=False,
@@ -644,6 +655,7 @@ class PerceiverAR(nn.Module):
                 causal_attention=True,
                 widening_factor=self_attention_widening_factor,
                 dropout=post_attention_dropout,
+                residual_dropout=residual_dropout,
                 activation_checkpointing=activation_checkpointing,
                 activation_offloading=activation_offloading,
                 qkv_bias=False,

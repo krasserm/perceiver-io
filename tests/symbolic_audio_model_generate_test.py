@@ -1,23 +1,23 @@
 import pytest
 
-from perceiver.model.text.clm import (
-    CausalLanguageModelConfig,
-    PerceiverCausalLanguageModel,
-    PerceiverCausalLanguageModelConfig,
+from perceiver.model.audio.symbolic import (
+    PerceiverSymbolicAudioModel,
+    PerceiverSymbolicAudioModelConfig,
+    SymbolicAudioModelConfig,
 )
 from tests.utils import random_input
 
 
 @pytest.fixture(scope="module")
 def model():
-    config = CausalLanguageModelConfig(
-        vocab_size=262,
+    config = SymbolicAudioModelConfig(
+        vocab_size=389,
         max_seq_len=12,
         max_latents=6,
         num_channels=16,
         num_self_attention_layers=1,
     )
-    yield PerceiverCausalLanguageModel(PerceiverCausalLanguageModelConfig(config))
+    yield PerceiverSymbolicAudioModel(PerceiverSymbolicAudioModelConfig(config))
 
 
 def test_empty_input(model):

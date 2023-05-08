@@ -1,6 +1,10 @@
 import tempfile
+from pathlib import Path
 
 import pytest
+
+TEST_PATH = Path(__file__).parent.resolve()
+TEST_DATA_PATH = TEST_PATH / "data"
 
 
 def pytest_addoption(parser):
