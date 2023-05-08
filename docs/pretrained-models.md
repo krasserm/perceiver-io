@@ -140,7 +140,7 @@ processor = AutoImageProcessor.from_pretrained(repo_id)
 classifier_pipeline = pipeline("image-classification", model=repo_id)
 ```
 
-### [krasserm/perceiver-ar-symbolic-audio](https://huggingface.co/krasserm/perceiver-ar-symbolic-audio)
+### [krasserm/perceiver-ar-sam-giant-midi](https://huggingface.co/krasserm/perceiver-ar-sam-giant-midi)
 
 A medium Perceiver AR audio model trained on the [GiantMIDI-Piano](https://github.com/bytedance/GiantMIDI-Piano) dataset
 in [this training example](training-examples.md#giantmidi-piano).
@@ -150,7 +150,7 @@ The model has 134M parameters and was trained for 27 epochs (153M tokens per epo
 from transformers import pipeline
 from perceiver.model.audio.symbolic import PerceiverSymbolicAudioModel
 
-repo_id = "krasserm/perceiver-ar-symbolic-audio"
+repo_id = "krasserm/perceiver-ar-sam-giant-midi"
 
 model = PerceiverSymbolicAudioModel.from_pretrained(repo_id)
 
