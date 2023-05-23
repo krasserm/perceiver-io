@@ -44,9 +44,6 @@ repos:
     rev: v2.1.0
     hooks:
       - id: ufmt
-        additional_dependencies:
-        - black == 21.12b0
-        - usort == 1.0.0
 
   - repo: https://github.com/charliermarsh/ruff-pre-commit
     rev: v0.0.262
