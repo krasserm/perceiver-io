@@ -89,16 +89,16 @@ class MultiHeadAttention(nn.Module):
         rot_pos_emb_q: Optional[RotaryPositionEmbedding] = None,
         rot_pos_emb_k: Optional[RotaryPositionEmbedding] = None,
     ):
-        """
-        :param x_q: Query input of shape (B, N, D) where B is the batch size, N the query sequence length
-            and D the number of query input channels (= `num_q_input_channels`)
-        :param x_kv: Key/value input of shape (B, L, C) where B is the batch size, L the key/value sequence
-            length and C are the number of key/value input channels (= `num_kv_input_channels`)
-        :param pad_mask: Boolean key padding mask. `True` values indicate padding tokens.
+        """:param x_q: Query input of shape (B, N, D) where B is the batch size, N the query sequence length and D
+        the number of query input channels (= `num_q_input_channels`) :param x_kv: Key/value input of shape (B, L,
+        C) where B is the batch size, L the key/value sequence length and C are the number of key/value input
+        channels (= `num_kv_input_channels`) :param pad_mask: Boolean key padding mask.
+
+        `True` values indicate padding tokens.
         :param rot_pos_emb_q: Applies a rotary position embedding to query i.e. if defined, rotates the query.
         :param rot_pos_emb_k: Applies a rotary position embedding to key i.e. if defined, rotates the key.
-        :return: attention result of shape (B, N, F) where B is the batch size, N the query sequence length
-            and F the number of output channels (= `num_output_channels`)
+        :return: attention result of shape (B, N, F) where B is the batch size, N the query sequence length and F the
+                number of output channels (= `num_output_channels`)
         """
 
         q = self.q_proj(x_q)
@@ -387,35 +387,34 @@ class PerceiverEncoder(nn.Module):
     ):
         """Generic Perceiver IO encoder.
 
-        :param input_adapter: Transforms and position-encodes task-specific input to generic encoder input
-            of shape (B, M, C) where B is the batch size, M the input sequence length and C the number of
-            key/value input channels. C is determined by the `num_input_channels` property of the
-            `input_adapter`.
+        :param input_adapter: Transforms and position-encodes task-specific input to generic encoder input of shape (B,
+                M, C) where B is the batch size, M the input sequence length and C the number of key/value input
+                channels. C is determined by the `num_input_channels` property of the `input_adapter`.
         :param num_latents: Number of latent variables (N).
         :param num_latent_channels: Number of latent channels (D).
         :param num_cross_attention_heads: Number of cross-attention heads.
-        :param num_cross_attention_qk_channels: Number of query and key channels for cross-attention
-            (see `MultiHeadAttention.num_qk_channels` for details).
+        :param num_cross_attention_qk_channels: Number of query and key channels for cross-attention             (see
+                `MultiHeadAttention.num_qk_channels` for details).
         :param num_cross_attention_v_channels: Number of value channels for cross-attention
             (see `MultiHeadAttention.num_v_channels` for details).
         :param num_cross_attention_layers: Number of cross-attention layers (alternating with self-attention blocks).
-        :param first_cross_attention_layer_shared: Whether the first cross-attention layer should share its weights
-            with subsequent cross-attention layers (if any).
+        :param first_cross_attention_layer_shared: Whether the first cross-attention layer should share its weights with
+                subsequent cross-attention layers (if any).
         :param num_self_attention_heads: Number of self-attention heads.
-        :param num_self_attention_qk_channels: Number of query and key channels for self-attention
-            (see `MultiHeadAttention.num_qk_channels` for details).
+        :param num_self_attention_qk_channels: Number of query and key channels for self-attention             (see
+                `MultiHeadAttention.num_qk_channels` for details).
         :param num_self_attention_v_channels: Number of value channels for self-attention
             (see `MultiHeadAttention.num_v_channels` for details).
         :param num_self_attention_layers_per_block: Number of self-attention layers per self-attention block.
         :param num_self_attention_blocks: Number of self-attention blocks, with weights shared between corresponding
             self-attention layers.
-        :param first_self_attention_block_shared: Whether the first self-attention block should share its weights
-            with subsequent self-attention blocks (if any).
+        :param first_self_attention_block_shared: Whether the first self-attention block should share its weights with
+                subsequent self-attention blocks (if any).
         :param dropout: Dropout probability for self- and cross-attention layers.
         :param residual_dropout: Dropout probability for residual connections.
         :param init_scale: Standard deviation for random normal initialization of parameters.
-        :param activation_checkpointing: If True, implements an activation checkpoint for each self-attention
-            layer and each cross-attention layer.
+        :param activation_checkpointing: If True, implements an activation checkpoint for each self-attention layer and
+                each cross-attention layer.
         :param activation_offloading: If True, offloads checkpointed activations to CPU.
         """
         super().__init__()
@@ -532,15 +531,15 @@ class PerceiverDecoder(nn.Module):
         """Generic Perceiver IO decoder.
 
         :param output_adapter: Transforms generic decoder cross-attention output of shape (B, O, F) to task-specific
-            output. B is the batch size, O the output sequence length and F the number of cross-attention output
-            channels.
-        :param output_query_provider: Provides the decoder's output query. Abstracts over output query details e.g.
-            can be a learned query, a deterministic function of the model's input, etc. Configured by `PerceiverIO`
-            subclasses.
+                output. B is the batch size, O the output sequence length and F the number of cross-attention output
+                channels.
+        :param output_query_provider: Provides the decoder's output query. Abstracts over output query details e.g. can
+                be a learned query, a deterministic function of the model's input, etc. Configured by `PerceiverIO`
+                subclasses.
         :param num_latent_channels: Number of latent channels of the Perceiver IO encoder output.
         :param num_cross_attention_heads: Number of cross-attention heads.
-        :param num_cross_attention_qk_channels: Number of query and key channels for cross-attention
-            (see `MultiHeadAttention.num_qk_channels` for details).
+        :param num_cross_attention_qk_channels: Number of query and key channels for cross-attention             (see
+                `MultiHeadAttention.num_qk_channels` for details).
         :param num_cross_attention_v_channels: Number of value channels for cross-attention
             (see `MultiHeadAttention.num_v_channels` for details).
         :param dropout: Dropout probability for cross-attention layer.
@@ -611,20 +610,20 @@ class PerceiverAR(nn.Module):
     ):
         """Implementation of Perceiver AR (https://arxiv.org/abs/2202.07765).
 
-        :param input_adapter: Transforms an input sequence to generic Perceiver AR input. An input adapter may choose
-            to add (absolute) position information to transformed inputs while `PerceiverAR` additionally computes a
-            rotary position embedding (i.e. relative position information) for queries and keys. To support the
-            computation of rotary position embeddings, concrete input adapters need to mixin `RotarySupport`.
+        :param input_adapter: Transforms an input sequence to generic Perceiver AR input. An input adapter may choose to
+                add (absolute) position information to transformed inputs while `PerceiverAR` additionally computes a
+                rotary position embedding (i.e. relative position information) for queries and keys. To support the
+                computation of rotary position embeddings, concrete input adapters need to mixin `RotarySupport`.
         :param num_heads: Number of cross- and self-attention heads.
         :param max_heads_parallel: Maximum number of cross-attention heads to be processed in parallel.
             Default is `num_heads`.
         :param num_self_attention_layers: Number of self-attention layers.
         :param cross_attention_dropout: Probability of dropping positions in the prefix sequence.
-        :param post_attention_dropout: Probability of dropping cross- and self-attention scores (same as `dropout`
-            in Perceiver IO encoder and decoder).
+        :param post_attention_dropout: Probability of dropping cross- and self-attention scores (same as `dropout` in
+                Perceiver IO encoder and decoder).
         :param residual_dropout: Probability of dropping residual connections.
-        :param activation_checkpointing: If True, implements an activation checkpoint for each self-attention
-            layer and cross-attention layer.
+        :param activation_checkpointing: If True, implements an activation checkpoint for each self-attention layer and
+                cross-attention layer.
         :param activation_offloading: If True, offloads checkpointed activations to CPU.
         """
         super().__init__()
