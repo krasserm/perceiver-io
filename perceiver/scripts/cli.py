@@ -38,7 +38,6 @@ class CLI(LightningCLI):
     def configure_optimizers(
         lightning_module: LightningModule, optimizer: Optimizer, lr_scheduler: Optional[LRSchedulerTypeUnion] = None
     ):
-
         if lr_scheduler is None:
             return optimizer
         else:
