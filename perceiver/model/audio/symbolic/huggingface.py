@@ -122,11 +122,11 @@ class PerceiverSymbolicAudioModel(PreTrainedModel):
         """Augments `GenerationMixin.generate` to support a `num_latents` argument.
 
         This argument determines the initial number of latents positions assigned to the end of a prompt. During
-        generation, first, the number of latent positions grows until `self.backend_model.max_latents` is reached,
-        then the prefix length grows until `self.backend_model.max_prefix_len` is reached.
+        generation, first, the number of latent positions grows until `self.backend_model.max_latents` is reached, then
+        the prefix length grows until `self.backend_model.max_prefix_len` is reached.
 
-        If the sequence reaches `self.backend_model.max_seq_len`, the left-most prefix token is discarded so that a
-        new latent position becomes available for generating the next token.
+        If the sequence reaches `self.backend_model.max_seq_len`, the left-most prefix token is discarded so that a new
+        latent position becomes available for generating the next token.
 
         :param num_latents: Initial number of latent positions assigned to the end of the input.
         """

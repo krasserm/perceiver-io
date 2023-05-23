@@ -9,11 +9,11 @@ ci:
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.1.0
+    rev: v4.4.0
     hooks:
       - id: end-of-file-fixer
       - id: trailing-whitespace
-        args: [--markdown-linebreak-ext=md]
+        args: ["--markdown-linebreak-ext=md"]
       - id: check-yaml
       - id: check-json
       - id: check-toml
@@ -22,26 +22,26 @@ repos:
       - id: detect-private-key
 
   - repo: https://github.com/asottile/pyupgrade
-    rev: v2.31.0
+    rev: v3.4.0
     hooks:
       - id: pyupgrade
         args: [--py38-plus]
         name: Upgrade code
 
   - repo: https://github.com/myint/docformatter
-    rev: v1.4
+    rev: v1.7.1
     hooks:
       - id: docformatter
         args: [--in-place, --wrap-summaries=115, --wrap-descriptions=120]
 
   - repo: https://github.com/asottile/yesqa
-    rev: v1.3.0
+    rev: v1.4.0
     hooks:
       - id: yesqa
         name: Unused noqa
 
   - repo: https://github.com/omnilib/ufmt
-    rev: v1.3.2
+    rev: v2.1.0
     hooks:
       - id: ufmt
         additional_dependencies:
@@ -55,8 +55,8 @@ repos:
         args: ["--fix"]
 
   - repo: https://github.com/python-poetry/poetry
-    rev: 1.2.1
+    rev: 1.5.0
     hooks:
       - id: poetry-check
       - id: poetry-lock
-        args: [ "--check" ]
+        args: ["--check"]
