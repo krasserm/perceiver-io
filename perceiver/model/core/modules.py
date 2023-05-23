@@ -66,7 +66,7 @@ class MultiHeadAttention(nn.Module):
 
         num_qk_channels_per_head = num_qk_channels // num_heads
 
-        self.dp_scale = num_qk_channels_per_head ** -0.5
+        self.dp_scale = num_qk_channels_per_head**-0.5
         self.num_heads = num_heads
         self.causal_attention = causal_attention
 

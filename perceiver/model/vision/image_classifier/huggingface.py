@@ -69,7 +69,6 @@ class PerceiverImageClassifierInputProcessor(transformers.PerceiverImageProcesso
     def preprocess(
         self, images: ImageInput, return_tensors: Optional[Union[str, TensorType]] = None, **kwargs
     ) -> BatchFeature:
-
         if self.single_channel:
             images = self.grayscale(images)
 
