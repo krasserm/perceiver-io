@@ -88,3 +88,31 @@ line_length = 120
 
 [tool.coverage.run]
 source = ["perceiver"]
+
+
+[tool.ruff]
+line-length = 120
+# Enable Pyflakes `E` and `F` codes by default.
+select = [
+    "E", "W",  # see: https://pypi.org/project/pycodestyle
+    "F",  # see: https://pypi.org/project/pyflakes
+]
+#extend-select = [
+#    "C4",  # see: https://pypi.org/project/flake8-comprehensions
+#    "SIM",  # see: https://pypi.org/project/flake8-simplify
+#    "RET",  # see: https://pypi.org/project/flake8-return
+#    "PT",  # see: https://pypi.org/project/flake8-pytest-style
+#]
+ignore = [
+    "E731",  # Do not assign a lambda expression, use a def
+]
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".git",
+    "docs",
+]
+ignore-init-module-imports = true
+
+[tool.ruff.mccabe]
+# Unlike Flake8, default to a complexity level of 10.
+max-complexity = 10
