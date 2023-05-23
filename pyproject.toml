@@ -113,6 +113,9 @@ exclude = [
 ]
 ignore-init-module-imports = true
 
+[tool.ruff.per-file-ignores]
+"perceiver/**/__init__.py" = ["F401", "F403"]
+
 [tool.ruff.mccabe]
 # Unlike Flake8, default to a complexity level of 10.
 max-complexity = 10
