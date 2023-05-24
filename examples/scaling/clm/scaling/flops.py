@@ -90,8 +90,11 @@ class ComputeEstimator:
 
 class ModelInfo:
     def __init__(self, num_channels: int, num_layers: int, compute_estimator: ComputeEstimator):
-        """:param num_channels: model dimension :param num_layers: number of self attention layers incl hybrid
-        layer."""
+        """...
+
+        :param num_channels: model dimension.
+        :param num_layers: number of self attention layers incl hybrid layer.
+        """
         self.num_channels = num_channels
         self.num_layers = num_layers
         self.compute_estimator = compute_estimator

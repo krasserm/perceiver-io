@@ -89,12 +89,13 @@ class MultiHeadAttention(nn.Module):
         rot_pos_emb_q: Optional[RotaryPositionEmbedding] = None,
         rot_pos_emb_k: Optional[RotaryPositionEmbedding] = None,
     ):
-        """:param x_q: Query input of shape (B, N, D) where B is the batch size, N the query sequence length and D
-        the number of query input channels (= `num_q_input_channels`) :param x_kv: Key/value input of shape (B, L,
-        C) where B is the batch size, L the key/value sequence length and C are the number of key/value input
-        channels (= `num_kv_input_channels`) :param pad_mask: Boolean key padding mask.
+        """...
 
-        `True` values indicate padding tokens.
+        :param x_q: Query input of shape (B, N, D) where B is the batch size, N the query sequence length and D the
+                number of query input channels (= `num_q_input_channels`)
+        :param x_kv: Key/value input of shape (B, L, C) where B is the batch size, L the key/value sequence length and C
+                are the number of key/value input channels (= `num_kv_input_channels`)
+        :param pad_mask: Boolean key padding mask. `True` values indicate padding tokens.
         :param rot_pos_emb_q: Applies a rotary position embedding to query i.e. if defined, rotates the query.
         :param rot_pos_emb_k: Applies a rotary position embedding to key i.e. if defined, rotates the key.
         :return: attention result of shape (B, N, F) where B is the batch size, N the query sequence length and F the
@@ -393,15 +394,15 @@ class PerceiverEncoder(nn.Module):
         :param num_latents: Number of latent variables (N).
         :param num_latent_channels: Number of latent channels (D).
         :param num_cross_attention_heads: Number of cross-attention heads.
-        :param num_cross_attention_qk_channels: Number of query and key channels for cross-attention             (see
-                `MultiHeadAttention.num_qk_channels` for details).
-        :param num_cross_attention_v_channels: Number of value channels for cross-attention
-            (see `MultiHeadAttention.num_v_channels` for details).
+        :param num_cross_attention_qk_channels: Number of query and key channels for cross-attention
+                (see`MultiHeadAttention.num_qk_channels` for details).
+        :param num_cross_attention_v_channels: Number of value channels for cross-attention (see
+                `MultiHeadAttention.num_v_channels` for details).
         :param num_cross_attention_layers: Number of cross-attention layers (alternating with self-attention blocks).
         :param first_cross_attention_layer_shared: Whether the first cross-attention layer should share its weights with
                 subsequent cross-attention layers (if any).
         :param num_self_attention_heads: Number of self-attention heads.
-        :param num_self_attention_qk_channels: Number of query and key channels for self-attention             (see
+        :param num_self_attention_qk_channels: Number of query and key channels for self-attention (see
                 `MultiHeadAttention.num_qk_channels` for details).
         :param num_self_attention_v_channels: Number of value channels for self-attention
             (see `MultiHeadAttention.num_v_channels` for details).
