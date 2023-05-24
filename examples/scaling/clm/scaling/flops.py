@@ -68,18 +68,18 @@ class ComputeEstimator:
     @staticmethod
     def _mlp_layer(num_channels):
         """MLP FLOPs per latent token per layer."""
-        return 16 * num_channels ** 2
+        return 16 * num_channels**2
 
     def _self_attn_layer(self, num_channels):
         """Self-attention FLOPs per latent token per layer."""
-        qkv = 6 * num_channels ** 2
+        qkv = 6 * num_channels**2
         attn = 2 * num_channels * self.num_latents
-        out = 2 * num_channels ** 2
+        out = 2 * num_channels**2
         return qkv + attn + out
 
     def _cross_attn_layer(self, num_channels):
         """Cross-attention FLOPs per prefix token per layer."""
-        kv = 4 * num_channels ** 2
+        kv = 4 * num_channels**2
         attn = 2 * num_channels * self.num_latents
         return kv + attn
 
@@ -90,9 +90,10 @@ class ComputeEstimator:
 
 class ModelInfo:
     def __init__(self, num_channels: int, num_layers: int, compute_estimator: ComputeEstimator):
-        """
-        :param num_channels: model dimension
-        :param num_layers: number of self attention layers incl hybrid layer
+        """...
+
+        :param num_channels: model dimension.
+        :param num_layers: number of self attention layers incl hybrid layer.
         """
         self.num_channels = num_channels
         self.num_layers = num_layers

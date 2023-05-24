@@ -104,8 +104,8 @@ class FourierPositionEncoding(nn.Module):
         """Fourier-encode positions p using self.num_bands frequency bands.
 
         :param p: positions of shape (*d, c) where c = len(d).
-        :param max_frequencies: maximum frequency for each dimension (1-tuple for sequences,
-               2-tuple for images, ...). If `None` values are derived from shape of p.
+        :param max_frequencies: maximum frequency for each dimension (1-tuple for sequences, 2-tuple for images, ...).
+                If `None` values are derived from shape of p.
         :param include_positions: whether to include input positions p in returned encodings tensor.
         :returns: position encodings tensor of shape (*d, c * (2 * num_bands + include_positions)).
         """

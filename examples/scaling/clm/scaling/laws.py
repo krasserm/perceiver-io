@@ -12,10 +12,10 @@ class ScalingLaw:
     k_d: float
 
     def n_opt(self, flops):
-        return self.k_n * flops ** self.a
+        return self.k_n * flops**self.a
 
     def d_opt(self, flops):
-        return self.k_d * flops ** self.b
+        return self.k_d * flops**self.b
 
     def __str__(self):
         return f"N_opt = {self.k_n:.4f} * C ** {self.a:.2f}\n" f"D_opt = {self.k_d:.4f} * C ** {self.b:.2f}"
@@ -32,4 +32,4 @@ def fit_power_law(xs, ys, m, k0=0.5):
 
 
 def power_law(x, k, m):
-    return k * x ** m
+    return k * x**m

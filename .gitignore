@@ -1,2 +1,4 @@
 .idea/
 dist/
+
+.ruff_cache/
