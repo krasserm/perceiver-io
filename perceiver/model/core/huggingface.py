@@ -1,8 +1,11 @@
-from typing import Sequence
+from dataclasses import dataclass
+from typing import Any, Optional, Sequence
 
 import torch
 import torch.nn as nn
 import transformers
+from transformers import PreTrainedModel
+from transformers.modeling_outputs import CausalLMOutput
 
 from perceiver.model.core.modules import (
     CrossAttentionLayer,
@@ -74,3 +77,102 @@ def copy_classification_decoder_params(src: transformers.PerceiverModel, tgt: Pe
     )
     copy_params(src.decoder.decoder.final_layer, tgt.output_adapter.linear)
     copy_param(src.decoder.decoder.output_position_encodings.position_embeddings, tgt.output_query_provider._query)
+
+
+@dataclass
+class PerceiverCausalSequenceModelOutput(CausalLMOutput):
+    prefix_len: Optional[int] = None
+
+
+class PerceiverCausalSequenceModel(PreTrainedModel):
+    def prepare_inputs_for_generation(self, input_ids, **kwargs):
+        attention_mask = kwargs.get("attention_mask", None)
+        prefix_len = kwargs.get("prefix_len", None)
+
+        if (
+            input_ids.shape[1] - prefix_len == self.backend_model.max_latents
+            and prefix_len < self.backend_model.max_prefix_len
+        ):
+            # num_latents == max_latents reached, but not max_prefix_len yet.
+            # Extend prefix by 1 token and keep num_latents == max_latents.
+            prefix_len += 1
+
+        input_ids = input_ids[:, -self.backend_model.max_seq_len :]
+
+        if attention_mask is not None:
+            attention_mask = attention_mask[:, -self.backend_model.max_seq_len :]
+
+        return {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "prefix_len": prefix_len,
+        }
+
+    def _update_model_kwargs_for_generation(self, outputs: PerceiverCausalSequenceModelOutput, model_kwargs, **kwargs):
+        model_kwargs = super()._update_model_kwargs_for_generation(outputs, model_kwargs, **kwargs)
+        model_kwargs["prefix_len"] = outputs.prefix_len
+        return model_kwargs
+
+    def forward(
+        self,
+        input_ids: torch.LongTensor,
+        prefix_len: int,
+        attention_mask: Optional[torch.FloatTensor] = None,
+        labels: Optional[torch.LongTensor] = None,
+        **kwargs: Any,
+    ):
+        if labels is not None:
+            raise ValueError("Loss computation from labels not supported yet")
+
+        if attention_mask is None:
+            pad_mask = None
+        else:
+            pad_mask = ~attention_mask.type(torch.bool)
+
+        logits = self.backend_model(input_ids, prefix_len=prefix_len, pad_mask=pad_mask)
+        return PerceiverCausalSequenceModelOutput(logits=logits, prefix_len=prefix_len)
+
+    def generate(
+        self,
+        inputs: Optional[torch.Tensor] = None,
+        input_ids: Optional[torch.Tensor] = None,
+        num_latents: int = 1,
+        **kwargs,
+    ):
+        """Augments `GenerationMixin.generate` to support a `num_latents` argument.
+
+        This argument determines the initial number of latents positions assigned to the end of a prompt. During
+        generation, first, the number of latent positions grows until `self.backend_model.max_latents` is reached, then
+        the prefix length grows until `self.backend_model.max_prefix_len` is reached.
+
+        If the sequence reaches `self.backend_model.max_seq_len`, the left-most prefix token is discarded so that a new
+        latent position becomes available for generating the next token.
+
+        :param num_latents: Initial number of latent positions assigned to the end of the input.
+        """
+
+        if input_ids is not None:
+            seq_len = input_ids.shape[1]
+        elif inputs is not None:
+            seq_len = inputs.shape[1]
+        else:
+            raise ValueError("Either inputs or input_ids must be defined")
+
+        if not 0 < seq_len <= self.backend_model.max_seq_len:
+            raise ValueError(f"Input sequence length out of valid range [1..{self.backend_model.max_seq_len}]")
+
+        if not 0 < num_latents <= self.backend_model.max_latents:
+            raise ValueError(f"num_latents={num_latents} out of valid range [1..{self.backend_model.max_latents}]")
+        else:
+            num_latents = min(seq_len, num_latents)
+
+        prefix_len = seq_len - num_latents
+
+        if prefix_len > self.backend_model.max_prefix_len:
+            num_latents_min = num_latents + prefix_len - self.backend_model.max_prefix_len
+            raise ValueError(
+                f"For given sequence of length={seq_len}, num_latents must "
+                f"be in range [{num_latents_min}..{self.backend_model.max_latents}]"
+            )
+
+        return super().generate(inputs=inputs, input_ids=input_ids, prefix_len=prefix_len, **kwargs)

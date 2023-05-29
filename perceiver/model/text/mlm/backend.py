@@ -9,9 +9,10 @@ from perceiver.model.core import (
     PerceiverDecoder,
     PerceiverIO,
     PerceiverIOConfig,
+    TiedTokenOutputAdapter,
     TrainableQueryProvider,
 )
-from perceiver.model.text.common import TextEncoder, TextEncoderConfig, TiedTextOutputAdapter
+from perceiver.model.text.common import TextEncoder, TextEncoderConfig
 
 
 @dataclass
@@ -24,7 +25,7 @@ class TextDecoderConfig(DecoderConfig):
 MaskedLanguageModelConfig = PerceiverIOConfig[TextEncoderConfig, TextDecoderConfig]
 
 
-class TextOutputAdapter(OutputAdapter):
+class TokenOutputAdapter(OutputAdapter):
     def __init__(self, vocab_size: int, num_output_query_channels: int):
         super().__init__()
         self.linear = nn.Linear(num_output_query_channels, vocab_size)
@@ -48,7 +49,7 @@ class MaskedLanguageModel(PerceiverIO):
                 num_query_channels=config.encoder.num_input_channels,
                 init_scale=config.decoder.init_scale,
             )
-            output_adapter = TiedTextOutputAdapter(
+            output_adapter = TiedTokenOutputAdapter(
                 vocab_size=config.decoder.vocab_size,
             )
         else:
@@ -57,7 +58,7 @@ class MaskedLanguageModel(PerceiverIO):
                 num_query_channels=config.decoder.num_output_query_channels,
                 init_scale=config.decoder.init_scale,
             )
-            output_adapter = TextOutputAdapter(
+            output_adapter = TokenOutputAdapter(
                 vocab_size=config.decoder.vocab_size,
                 num_output_query_channels=config.decoder.num_output_query_channels,
             )
@@ -76,7 +77,7 @@ class MaskedLanguageModel(PerceiverIO):
         _, n = x_masked.shape
 
         x_latent = self.encoder(x_masked, pad_mask)
-        if isinstance(self.decoder.output_adapter, TiedTextOutputAdapter):
+        if isinstance(self.decoder.output_adapter, TiedTokenOutputAdapter):
             x_logits = self.decoder(x_latent, txt_embedding=self.encoder.input_adapter.txt_embedding)
         else:
             x_logits = self.decoder(x_latent)

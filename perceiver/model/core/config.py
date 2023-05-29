@@ -81,3 +81,19 @@ class PerceiverARConfig:
 def _base_kwargs(config, base_class, exclude):
     base_field_names = [field.name for field in fields(base_class) if field.name not in exclude]
     return {k: v for k, v in asdict(config).items() if k in base_field_names}
+
+
+@dataclass
+class CausalSequenceModelConfig(PerceiverARConfig):
+    vocab_size: int = 262
+    max_seq_len: int = 4096
+    max_latents: int = 512
+    num_channels: int = 512
+    output_norm: bool = False
+    output_bias: bool = True
+    abs_pos_emb: bool = True
+    init_scale: float = 0.02
+
+    @classmethod
+    def create(cls, **kwargs):
+        return cls(**{field.name: kwargs[field.name] for field in fields(cls) if field.name in kwargs})
