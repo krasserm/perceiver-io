@@ -2,13 +2,12 @@ import enum
 import os
 import subprocess
 import tempfile
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from typing import Any, Dict, Optional
 
 import torch
 from pretty_midi import PrettyMIDI
-from transformers import AutoConfig, AutoModelForCausalLM, Pipeline, PretrainedConfig, PreTrainedModel
-from transformers.modeling_outputs import CausalLMOutput
+from transformers import AutoConfig, AutoModelForCausalLM, Pipeline, PretrainedConfig
 from transformers.pipelines import PIPELINE_REGISTRY
 from transformers.pipelines.base import GenericTensor
 from transformers.utils import ModelOutput
@@ -16,6 +15,7 @@ from transformers.utils import ModelOutput
 from perceiver.data.audio.midi_processor import decode_midi, encode_midi
 from perceiver.model.audio.symbolic.backend import SymbolicAudioModel, SymbolicAudioModelConfig
 from perceiver.model.audio.symbolic.lightning import LitSymbolicAudioModel
+from perceiver.model.core.huggingface import PerceiverCausalSequenceModel, PerceiverCausalSequenceModelOutput
 
 
 class ReturnType(enum.Enum):
@@ -37,13 +37,7 @@ class PerceiverSymbolicAudioModelConfig(PretrainedConfig):
         return SymbolicAudioModelConfig.create(**self.model_config)
 
 
-@dataclass
-class PerceiverSymbolicAudioModelOutput(CausalLMOutput):
-    prefix_len: Optional[int] = None
-
-
-# TODO: create common base class for PerceiverSymbolicAudioModel and PerceiverCausalLanguageModel
-class PerceiverSymbolicAudioModel(PreTrainedModel):
+class PerceiverSymbolicAudioModel(PerceiverCausalSequenceModel):
     config_class = PerceiverSymbolicAudioModelConfig
 
     def __init__(self, config: PerceiverSymbolicAudioModelConfig, **kwargs):
@@ -64,98 +58,6 @@ class PerceiverSymbolicAudioModel(PreTrainedModel):
         hgf_model.backend_model.load_state_dict(model.state_dict())
 
         return hgf_model
-
-    def prepare_inputs_for_generation(self, input_ids, **kwargs):
-        attention_mask = kwargs.get("attention_mask", None)
-        prefix_len = kwargs.get("prefix_len", None)
-
-        if (
-            input_ids.shape[1] - prefix_len == self.backend_model.max_latents
-            and prefix_len < self.backend_model.max_prefix_len
-        ):
-            # num_latents == max_latents reached, but not max_prefix_len yet.
-            # Extend prefix by 1 token and keep num_latents == max_latents.
-            prefix_len += 1
-
-        input_ids = input_ids[:, -self.backend_model.max_seq_len :]
-
-        if attention_mask is not None:
-            attention_mask = attention_mask[:, -self.backend_model.max_seq_len :]
-
-        return {
-            "input_ids": input_ids,
-            "attention_mask": attention_mask,
-            "prefix_len": prefix_len,
-        }
-
-    def _update_model_kwargs_for_generation(self, outputs: PerceiverSymbolicAudioModelOutput, model_kwargs, **kwargs):
-        model_kwargs = super()._update_model_kwargs_for_generation(outputs, model_kwargs, **kwargs)
-        model_kwargs["prefix_len"] = outputs.prefix_len
-        return model_kwargs
-
-    def forward(
-        self,
-        input_ids: torch.LongTensor,
-        prefix_len: int,
-        attention_mask: Optional[torch.FloatTensor] = None,
-        labels: Optional[torch.LongTensor] = None,
-        **kwargs: Any,
-    ):
-        if labels is not None:
-            raise ValueError("Loss computation from labels not supported yet")
-
-        if attention_mask is None:
-            pad_mask = None
-        else:
-            pad_mask = ~attention_mask.type(torch.bool)
-
-        logits = self.backend_model(input_ids, prefix_len=prefix_len, pad_mask=pad_mask)
-        return PerceiverSymbolicAudioModelOutput(logits=logits, prefix_len=prefix_len)
-
-    def generate(
-        self,
-        inputs: Optional[torch.Tensor] = None,
-        input_ids: Optional[torch.Tensor] = None,
-        num_latents: int = 1,
-        **kwargs,
-    ):
-        """Augments `GenerationMixin.generate` to support a `num_latents` argument.
-
-        This argument determines the initial number of latents positions assigned to the end of a prompt. During
-        generation, first, the number of latent positions grows until `self.backend_model.max_latents` is reached, then
-        the prefix length grows until `self.backend_model.max_prefix_len` is reached.
-
-        If the sequence reaches `self.backend_model.max_seq_len`, the left-most prefix token is discarded so that a new
-        latent position becomes available for generating the next token.
-
-        :param num_latents: Initial number of latent positions assigned to the end of the input.
-        """
-
-        if input_ids is not None:
-            seq_len = input_ids.shape[1]
-        elif inputs is not None:
-            seq_len = inputs.shape[1]
-        else:
-            raise ValueError("Either inputs or input_ids must be defined")
-
-        if not 0 < seq_len <= self.backend_model.max_seq_len:
-            raise ValueError(f"Input sequence length out of valid range [1..{self.backend_model.max_seq_len}]")
-
-        if not 0 < num_latents <= self.backend_model.max_latents:
-            raise ValueError(f"num_latents={num_latents} out of valid range [1..{self.backend_model.max_latents}]")
-        else:
-            num_latents = min(seq_len, num_latents)
-
-        prefix_len = seq_len - num_latents
-
-        if prefix_len > self.backend_model.max_prefix_len:
-            num_latents_min = num_latents + prefix_len - self.backend_model.max_prefix_len
-            raise ValueError(
-                f"For given sequence of length={seq_len}, num_latents must "
-                f"be in range [{num_latents_min}..{self.backend_model.max_latents}]"
-            )
-
-        return super().generate(inputs=inputs, input_ids=input_ids, prefix_len=prefix_len, **kwargs)
 
 
 class SymbolicAudioPipeline(Pipeline):
@@ -233,7 +135,7 @@ class SymbolicAudioPipeline(Pipeline):
         input_features = model_inputs["input_features"]
 
         generated = self.model.generate(input_ids=input_features, **generate_kwargs)
-        model_output = PerceiverSymbolicAudioModelOutput(logits=generated)
+        model_output = PerceiverCausalSequenceModelOutput(logits=generated)
         model_output["prompt_length"] = input_features.shape[1]
         return model_output
 
