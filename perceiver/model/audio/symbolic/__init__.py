@@ -1,8 +1,4 @@
-from perceiver.model.audio.symbolic.backend import (
-    SymbolicAudioInputAdapter,
-    SymbolicAudioModel,
-    SymbolicAudioModelConfig,
-)
+from perceiver.model.audio.symbolic.backend import SymbolicAudioModel, SymbolicAudioModelConfig
 from perceiver.model.audio.symbolic.huggingface import (
     convert_checkpoint,
     PerceiverSymbolicAudioModel,

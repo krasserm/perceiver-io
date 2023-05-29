@@ -3,9 +3,13 @@ from dataclasses import dataclass, fields
 import torch
 import torch.nn as nn
 
-from perceiver.model.core import OutputAdapter, PerceiverAR, PerceiverARConfig, RotarySupport
+from perceiver.model.core import (
+    PerceiverAR,
+    PerceiverARConfig,
+    TiedTokenOutputAdapter,
+    TokenInputAdapterWithRotarySupport,
+)
 from perceiver.model.core.utils import init_parameters
-from perceiver.model.text import common
 
 
 @dataclass
@@ -24,36 +28,6 @@ class CausalLanguageModelConfig(PerceiverARConfig):
         return cls(**{field.name: kwargs[field.name] for field in fields(cls) if field.name in kwargs})
 
 
-class TextInputAdapter(RotarySupport, common.TextInputAdapter):
-    def __init__(
-        self,
-        rotated_channels_per_head: int,
-        vocab_size: int,
-        max_seq_len: int,
-        num_input_channels: int,
-        abs_pos_emb: bool,
-    ):
-        super().__init__(
-            rotated_channels_per_head=rotated_channels_per_head,
-            vocab_size=vocab_size,
-            max_seq_len=max_seq_len,
-            num_input_channels=num_input_channels,
-            abs_pos_emb=abs_pos_emb,
-        )
-
-    def forward(self, x, abs_pos=None):
-        return super().forward(x, abs_pos)
-
-
-class TextOutputAdapter(OutputAdapter):
-    def __init__(self, num_channels: int, vocab_size: int):
-        super().__init__()
-        self.linear = nn.Linear(num_channels, vocab_size)
-
-    def forward(self, x):
-        return self.linear(x)
-
-
 class CausalLanguageModel(PerceiverAR):
     def __init__(self, config: CausalLanguageModelConfig):
         num_rotated_channels = config.num_channels // config.num_heads
@@ -62,7 +36,7 @@ class CausalLanguageModel(PerceiverAR):
             # Rotary embedding only for first 50% of channels ...
             num_rotated_channels = num_rotated_channels // 2
 
-        input_adapter = TextInputAdapter(
+        input_adapter = TokenInputAdapterWithRotarySupport(
             rotated_channels_per_head=num_rotated_channels,
             vocab_size=config.vocab_size,
             max_seq_len=config.max_seq_len,
@@ -75,7 +49,7 @@ class CausalLanguageModel(PerceiverAR):
         if config.output_norm:
             self.out_norm = nn.LayerNorm(config.num_channels)
 
-        self.output_adapter = common.TiedTextOutputAdapter(vocab_size=config.vocab_size, emb_bias=config.output_bias)
+        self.output_adapter = TiedTokenOutputAdapter(vocab_size=config.vocab_size, emb_bias=config.output_bias)
         self._init_parameters(config.init_scale)
 
     def _init_parameters(self, init_scale: float):

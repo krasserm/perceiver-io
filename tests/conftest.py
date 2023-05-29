@@ -9,7 +9,6 @@ TEST_DATA_PATH = TEST_PATH / "data"
 
 def pytest_addoption(parser):
     parser.addoption("--gpu", action="store_true", default=False, help="run tests that require a GPU")
-    parser.addoption("--hub", action="store_true", default=False, help="run tests that require converted models")
 
 
 def pytest_collection_modifyitems(config, items):
