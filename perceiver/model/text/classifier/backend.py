@@ -40,3 +40,7 @@ class TextClassifier(PerceiverIO):
         )
         super().__init__(encoder, decoder)
         self.config = config
+
+    def forward(self, x, pad_mask=None):
+        latents = self.encoder(x, pad_mask=pad_mask)
+        return self.decoder(latents)

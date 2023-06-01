@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional, Tuple
 
 import torch
 from einops import rearrange
@@ -14,7 +14,10 @@ from perceiver.model.core.adapter import (
     TrainableQueryProvider,
 )
 from perceiver.model.core.position import positions, RotaryPositionEmbedding
-from perceiver.model.core.utils import init_parameters, Residual, Sequential
+from perceiver.model.core.utils import init_parameters, ModuleOutput, Residual
+
+
+KVCache = Tuple[torch.Tensor, torch.Tensor]
 
 
 class MultiHeadAttention(nn.Module):
@@ -69,6 +72,8 @@ class MultiHeadAttention(nn.Module):
 
         self.dp_scale = num_qk_channels_per_head**-0.5
         self.num_heads = num_heads
+        self.num_qk_channels = num_qk_channels
+        self.num_v_channels = num_v_channels
         self.causal_attention = causal_attention
 
         if max_heads_parallel is None:
@@ -84,11 +89,12 @@ class MultiHeadAttention(nn.Module):
 
     def forward(
         self,
-        x_q,
-        x_kv,
-        pad_mask=None,
+        x_q: torch.Tensor,
+        x_kv: torch.Tensor,
+        pad_mask: Optional[torch.Tensor] = None,
         rot_pos_emb_q: Optional[RotaryPositionEmbedding] = None,
         rot_pos_emb_k: Optional[RotaryPositionEmbedding] = None,
+        kv_cache: Optional[KVCache] = None,
     ):
         """...
 
@@ -99,6 +105,7 @@ class MultiHeadAttention(nn.Module):
         :param pad_mask: Boolean key padding mask. `True` values indicate padding tokens.
         :param rot_pos_emb_q: Applies a rotary position embedding to query i.e. if defined, rotates the query.
         :param rot_pos_emb_k: Applies a rotary position embedding to key i.e. if defined, rotates the key.
+        :param kv_cache: cache with past keys and values.
         :return: attention result of shape (B, N, F) where B is the batch size, N the query sequence length and F the
                 number of output channels (= `num_output_channels`)
         """
@@ -106,6 +113,12 @@ class MultiHeadAttention(nn.Module):
         q = self.q_proj(x_q)
         k = self.k_proj(x_kv)
         v = self.v_proj(x_kv)
+
+        if kv_cache is not None:
+            k_cache, v_cache = kv_cache
+            k = torch.cat([k_cache, k], dim=1)
+            v = torch.cat([v_cache, v], dim=1)
+            kv_cache = (k, v)
 
         q, k, v = (rearrange(x, "b n (h c) -> b h n c", h=self.num_heads) for x in [q, k, v])
         q = q * self.dp_scale
@@ -152,8 +165,9 @@ class MultiHeadAttention(nn.Module):
 
         o = torch.cat(o_chunks, dim=1)
         o = rearrange(o, "b h n c -> b n (h c)", h=self.num_heads)
+        o = self.o_proj(o)
 
-        return self.o_proj(o)
+        return ModuleOutput(last_hidden_state=o, kv_cache=kv_cache)
 
 
 class CrossAttention(nn.Module):
@@ -187,7 +201,16 @@ class CrossAttention(nn.Module):
             out_bias=out_bias,
         )
 
-    def forward(self, x_q, x_kv=None, x_kv_prefix=None, pad_mask=None, rot_pos_emb_q=None, rot_pos_emb_k=None):
+    def forward(
+        self,
+        x_q: torch.Tensor,
+        x_kv: Optional[torch.Tensor] = None,
+        x_kv_prefix: Optional[torch.Tensor] = None,
+        pad_mask: Optional[torch.Tensor] = None,
+        rot_pos_emb_q: Optional[RotaryPositionEmbedding] = None,
+        rot_pos_emb_k: Optional[RotaryPositionEmbedding] = None,
+        kv_cache: Optional[KVCache] = None,
+    ):
         """Pre-layer-norm cross-attention of query input `x_q` to key/value input (`x_kv` or `x_kv_prefix`).
 
         If `x_kv_prefix` is defined, the entire key/value input is a concatenation of `x_kv_prefix` and `x_q` along
@@ -202,7 +225,9 @@ class CrossAttention(nn.Module):
         else:
             x_kv = self.kv_norm(x_kv)
 
-        return self.attention(x_q, x_kv, pad_mask=pad_mask, rot_pos_emb_q=rot_pos_emb_q, rot_pos_emb_k=rot_pos_emb_k)
+        return self.attention(
+            x_q, x_kv, pad_mask=pad_mask, rot_pos_emb_q=rot_pos_emb_q, rot_pos_emb_k=rot_pos_emb_k, kv_cache=kv_cache
+        )
 
 
 class SelfAttention(nn.Module):
@@ -234,13 +259,38 @@ class SelfAttention(nn.Module):
             out_bias=out_bias,
         )
 
-    def forward(self, x, pad_mask=None, rot_pos_emb=None):
+    def forward(
+        self,
+        x: torch.Tensor,
+        pad_mask: Optional[torch.Tensor] = None,
+        rot_pos_emb: Optional[RotaryPositionEmbedding] = None,
+        kv_cache: Optional[KVCache] = None,
+    ):
         """Pre-layer-norm self-attention of input `x`."""
         x = self.norm(x)
-        return self.attention(x, x, pad_mask=pad_mask, rot_pos_emb_q=rot_pos_emb, rot_pos_emb_k=rot_pos_emb)
+        return self.attention(
+            x,
+            x,
+            pad_mask=pad_mask,
+            rot_pos_emb_q=rot_pos_emb,
+            rot_pos_emb_k=rot_pos_emb,
+            kv_cache=kv_cache,
+        )
 
 
-class CrossAttentionLayer(Sequential):
+class AbstractAttentionLayer(nn.Sequential):
+    def empty_kv_cache(self, x) -> KVCache:
+        k_cache = torch.empty(x.shape[0], 0, self.num_qk_channels, dtype=x.dtype, device=x.device)
+        v_cache = torch.empty(x.shape[0], 0, self.num_v_channels, dtype=x.dtype, device=x.device)
+        return k_cache, v_cache
+
+    def forward(self, *args, kv_cache: Optional[KVCache] = None, **kwargs):
+        attn_output = self[0](*args, kv_cache=kv_cache, **kwargs)
+        mlp_output = self[1](attn_output.last_hidden_state)
+        return ModuleOutput(last_hidden_state=mlp_output.last_hidden_state, kv_cache=attn_output.kv_cache)
+
+
+class CrossAttentionLayer(AbstractAttentionLayer):
     def __init__(
         self,
         num_heads: int,
@@ -270,13 +320,17 @@ class CrossAttentionLayer(Sequential):
             qkv_bias=qkv_bias,
             out_bias=out_bias,
         )
+
+        self.num_qk_channels = cross_attn.attention.num_qk_channels
+        self.num_v_channels = cross_attn.attention.num_v_channels
+
         super().__init__(
             Residual(cross_attn, residual_dropout) if attention_residual else cross_attn,
             Residual(MLP(num_q_input_channels, widening_factor, bias=mlp_bias), residual_dropout),
         )
 
 
-class SelfAttentionLayer(Sequential):
+class SelfAttentionLayer(AbstractAttentionLayer):
     def __init__(
         self,
         num_heads: int,
@@ -303,13 +357,17 @@ class SelfAttentionLayer(Sequential):
             qkv_bias=qkv_bias,
             out_bias=out_bias,
         )
+
+        self.num_qk_channels = self_attn.attention.num_qk_channels
+        self.num_v_channels = self_attn.attention.num_v_channels
+
         super().__init__(
             Residual(self_attn, residual_dropout),
             Residual(MLP(num_channels, widening_factor, bias=mlp_bias), residual_dropout),
         )
 
 
-class SelfAttentionBlock(Sequential):
+class SelfAttentionBlock(nn.Sequential):
     def __init__(
         self,
         num_layers: int,
@@ -317,6 +375,7 @@ class SelfAttentionBlock(Sequential):
         num_channels: int,
         num_qk_channels: Optional[int] = None,
         num_v_channels: Optional[int] = None,
+        num_rotary_layers: int = 1,
         max_heads_parallel: Optional[int] = None,
         causal_attention: bool = False,
         widening_factor: int = 1,
@@ -349,10 +408,40 @@ class SelfAttentionBlock(Sequential):
         if activation_checkpointing:
             layers = [checkpoint_wrapper(layer, offload_to_cpu=activation_offloading) for layer in layers]
 
+        self.num_rotary_layers = num_rotary_layers
         super().__init__(*layers)
 
+    def forward(
+        self,
+        x: torch.Tensor,
+        pad_mask: Optional[torch.Tensor] = None,
+        rot_pos_emb: Optional[RotaryPositionEmbedding] = None,
+        kv_cache: Optional[List[KVCache]] = None,
+    ):
+        if kv_cache is None:
+            kv_cache_updated = None
+        else:
+            if len(kv_cache) == 0:
+                # initialize kv_cache for each self-attention layer
+                kv_cache = [layer.empty_kv_cache(x) for layer in self]
+            kv_cache_updated = []
 
-class MLP(Sequential):
+        for i, layer in enumerate(self):
+            rot_pos_emb_use = i < self.num_rotary_layers or self.num_rotary_layers == -1
+            rot_pos_emb_i = rot_pos_emb if rot_pos_emb_use else None
+
+            kv_cache_i = None if kv_cache is None else kv_cache[i]
+            output = layer(x, pad_mask=pad_mask, rot_pos_emb=rot_pos_emb_i, kv_cache=kv_cache_i)
+
+            x = output.last_hidden_state
+
+            if kv_cache_updated is not None:
+                kv_cache_updated.append(output.kv_cache)
+
+        return ModuleOutput(last_hidden_state=x, kv_cache=kv_cache_updated)
+
+
+class MLP(nn.Sequential):
     def __init__(self, num_channels: int, widening_factor: int, bias: bool = True):
         super().__init__(
             nn.LayerNorm(num_channels),
@@ -360,6 +449,9 @@ class MLP(Sequential):
             nn.GELU(),
             nn.Linear(widening_factor * num_channels, num_channels, bias=bias),
         )
+
+    def forward(self, x):
+        return ModuleOutput(last_hidden_state=super().forward(x))
 
 
 class PerceiverEncoder(nn.Module):
@@ -497,16 +589,16 @@ class PerceiverEncoder(nn.Module):
         x_adapted = self.input_adapter(x)
         x_latent = self.latent_provider()
 
-        x_latent = self.cross_attn_1(x_latent, x_adapted, pad_mask=pad_mask)
-        x_latent = self.self_attn_1(x_latent)
+        x_latent = self.cross_attn_1(x_latent, x_adapted, pad_mask=pad_mask).last_hidden_state
+        x_latent = self.self_attn_1(x_latent).last_hidden_state
 
         cross_attn_n = self.cross_attn_n if self.extra_cross_attention_layer else self.cross_attn_1
         self_attn_n = self.self_attn_n if self.extra_self_attention_block else self.self_attn_1
 
         for i in range(1, self.num_self_attention_blocks):
             if i < self.num_cross_attention_layers:
-                x_latent = cross_attn_n(x_latent, x_adapted, pad_mask=pad_mask)
-            x_latent = self_attn_n(x_latent)
+                x_latent = cross_attn_n(x_latent, x_adapted, pad_mask=pad_mask).last_hidden_state
+            x_latent = self_attn_n(x_latent).last_hidden_state
 
         if return_adapted_input:
             return x_latent, x_adapted
@@ -578,11 +670,11 @@ class PerceiverDecoder(nn.Module):
 
     def forward(self, x_latent, x_adapted=None, **kwargs):
         output_query = self.output_query_provider(x_adapted)
-        output = self.cross_attn(output_query, x_latent)
+        output = self.cross_attn(output_query, x_latent).last_hidden_state
         return self.output_adapter(output, **kwargs)
 
 
-class PerceiverIO(Sequential):
+class PerceiverIO(nn.Sequential):
     def __init__(self, encoder: PerceiverEncoder, decoder: PerceiverDecoder):
         super().__init__(encoder, decoder)
 
@@ -602,6 +694,7 @@ class PerceiverAR(nn.Module):
         num_heads: int = 8,
         max_heads_parallel: Optional[int] = None,
         num_self_attention_layers: int = 6,
+        num_self_attention_rotary_layers: int = 1,
         self_attention_widening_factor: int = 4,
         cross_attention_widening_factor: int = 4,
         cross_attention_dropout: float = 0.5,
@@ -657,6 +750,7 @@ class PerceiverAR(nn.Module):
                 widening_factor=self_attention_widening_factor,
                 dropout=post_attention_dropout,
                 residual_dropout=residual_dropout,
+                num_rotary_layers=num_self_attention_rotary_layers,
                 activation_checkpointing=activation_checkpointing,
                 activation_offloading=activation_offloading,
                 qkv_bias=False,
@@ -665,28 +759,43 @@ class PerceiverAR(nn.Module):
             )
 
         self.input_adapter = input_adapter
-
         self.cross_attention_dropout = cross_attention_dropout
         self.cross_attention = cross_attn()
         self.self_attention = self_attn()
 
-    def forward(self, x, prefix_len, pad_mask=None):
-        b, n = x.shape
-
-        if not 0 <= prefix_len < n:
-            raise ValueError(f"prefix_len ({prefix_len}) out of valid range [0..{n})")
-
+    def forward(
+        self,
+        x: torch.Tensor,
+        prefix_len: int,
+        pad_mask: Optional[torch.Tensor] = None,
+        kv_cache: Optional[List[KVCache]] = None,
+    ):
         if pad_mask is None:
             shift = None
         else:
             # caller must ensure that x is left-padded
             shift = pad_mask.sum(dim=1, keepdim=True)
 
-        # freq_pos_enc shape is (b, n, f)
-        x, frq_pos_enc = self.input_adapter(x, abs_pos=positions(*x.shape, shift=shift, device=x.device))
+        if kv_cache is None or len(kv_cache) == 0:
+            # cache is not defined or empty
+            b, n = x.shape
+        else:
+            # cache is defined and non-empty
+            b = x.shape[0]
+            n = kv_cache[0][0].shape[1] + x.shape[1]
 
-        x_latent = x[:, prefix_len:]
-        x_prefix = x[:, :prefix_len]
+        if not 0 <= prefix_len < n:
+            raise ValueError(f"prefix_len ({prefix_len}) out of valid range [0..{n})")
+
+        # freq_pos_enc shape is (b, n, f), x shape is (b, n_x, c)
+        x, frq_pos_enc = self.input_adapter(x, abs_pos=positions(b, n, shift=shift, device=x.device))
+
+        if kv_cache is None or len(kv_cache) == 0:
+            x_latent = x[:, prefix_len:]
+            x_prefix = x[:, :prefix_len]
+        else:
+            x_latent = x
+            x_prefix = x[:, :0]
 
         frq_pos_enc_latent = frq_pos_enc[:, prefix_len:]
         frq_pos_enc_prefix = frq_pos_enc[:, :prefix_len]
@@ -696,6 +805,10 @@ class PerceiverAR(nn.Module):
             pad_mask_prefix = pad_mask[:, :prefix_len]
 
         if self.training and prefix_len > 0 and self.cross_attention_dropout > 0.0:
+            if kv_cache is not None:
+                # TODO: apply cross-attention dropout to key cache and value cache
+                raise ValueError("cross-attention dropout not supported with caching")
+
             # Modified from https://github.com/lucidrains/perceiver-ar-pytorch
             rand = torch.rand(b, prefix_len, device=x.device)
             # number of positions in prefix sequence to keep
@@ -720,20 +833,40 @@ class PerceiverAR(nn.Module):
         if pad_mask is not None:
             pad_mask = torch.cat([pad_mask_prefix, pad_mask_latent], dim=1)
 
-        x_latent = self.cross_attention(
+        if kv_cache is None:
+            ca_kv_cache = None
+            sa_kv_cache = None
+            kv_cache_updated = None
+        elif len(kv_cache) == 0:
+            ca_kv_cache = self.cross_attention.empty_kv_cache(x_latent)
+            sa_kv_cache = []
+            kv_cache_updated = []
+        else:
+            ca_kv_cache, *sa_kv_cache = kv_cache
+            kv_cache_updated = []
+
+        ca_output = self.cross_attention(
             x_latent,
             x_kv_prefix=x_prefix,
             pad_mask=pad_mask,
             rot_pos_emb_q=RotaryPositionEmbedding(frq_pos_enc_q, right_align=True),
             rot_pos_emb_k=RotaryPositionEmbedding(frq_pos_enc_k, right_align=True),
+            kv_cache=ca_kv_cache,
         )
 
-        x_latent = self.self_attention(
-            x_latent,
+        if kv_cache_updated is not None:
+            kv_cache_updated.append(ca_output.kv_cache)
+
+        sa_output = self.self_attention(
+            ca_output.last_hidden_state,
             rot_pos_emb=RotaryPositionEmbedding(frq_pos_enc_latent, right_align=True),
+            kv_cache=sa_kv_cache,
         )
 
-        return x_latent
+        if kv_cache_updated is not None:
+            kv_cache_updated.extend(sa_output.kv_cache)
+
+        return ModuleOutput(last_hidden_state=sa_output.last_hidden_state, kv_cache=kv_cache_updated)
 
 
 class CausalSequenceModel(PerceiverAR):
@@ -776,13 +909,20 @@ class CausalSequenceModel(PerceiverAR):
     def max_prefix_len(self):
         return self.max_seq_len - self.max_latents
 
-    def forward(self, x, prefix_len, pad_mask=None):
+    def forward(
+        self,
+        x: torch.Tensor,
+        prefix_len: int,
+        pad_mask: Optional[torch.Tensor] = None,
+        kv_cache: Optional[List[KVCache]] = None,
+    ):
         if prefix_len > self.max_prefix_len:
             raise ValueError(f"prefix_len ({prefix_len}) exceeds max_prefix_len ({self.max_prefix_len})")
 
-        x_latent = super().forward(x, prefix_len, pad_mask)
+        output = super().forward(x, prefix_len=prefix_len, pad_mask=pad_mask, kv_cache=kv_cache)
 
         if self.config.output_norm:
-            x_latent = self.out_norm(x_latent)
+            output.last_hidden_state = self.out_norm(output.last_hidden_state)
 
-        return self.output_adapter(x_latent, txt_embedding=self.input_adapter.txt_embedding)
+        output.logits = self.output_adapter(output.last_hidden_state, txt_embedding=self.input_adapter.txt_embedding)
+        return output
