@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import transformers
 from transformers import PreTrainedModel
-from transformers.modeling_outputs import BaseModelOutput, CausalLMOutputWithPast
+from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from perceiver.model.core.modules import (
     CrossAttentionLayer,
@@ -81,7 +81,7 @@ def copy_classification_decoder_params(src: transformers.PerceiverModel, tgt: Pe
 
 
 @dataclass
-class PerceiverCausalSequenceModelOutput(BaseModelOutput, CausalLMOutputWithPast):
+class PerceiverCausalSequenceModelOutput(CausalLMOutputWithPast):
     prefix_len: Optional[int] = None
 
 
@@ -91,10 +91,20 @@ class PerceiverCausalSequenceModel(PreTrainedModel):
         use_cache = kwargs.get("use_cache", None)
         prefix_len = kwargs.get("prefix_len", None)
 
-        max_seq_len = self.backend_model.max_seq_len
-        num_latents = input_ids.shape[1] - prefix_len
+        if past_key_values is None:
+            input_len = input_ids.shape[1]
+        else:
+            # Workaround needed for determining the input sequence length when
+            # using contrastive search. In contrast to other generation methods,
+            # contrastive search only passes the last generated token (as input_ids)
+            # to this method whereas others pass the entire sequence. So the key/
+            # value cache must be used to determine the input sequence length.
+            input_len = past_key_values[0][0].shape[1] + 1
 
-        max_seq_len_exceeded = input_ids.shape[1] > max_seq_len
+        max_seq_len = self.backend_model.max_seq_len
+        num_latents = input_len - prefix_len
+
+        max_seq_len_exceeded = input_len > max_seq_len
         max_latents_exceeded = num_latents > self.backend_model.max_latents
 
         if max_latents_exceeded:
@@ -145,11 +155,6 @@ class PerceiverCausalSequenceModel(PreTrainedModel):
         sa_cache = [(k_cache[:, -max_sa_cache_len:], v_cache[:, -max_sa_cache_len:]) for k_cache, v_cache in sa_cache]
         return [ca_cache] + sa_cache
 
-    def _update_model_kwargs_for_generation(self, outputs: PerceiverCausalSequenceModelOutput, model_kwargs, **kwargs):
-        model_kwargs = super()._update_model_kwargs_for_generation(outputs, model_kwargs, **kwargs)
-        model_kwargs["prefix_len"] = outputs.prefix_len
-        return model_kwargs
-
     def forward(
         self,
         input_ids: torch.LongTensor,
@@ -174,7 +179,7 @@ class PerceiverCausalSequenceModel(PreTrainedModel):
         output = self.backend_model(input_ids, prefix_len=prefix_len, pad_mask=pad_mask, kv_cache=past_key_values)
         return PerceiverCausalSequenceModelOutput(
             logits=output.logits,
-            last_hidden_state=output.last_hidden_state,
+            hidden_states=(output.last_hidden_state,),
             past_key_values=output.kv_cache,
             prefix_len=prefix_len,
         )

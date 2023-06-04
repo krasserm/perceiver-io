@@ -148,3 +148,11 @@ def test_nucleus_sampling(prompt, audio_generator, use_cache):
 
     assert "generated_token_ids" in generated
     assert len(generated["generated_token_ids"]) == PROMPT_LENGTH + 32
+
+
+def test_contrastive_search(prompt, audio_generator):
+    # caching cannot be turned off with contrastive search
+    generated = audio_generator(prompt, max_new_tokens=32, penalty_alpha=0.6, top_k=4, return_type=ReturnType.TENSORS)
+
+    assert "generated_token_ids" in generated
+    assert len(generated["generated_token_ids"]) == PROMPT_LENGTH + 32

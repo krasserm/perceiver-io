@@ -54,3 +54,9 @@ def test_top_k_sampling(prompts, text_generator, use_cache):
 def test_nucleus_sampling(prompts, text_generator, use_cache):
     text_generator(prompts, max_new_tokens=32, batch_size=2, do_sample=True, top_p=0.5, use_cache=use_cache)
     # TODO: assert ...
+
+
+def test_contrastive_search(prompts, text_generator):
+    # caching cannot be turned off with contrastive search
+    text_generator(prompts, max_new_tokens=32, batch_size=2, penalty_alpha=0.6, top_k=4)
+    # TODO: assert ...
