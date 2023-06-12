@@ -87,6 +87,7 @@ class LitCausalSequenceModel(pl.LightningModule):
         num_heads: int = 8,
         max_heads_parallel: Optional[int] = None,
         num_self_attention_layers: int = 6,
+        num_self_attention_rotary_layers: int = 1,
         self_attention_widening_factor: int = 4,
         cross_attention_widening_factor: int = 4,
         cross_attention_dropout: float = 0.5,
@@ -123,7 +124,7 @@ class LitCausalSequenceModel(pl.LightningModule):
         if seq_len < max_lat:
             raise ValueError(f"Training sequence length must be at least {max_lat} (= max_latents)")
 
-        logits = self(x, prefix_len=seq_len - max_lat, pad_mask=pad_mask)
+        logits = self(x, prefix_len=seq_len - max_lat, pad_mask=pad_mask).logits
         labels = labels[:, -logits.shape[1] :]
 
         logits = rearrange(logits, "b n c -> (b n) c")

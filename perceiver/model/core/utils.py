@@ -1,17 +1,23 @@
+from collections import OrderedDict
+
 import torch.nn as nn
 
 
-class Sequential(nn.Sequential):
-    def forward(self, *x, **kwargs):
-        for i, module in enumerate(self):
-            if type(x) == tuple:
-                if i == 0:
-                    x = module(*x, **kwargs)
-                else:
-                    x = module(*x)
-            else:
-                x = module(x)
-        return x
+class ModuleOutput(OrderedDict):
+    def __getattr__(self, name):
+        if name in self:
+            return self[name]
+        else:
+            raise AttributeError("No such attribute: " + name)
+
+    def __setattr__(self, name, value):
+        self[name] = value
+
+    def __delattr__(self, name):
+        if name in self:
+            del self[name]
+        else:
+            raise AttributeError("No such attribute: " + name)
 
 
 class Residual(nn.Module):
@@ -21,7 +27,9 @@ class Residual(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, *args, **kwargs):
-        return self.dropout(self.module(*args, **kwargs)) + args[0]
+        output = self.module(*args, **kwargs)
+        output.last_hidden_state = self.dropout(output.last_hidden_state) + args[0]
+        return output
 
 
 def init_parameters(module, init_scale):

@@ -106,6 +106,9 @@ class TokenInputAdapter(InputAdapter):
         if self._abs_pos_emb:
             if abs_pos is None:
                 abs_pos = positions(*x.shape, device=x.device)
+            elif x.shape[1] < abs_pos.shape[1]:
+                # use right-most position codes
+                abs_pos = abs_pos[:, -x.shape[1] :]
             return self.txt_embedding(x) + self.pos_embedding(abs_pos)
         else:
             return self.txt_embedding(x)

@@ -29,21 +29,34 @@ def text_generator(target_dir):
     yield pipeline("text-generation", model=target_dir)
 
 
-def test_greedy_search(prompts, text_generator):
-    text_generator(prompts, max_new_tokens=32, batch_size=2)
+USE_CACHE = [True, False]
+
+
+@pytest.mark.parametrize("use_cache", USE_CACHE)
+def test_greedy_search(prompts, text_generator, use_cache):
+    text_generator(prompts, max_new_tokens=32, batch_size=2, use_cache=use_cache)
     # TODO: assert ...
 
 
-def test_beam_search(prompts, text_generator):
-    text_generator(prompts, max_new_tokens=32, batch_size=2, num_beams=3)
+@pytest.mark.parametrize("use_cache", [True])
+def test_beam_search(prompts, text_generator, use_cache):
+    text_generator(prompts, max_new_tokens=32, batch_size=2, num_beams=3, use_cache=use_cache)
     # TODO: assert ...
 
 
-def test_top_k_sampling(prompts, text_generator):
-    text_generator(prompts, max_new_tokens=32, batch_size=2, do_sample=True, top_k=3)
+@pytest.mark.parametrize("use_cache", USE_CACHE)
+def test_top_k_sampling(prompts, text_generator, use_cache):
+    text_generator(prompts, max_new_tokens=32, batch_size=2, do_sample=True, top_k=3, use_cache=use_cache)
     # TODO: assert ...
 
 
-def test_nucleus_sampling(prompts, text_generator):
-    text_generator(prompts, max_new_tokens=32, batch_size=2, do_sample=True, top_p=0.5)
+@pytest.mark.parametrize("use_cache", USE_CACHE)
+def test_nucleus_sampling(prompts, text_generator, use_cache):
+    text_generator(prompts, max_new_tokens=32, batch_size=2, do_sample=True, top_p=0.5, use_cache=use_cache)
+    # TODO: assert ...
+
+
+def test_contrastive_search(prompts, text_generator):
+    # caching cannot be turned off with contrastive search
+    text_generator(prompts, max_new_tokens=32, batch_size=2, penalty_alpha=0.6, top_k=4)
     # TODO: assert ...

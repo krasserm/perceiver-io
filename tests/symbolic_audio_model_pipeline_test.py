@@ -29,9 +29,18 @@ def audio_generator(target_dir):
     yield pipeline("symbolic-audio-generation", model=target_dir)
 
 
-def test_generate_return_tensor_full_audio(audio_generator, prompt):
+USE_CACHE = [True, False]
+
+
+@pytest.mark.parametrize("use_cache", USE_CACHE)
+def test_generate_return_tensor_full_audio(audio_generator, prompt, use_cache):
     generated = audio_generator(
-        prompt, max_new_tokens=32, do_sample=True, return_full_audio=True, return_type=ReturnType.TENSORS
+        prompt,
+        max_new_tokens=32,
+        do_sample=True,
+        return_full_audio=True,
+        return_type=ReturnType.TENSORS,
+        use_cache=use_cache,
     )
 
     assert "generated_token_ids" in generated
@@ -42,9 +51,15 @@ def test_generate_return_tensor_full_audio(audio_generator, prompt):
     assert len(generated_token_ids) == PROMPT_LENGTH + 32
 
 
-def test_generate_return_tensor_new_audio(audio_generator, prompt):
+@pytest.mark.parametrize("use_cache", USE_CACHE)
+def test_generate_return_tensor_new_audio(audio_generator, prompt, use_cache):
     generated = audio_generator(
-        prompt, max_new_tokens=32, do_sample=True, return_full_audio=False, return_type=ReturnType.TENSORS
+        prompt,
+        max_new_tokens=32,
+        do_sample=True,
+        return_full_audio=False,
+        return_type=ReturnType.TENSORS,
+        use_cache=use_cache,
     )
 
     assert "generated_token_ids" in generated
@@ -55,16 +70,25 @@ def test_generate_return_tensor_new_audio(audio_generator, prompt):
     assert len(generated_token_ids) == 32
 
 
-def test_generate_return_audio_midi(audio_generator, prompt):
-    generated = audio_generator(prompt, max_new_tokens=32, do_sample=True, return_type=ReturnType.AUDIO)
+@pytest.mark.parametrize("use_cache", USE_CACHE)
+def test_generate_return_audio_midi(audio_generator, prompt, use_cache):
+    generated = audio_generator(
+        prompt, max_new_tokens=32, do_sample=True, return_type=ReturnType.AUDIO, use_cache=use_cache
+    )
 
     assert "generated_audio_midi" in generated
     assert type(generated["generated_audio_midi"]) == PrettyMIDI
 
 
-def test_generate_multiple(audio_generator, prompt):
+@pytest.mark.parametrize("use_cache", USE_CACHE)
+def test_generate_multiple(audio_generator, prompt, use_cache):
     generated_list = audio_generator(
-        [prompt] * 2, max_new_tokens=32, do_sample=True, return_full_audio=True, return_type=ReturnType.TENSORS
+        [prompt] * 2,
+        max_new_tokens=32,
+        do_sample=True,
+        return_full_audio=True,
+        return_type=ReturnType.TENSORS,
+        use_cache=use_cache,
     )
 
     assert len(generated_list) == 2
@@ -78,36 +102,57 @@ def test_generate_multiple(audio_generator, prompt):
         assert len(generated_token_ids) == PROMPT_LENGTH + 32
 
 
-def test_max_prompt_length(prompt, audio_generator):
-    generated = audio_generator(prompt, max_new_tokens=32, max_prompt_length=10, return_type=ReturnType.TENSORS)
+@pytest.mark.parametrize("use_cache", USE_CACHE)
+def test_max_prompt_length(prompt, audio_generator, use_cache):
+    generated = audio_generator(
+        prompt, max_new_tokens=32, max_prompt_length=10, return_type=ReturnType.TENSORS, use_cache=use_cache
+    )
 
     assert "generated_token_ids" in generated
     assert len(generated["generated_token_ids"]) == 10 + 32
 
 
-def test_greedy_search(prompt, audio_generator):
-    generated = audio_generator(prompt, max_new_tokens=32, return_type=ReturnType.TENSORS)
+@pytest.mark.parametrize("use_cache", USE_CACHE)
+def test_greedy_search(prompt, audio_generator, use_cache):
+    generated = audio_generator(prompt, max_new_tokens=32, return_type=ReturnType.TENSORS, use_cache=use_cache)
 
     assert "generated_token_ids" in generated
     assert len(generated["generated_token_ids"]) == PROMPT_LENGTH + 32
 
 
-def test_beam_search(prompt, audio_generator):
-    generated = audio_generator(prompt, max_new_tokens=32, num_beams=3, return_type=ReturnType.TENSORS)
+@pytest.mark.parametrize("use_cache", USE_CACHE)
+def test_beam_search(prompt, audio_generator, use_cache):
+    generated = audio_generator(
+        prompt, max_new_tokens=32, num_beams=3, return_type=ReturnType.TENSORS, use_cache=use_cache
+    )
 
     assert "generated_token_ids" in generated
     assert len(generated["generated_token_ids"]) == PROMPT_LENGTH + 32
 
 
-def test_top_k_sampling(prompt, audio_generator):
-    generated = audio_generator(prompt, max_new_tokens=32, do_sample=True, top_k=10, return_type=ReturnType.TENSORS)
+@pytest.mark.parametrize("use_cache", USE_CACHE)
+def test_top_k_sampling(prompt, audio_generator, use_cache):
+    generated = audio_generator(
+        prompt, max_new_tokens=32, do_sample=True, top_k=10, return_type=ReturnType.TENSORS, use_cache=use_cache
+    )
 
     assert "generated_token_ids" in generated
     assert len(generated["generated_token_ids"]) == PROMPT_LENGTH + 32
 
 
-def test_nucleus_sampling(prompt, audio_generator):
-    generated = audio_generator(prompt, max_new_tokens=32, do_sample=True, top_p=0.5, return_type=ReturnType.TENSORS)
+@pytest.mark.parametrize("use_cache", USE_CACHE)
+def test_nucleus_sampling(prompt, audio_generator, use_cache):
+    generated = audio_generator(
+        prompt, max_new_tokens=32, do_sample=True, top_p=0.5, return_type=ReturnType.TENSORS, use_cache=use_cache
+    )
+
+    assert "generated_token_ids" in generated
+    assert len(generated["generated_token_ids"]) == PROMPT_LENGTH + 32
+
+
+def test_contrastive_search(prompt, audio_generator):
+    # caching cannot be turned off with contrastive search
+    generated = audio_generator(prompt, max_new_tokens=32, penalty_alpha=0.6, top_k=4, return_type=ReturnType.TENSORS)
 
     assert "generated_token_ids" in generated
     assert len(generated["generated_token_ids"]) == PROMPT_LENGTH + 32

@@ -66,6 +66,7 @@ class PerceiverARConfig:
     num_heads: int = 8
     max_heads_parallel: Optional[int] = None
     num_self_attention_layers: int = 8
+    num_self_attention_rotary_layers: int = 1
     self_attention_widening_factor: int = 4
     cross_attention_widening_factor: int = 4
     cross_attention_dropout: float = 0.5

@@ -1,14 +1,15 @@
 from dataclasses import dataclass
-from typing import Any, Optional, Sequence
+from typing import Any, List, Optional, Sequence
 
 import torch
 import torch.nn as nn
 import transformers
 from transformers import PreTrainedModel
-from transformers.modeling_outputs import CausalLMOutput
+from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from perceiver.model.core.modules import (
     CrossAttentionLayer,
+    KVCache,
     MLP,
     MultiHeadAttention,
     PerceiverDecoder,
@@ -80,44 +81,87 @@ def copy_classification_decoder_params(src: transformers.PerceiverModel, tgt: Pe
 
 
 @dataclass
-class PerceiverCausalSequenceModelOutput(CausalLMOutput):
+class PerceiverCausalSequenceModelOutput(CausalLMOutputWithPast):
     prefix_len: Optional[int] = None
 
 
 class PerceiverCausalSequenceModel(PreTrainedModel):
-    def prepare_inputs_for_generation(self, input_ids, **kwargs):
+    def prepare_inputs_for_generation(self, input_ids, past_key_values=None, **kwargs):
         attention_mask = kwargs.get("attention_mask", None)
+        use_cache = kwargs.get("use_cache", None)
         prefix_len = kwargs.get("prefix_len", None)
 
-        if (
-            input_ids.shape[1] - prefix_len == self.backend_model.max_latents
-            and prefix_len < self.backend_model.max_prefix_len
-        ):
-            # num_latents == max_latents reached, but not max_prefix_len yet.
-            # Extend prefix by 1 token and keep num_latents == max_latents.
-            prefix_len += 1
+        if past_key_values is None:
+            input_len = input_ids.shape[1]
+        else:
+            # Workaround needed for determining the input sequence length when
+            # using contrastive search. In contrast to other generation methods,
+            # contrastive search only passes the last generated token (as input_ids)
+            # to this method whereas others pass the entire sequence. So the key/
+            # value cache must be used to determine the input sequence length.
+            input_len = past_key_values[0][0].shape[1] + 1
 
-        input_ids = input_ids[:, -self.backend_model.max_seq_len :]
+        max_seq_len = self.backend_model.max_seq_len
+        num_latents = input_len - prefix_len
 
-        if attention_mask is not None:
-            attention_mask = attention_mask[:, -self.backend_model.max_seq_len :]
+        max_seq_len_exceeded = input_len > max_seq_len
+        max_latents_exceeded = num_latents > self.backend_model.max_latents
+
+        if max_latents_exceeded:
+            if prefix_len < self.backend_model.max_prefix_len:
+                # num_latents == max_latents reached, but not max_prefix_len yet.
+                # Extend prefix by 1 token and keep num_latents == max_latents.
+                prefix_len += 1
+
+        if past_key_values:
+            input_ids = input_ids[:, -1:]
+        else:
+            # truncate inputs to max_seq_len
+            input_ids = input_ids[:, -max_seq_len:]
+
+        if attention_mask is not None and attention_mask.shape[1] > max_seq_len:
+            # truncate attention mask to max_seq_len
+            attention_mask = attention_mask[:, -max_seq_len:]
+
+        if past_key_values:
+            if max_latents_exceeded:
+                past_key_values = self._truncate_self_attention_past_key_values(past_key_values)
+            if max_seq_len_exceeded:
+                past_key_values = self._truncate_cross_attention_past_key_values(past_key_values)
 
         return {
             "input_ids": input_ids,
             "attention_mask": attention_mask,
+            "past_key_values": past_key_values,
+            "use_cache": use_cache,
             "prefix_len": prefix_len,
         }
 
-    def _update_model_kwargs_for_generation(self, outputs: PerceiverCausalSequenceModelOutput, model_kwargs, **kwargs):
-        model_kwargs = super()._update_model_kwargs_for_generation(outputs, model_kwargs, **kwargs)
-        model_kwargs["prefix_len"] = outputs.prefix_len
-        return model_kwargs
+    def _reorder_cache(self, past_key_values, beam_idx):
+        return list(
+            tuple(past_state.index_select(0, beam_idx.to(past_state.device)) for past_state in layer_past)
+            for layer_past in past_key_values
+        )
+
+    def _truncate_cross_attention_past_key_values(self, past_key_values):
+        max_ca_cache_len = self.backend_model.max_seq_len - 1
+        (k_cache, v_cache), *sa_cache = past_key_values
+        ca_cache = (k_cache[:, -max_ca_cache_len:], v_cache[:, -max_ca_cache_len:])
+        return [ca_cache] + sa_cache
+
+    def _truncate_self_attention_past_key_values(self, past_key_values):
+        max_sa_cache_len = self.backend_model.max_latents - 1
+        ca_cache, *sa_cache = past_key_values
+        sa_cache = [(k_cache[:, -max_sa_cache_len:], v_cache[:, -max_sa_cache_len:]) for k_cache, v_cache in sa_cache]
+        return [ca_cache] + sa_cache
 
     def forward(
         self,
         input_ids: torch.LongTensor,
         prefix_len: int,
         attention_mask: Optional[torch.FloatTensor] = None,
+        past_key_values: Optional[List[KVCache]] = None,
+        use_cache: Optional[bool] = None,
         labels: Optional[torch.LongTensor] = None,
         **kwargs: Any,
     ):
@@ -129,8 +173,16 @@ class PerceiverCausalSequenceModel(PreTrainedModel):
         else:
             pad_mask = ~attention_mask.type(torch.bool)
 
-        logits = self.backend_model(input_ids, prefix_len=prefix_len, pad_mask=pad_mask)
-        return PerceiverCausalSequenceModelOutput(logits=logits, prefix_len=prefix_len)
+        if use_cache and past_key_values is None:
+            past_key_values = []
+
+        output = self.backend_model(input_ids, prefix_len=prefix_len, pad_mask=pad_mask, kv_cache=past_key_values)
+        return PerceiverCausalSequenceModelOutput(
+            logits=output.logits,
+            hidden_states=(output.last_hidden_state,),
+            past_key_values=output.kv_cache,
+            prefix_len=prefix_len,
+        )
 
     def generate(
         self,
