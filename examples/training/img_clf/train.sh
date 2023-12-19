@@ -19,6 +19,7 @@ python -m perceiver.scripts.vision.image_classifier fit \
   --trainer.accelerator=gpu \
   --trainer.devices=2 \
   --trainer.max_epochs=30 \
+  --trainer.strategy=ddp_static_graph \
   --trainer.logger=TensorBoardLogger \
   --trainer.logger.save_dir=logs \
   --trainer.logger.name=img_clf

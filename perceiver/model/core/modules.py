@@ -406,7 +406,7 @@ class SelfAttentionBlock(nn.Sequential):
         ]
 
         if activation_checkpointing:
-            layers = [checkpoint_wrapper(layer, offload_to_cpu=activation_offloading) for layer in layers]
+            layers = [activation_checkpoint_wrapper(layer, offload_to_cpu=activation_offloading) for layer in layers]
 
         self.num_rotary_layers = num_rotary_layers
         super().__init__(*layers)
@@ -543,7 +543,8 @@ class PerceiverEncoder(nn.Module):
                 residual_dropout=residual_dropout,
             )
             return (
-                checkpoint_wrapper(layer, offload_to_cpu=activation_offloading) if activation_checkpointing else layer
+                activation_checkpoint_wrapper(layer, offload_to_cpu=activation_offloading)
+                if activation_checkpointing else layer
             )
 
         def self_attn():
@@ -659,7 +660,7 @@ class PerceiverDecoder(nn.Module):
         )
 
         if activation_checkpointing:
-            cross_attn = checkpoint_wrapper(cross_attn, offload_to_cpu=activation_offloading)
+            cross_attn = activation_checkpoint_wrapper(cross_attn, offload_to_cpu=activation_offloading)
 
         self.cross_attn = cross_attn
         self._init_parameters(init_scale)
@@ -738,7 +739,8 @@ class PerceiverAR(nn.Module):
                 mlp_bias=False,
             )
             return (
-                checkpoint_wrapper(layer, offload_to_cpu=activation_offloading) if activation_checkpointing else layer
+                activation_checkpoint_wrapper(layer, offload_to_cpu=activation_offloading)
+                if activation_checkpointing else layer
             )
 
         def self_attn():
@@ -926,3 +928,29 @@ class CausalSequenceModel(PerceiverAR):
 
         output.logits = self.output_adapter(output.last_hidden_state, txt_embedding=self.input_adapter.txt_embedding)
         return output
+
+
+def activation_checkpoint_wrapper(module: AbstractAttentionLayer, offload_to_cpu: bool = False):
+    abstract_attention_layer_original_forward = AbstractAttentionLayer.forward
+
+    module._activation_checkpointing_enabled = True
+
+    def _abstract_attention_layer_patched_forward(self, *args, **kwargs):
+        output = abstract_attention_layer_original_forward(self, *args, **kwargs)
+        if hasattr(self, "_activation_checkpointing_enabled") and self.training and isinstance(output, ModuleOutput):
+            return output.last_hidden_state
+        return output
+
+    AbstractAttentionLayer.forward = _abstract_attention_layer_patched_forward
+
+    module = checkpoint_wrapper(module, offload_to_cpu=offload_to_cpu)
+    module_original_forward = module.forward
+
+    def _module_patched_forward(*args, **kwargs):
+        output = module_original_forward(*args, **kwargs)
+        if isinstance(output, ModuleOutput):
+            return output
+        return ModuleOutput(last_hidden_state=output, kv_cache=None)
+
+    module.forward = _module_patched_forward
+    return module

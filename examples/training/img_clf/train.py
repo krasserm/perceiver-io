@@ -47,7 +47,6 @@ config = ImageClassifierConfig(
     num_latent_channels=128,
 )
 
-
 if __name__ == "__main__":
     lit_model = LitImageClassifier.create(config)
 
@@ -55,7 +54,7 @@ if __name__ == "__main__":
         accelerator="gpu",
         devices=2,
         max_epochs=30,
-        strategy=DDPStrategy(find_unused_parameters=False),
+        strategy=DDPStrategy(find_unused_parameters=False, static_graph=True),
         logger=TensorBoardLogger(save_dir="logs", name="img_clf"),
     )
 
